@@ -1,0 +1,9 @@
+.venv/
+.vscode/
+build/
+install/
+**/__pycache__/
+**/*.pyc
+log/latest
+log/latest_list
+log/list_*/
