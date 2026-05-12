@@ -1,0 +1,12 @@
+[submodule "src/pyAgxArm"]
+	path = src/pyAgxArm
+	url = git@github.com:charithmu/pyAgxArm.git
+[submodule "src/agx_arm_ros"]
+	path = src/agx_arm_ros
+	url = git@github.com:charithmu/agx_arm_ros.git
+[submodule "src/agx_arm_motion"]
+	path = src/agx_arm_motion
+	url = git@github.com:charithmu/agx_arm_motion.git
+[submodule "src/agx_arm_gzsim"]
+	path = src/agx_arm_gzsim
+	url = git@github.com:charithmu/agx_arm_gzsim.git
