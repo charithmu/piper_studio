@@ -504,8 +504,16 @@ place to make architecture calls.
   per the table above.** The supervisor itself remains on Opus.
 - Independent agents in the same wave should be launched in a single
   message (multiple `Agent` tool calls) so they run concurrently.
-- `isolation: worktree` for each agent so concurrent edits do not collide
-  on disk. The supervisor merges worktrees back after acceptance.
+- **Submodule isolation policy** (the workspace is a superrepo with each
+  workspace package as a git submodule): do **not** use `isolation:
+  worktree` on the superrepo — a worktree of the super gives empty
+  submodule directories. Instead, each agent works directly inside its
+  target submodule on a feature branch `feat/wave<N>-<agent>` (for
+  example `feat/wave0-motion-gen`, `feat/wave0-eyes-core`). The agent
+  commits inside the submodule only. After acceptance the supervisor
+  bumps the super-repo pointer in a single follow-up commit. Two agents
+  in the same wave must touch disjoint submodules — this is already true
+  by construction in every wave plan above.
 - `Plan` agent (Sonnet by default is fine) if a wave-level design call
   needs to be reconsidered.
 - `Bash` for the smoke-test commands above.
