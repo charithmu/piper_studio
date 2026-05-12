@@ -10,3 +10,15 @@
 [submodule "src/agx_arm_gzsim"]
 	path = src/agx_arm_gzsim
 	url = git@github.com:charithmu/agx_arm_gzsim.git
+[submodule "src/agx_arm_detect"]
+	path = src/agx_arm_detect
+	url = git@github.com:charithmu/agx_arm_detect.git
+[submodule "src/agx_arm_eyes"]
+	path = src/agx_arm_eyes
+	url = git@github.com:charithmu/agx_arm_eyes.git
+[submodule "src/agx_arm_graspgen"]
+	path = src/agx_arm_graspgen
+	url = git@github.com:charithmu/agx_arm_graspgen.git
+[submodule "src/agx_arm_manipulation"]
+	path = src/agx_arm_manipulation
+	url = git@github.com:charithmu/agx_arm_manipulation.git
