@@ -4,6 +4,8 @@
 
 The 2026-10-08 legacy snapshot and earlier plans are preserved on separate archive/planning branches. The proposed official-stack migration, control hierarchy, optional planning and learning profiles, and validation roadmap are in [docs/overhaul/README.md](docs/overhaul/README.md). The archived workflows below have not been revalidated; see the audit and preservation record before using them.
 
+New agents should read [TAKEOVER.md](TAKEOVER.md) for the original user instructions, complete session context, commit/branch state, unresolved approvals, and continuation procedure.
+
 The current development strategy is:
 
 - keep `pyAgxArm` as the authoritative low-level SDK,

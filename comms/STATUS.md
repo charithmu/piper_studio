@@ -37,3 +37,11 @@
 - Full evidence and restore instructions are in `docs/overhaul/PRESERVATION.md`; architecture and bounded jobs are in `ARCHITECTURE.md` and `ROADMAP.md`.
 - Local commit work and design proposal are complete. Remote publication is not complete: exact-destination authorization is still pending after automatic approval review rejected the batch.
 - No implementation overhaul, vendor source update, dependency install, simulator run, or hardware command has started.
+
+## 2026-10-08 16:05 UTC step 5: self-contained agent takeover document
+- User requested a complete takeover file covering the initial instruction, plan, all work, changes/decisions, and remaining tasks.
+- Created `TAKEOVER.md` without replacing the original `HANDOFF.md`; linked it from the root and overhaul READMEs.
+- Includes original startup wording, later scope/authorization changes, latest AGENTS rules, machine boundaries, audit/research, preserved refs and orphan model, proposed hierarchy, phases/acceptance criteria, pending questions, and startup instructions for a new agent.
+- Distinguishes local commits from publication and proposals from implemented/tested behavior. Exact-destination approval remains unanswered; no push retried or executed.
+- Checked 29 local links in the takeover file and verified the recorded legacy-bundle checksum. Installed metadata versions were rechecked without importing the SDK or invoking hardware.
+- Source repositories were clean at task start. Save this documentation on the current planning branch; no runtime/source migration is part of this task.

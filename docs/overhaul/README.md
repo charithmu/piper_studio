@@ -4,6 +4,8 @@ Date: 2026-10-08. Status: proposed architecture for user review; implementation 
 
 The objective is a reproducible workspace for the standard Piper and AgileX gripper, with Gazebo, MuJoCo, Isaac, and hardware profiles; multiple control levels; optional MoveIt; reproducible data collection; and adapters that permit later camera and robot-platform integration.
 
+For agent replacement, read the self-contained [session takeover document](../../TAKEOVER.md), which records the initial instruction, evolving scope, actual work, approvals, and next steps.
+
 The existing implementation is preserved on `archive/legacy-work-20261008`. Historical plans and the new proposal are on `planning/overhaul-20261008`. Archive status is not a claim that the legacy stack builds or operates correctly.
 
 - [Preservation record](PRESERVATION.md): commits, additional branch tips, backup, and the unpublished description commit.
