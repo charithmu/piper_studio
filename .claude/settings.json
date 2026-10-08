@@ -80,12 +80,19 @@
       "Bash(cmake *)",
       "Bash(ninja *)",
       "Bash(./scripts/piper_studio.sh *)",
-      "Bash(scripts/piper_studio.sh *)"
+      "Bash(scripts/piper_studio.sh *)",
+      "Bash(git push origin *)",
+      "Bash(git push -u origin *)",
+      "Bash(git push git@github.com:charithmu/piper_studio.git *)"
     ],
     "deny": [
       "Bash(rm -rf /*)",
-      "Bash(git push *)",
       "Bash(git push --force *)",
+      "Bash(git push -f *)",
+      "Bash(git push * --force*)",
+      "Bash(git push * -f)",
+      "Bash(git push * --delete *)",
+      "Bash(git push * :*)",
       "Bash(git reset --hard *)"
     ]
   }
