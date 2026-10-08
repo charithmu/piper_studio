@@ -12,7 +12,7 @@ This file is intended to be edited directly as the roadmap changes.
 
 ## Phase 1: camera adapter stack
 
-- [x] Create `agx_arm_eyes`
+- [x] Create `agx_arm_wristcam`
 - [ ] Define the standard wrist camera topic contract
 - [ ] Define the standard wrist camera TF contract
 - [ ] Add support for RealSense D435
@@ -23,7 +23,7 @@ This file is intended to be edited directly as the roadmap changes.
 
 ## Phase 2: eye-in-hand calibration
 
-- [x] Keep calibration support inside `agx_arm_eyes` for now
+- [x] Keep calibration support inside `agx_arm_wristcam` for now
 - [ ] Add MoveIt calibration workflow launch files
 - [ ] Define where calibration profiles are stored in-version
 - [ ] Define profile metadata fields

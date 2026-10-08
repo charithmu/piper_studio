@@ -15,7 +15,7 @@ The current development strategy is:
 - `src/agx_arm_ros`: upstream-frozen ROS 2 driver, descriptions, messages, and MoveIt config
 - `src/agx_arm_gzsim`: workspace-owned Gazebo Harmonic simulation overlay for Piper + gripper (we may extend it as needed)
 - `src/agx_arm_motion`: MoveItPy-based motion convenience layer, currently simulation-first
-- `src/agx_arm_eyes`: scaffolded camera adapter and eye-in-hand calibration package
+- `src/agx_arm_wristcam`: scaffolded camera adapter and eye-in-hand calibration package
 - `src/agx_arm_detect`: scaffolded camera-agnostic detection package, starting with AprilTags
 - `src/agx_arm_graspgen`: scaffolded grasp-candidate generation package
 - `src/agx_arm_manipulation`: scaffolded task-level manipulation package
@@ -48,7 +48,7 @@ colcon build --packages-select \
   agx_arm_msgs \
   agx_arm_gzsim \
   agx_arm_motion \
-  agx_arm_eyes \
+  agx_arm_wristcam \
   agx_arm_detect \
   agx_arm_graspgen \
   agx_arm_manipulation
@@ -161,7 +161,7 @@ If you have multiple CAN adapters connected, pass `--usb-address` as well.
 | MoveIt demo only | `./scripts/piper_studio.sh moveit-demo ...` | Available now | No Gazebo, optional real follow |
 | One-shot TCP move | `./scripts/piper_studio.sh motion-once ...` | Available now, sim-first | `agx_arm_motion` still tied to sim assets |
 | Persistent pose server | `./scripts/piper_studio.sh motion-server` | Available now, sim-first | Same limitation as above |
-| `agx_arm_eyes` | Scaffolded | Interfaces and goals documented | Camera adapter and calibration implementation pending |
+| `agx_arm_wristcam` | Scaffolded | Interfaces and goals documented | Camera adapter and calibration implementation pending |
 | `agx_arm_detect` | Scaffolded | Interfaces and goals documented | AprilTag pipeline implementation pending |
 | `agx_arm_graspgen` | Scaffolded | Interfaces and goals documented | Candidate-generation implementation pending |
 | `agx_arm_manipulation` | Scaffolded | Interfaces and goals documented | Task-level behaviors implementation pending |

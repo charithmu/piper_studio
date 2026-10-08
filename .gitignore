@@ -7,3 +7,5 @@ install/
 log/latest
 log/latest_list
 log/list_*/
+log/**
+for_reference/**

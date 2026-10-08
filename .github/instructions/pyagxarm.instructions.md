@@ -5,6 +5,17 @@ applyTo: "src/pyAgxArm/**"
 
 # pyAgxArm Instructions
 
+## Environment Setup — Required Before Any Command
+
+Always activate the workspace venv before running SDK tests or tooling:
+
+```bash
+source /opt/ros/jazzy/setup.bash
+source <workspace_root>/.venv/bin/activate
+```
+
+ROS distro is **jazzy**. The workspace venv is `.venv/` at the workspace root.
+
 - `src/pyAgxArm` is a standalone Python SDK that remains in this workspace for coordinated development but is intentionally excluded from `colcon build` by `COLCON_IGNORE`.
 - Use the workspace `.venv` for SDK installs, tests, and tooling. Prefer editable installs or direct local test runs over changing the colcon strategy.
 - Preserve cross-platform CAN interface behavior and docs: Linux `socketcan`, Windows `agx_cando`, and macOS `slcan`.

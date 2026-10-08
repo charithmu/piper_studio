@@ -53,8 +53,8 @@ Commands:
   viz             Visualization workflow with --backend sim|real
   moveit          Planning workflow with --backend sim|real
   moveit-demo     RViz + MoveIt demo from agx_arm_moveit
-  motion-once     One-shot TCP motion goal via agx_arm_motion (currently sim-only)
-  motion-server   Pose goal server via agx_arm_motion (currently sim-only)
+  motion-once     One-shot TCP motion goal via agx_arm_motion (sim or real backend)
+  motion-server   Pose goal server via agx_arm_motion (sim or real backend)
   setup-can       Run the upstream single-CAN activation helper
   scan-can        Show detected CAN interfaces and USB bus addresses
   help            Show this help
@@ -104,9 +104,9 @@ Examples:
 
 Notes:
   - The script activates .venv and sources install/setup.bash when available.
-  - agx_arm_motion currently loads agx_arm_gzsim assets and use_sim_time=true, so
-    motion-once and motion-server are simulation-first commands for now.
-  - The sim viz and sim MoveIt commands currently target the Piper + gripper Gazebo stack.
+  - motion-once and motion-server support --backend sim|real.  Both require a
+    running move_group: start it first with 'moveit --backend sim|real'.
+  - The sim viz and sim MoveIt commands target the Piper + gripper Gazebo stack.
 EOF
 }
 
@@ -314,10 +314,8 @@ case "$command_name" in
     ;;
 
   motion-once)
-    if [[ "$backend" != "sim" ]]; then
-      die "motion-once is currently sim-only because agx_arm_motion launch files hardcode agx_arm_gzsim assets and use_sim_time=true"
-    fi
     launch_args=(
+      "backend:=$backend"
       "x:=$x"
       "y:=$y"
       "z:=$z"
@@ -330,10 +328,10 @@ case "$command_name" in
     ;;
 
   motion-server)
-    if [[ "$backend" != "sim" ]]; then
-      die "motion-server is currently sim-only because agx_arm_motion launch files hardcode agx_arm_gzsim assets and use_sim_time=true"
-    fi
-    run_cmd ros2 launch agx_arm_motion pose_goal_server.launch.py
+    launch_args=(
+      "backend:=$backend"
+    )
+    run_cmd ros2 launch agx_arm_motion pose_goal_server.launch.py "${launch_args[@]}"
     ;;
 
   setup-can)

@@ -15,7 +15,7 @@ This document is the human-editable design reference for the workspace. It shoul
 - `agx_arm_ros` already provides the hardware bridge, URDFs, messages, and MoveIt config for multiple arm and effector variants.
 - `agx_arm_gzsim` provides the current Gazebo Harmonic simulation overlay for Piper + gripper. It is workspace-owned (not upstream-frozen like `agx_arm_ros` and `pyAgxArm`) and may be improved when needed to keep sim/real parity or host sim-side launch glue.
 - `agx_arm_motion` provides MoveItPy-based motion convenience commands, but its launch files are currently tied to `agx_arm_gzsim` and `use_sim_time:=true`, need to change to support both sim and real, and have not yet been validated on real hardware.
-- `agx_arm_eyes`, `agx_arm_detect`, `agx_arm_graspgen`, and `agx_arm_manipulation` are scaffolded with package-local goals and agent guidance, but their runtime implementation is still pending.
+- `agx_arm_wristcam`, `agx_arm_detect`, `agx_arm_graspgen`, and `agx_arm_manipulation` are scaffolded with package-local goals and agent guidance, but their runtime implementation is still pending.
 
 ## Design Principles
 
@@ -27,7 +27,7 @@ This document is the human-editable design reference for the workspace. It shoul
 
 ## Proposed Package Roadmap
 
-### 1. `agx_arm_eyes`
+### 1. `agx_arm_wristcam`
 
 Purpose:
 
@@ -63,11 +63,11 @@ Suggested file layout:
 - `launch/oakd.launch.py`
 - `config/mounts/*.yaml`
 - `config/calibration/<arm>/<camera>/<mount>/<profile>.yaml`
-- `agx_arm_eyes/*.py`
+- `agx_arm_wristcam/*.py`
 
 ### 2. Eye-in-hand calibration support
 
-This can live inside `agx_arm_eyes`.
+This can live inside `agx_arm_wristcam`.
 
 Responsibilities:
 
