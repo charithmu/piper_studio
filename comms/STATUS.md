@@ -29,3 +29,11 @@
 - Markdown links, JSON records, and all 11 top-level gitlink mappings validated. Root agent environment examples now use the correct relocated path.
 - Push remains pending the exact-destination authorization question; no remote mutation has been executed.
 - Next implementation job after design review: classify saved local patches against official candidates and produce the migration matrix (30–45 minutes, excluding builds/downloads).
+
+## 2026-10-08 15:54 UTC step 4: local preservation/design handover
+- Final source-status check: all 13 repositories clean; existing main remains `1bcd80e`.
+- Legacy archive is `f6aa65b`; historical plans `2f5f491`; recovered description `fe567e8`; new proposal `4b342ba`.
+- Checked 15 local documentation links, JSON parsing, all 11 superrepo submodule mappings, and exact legacy-description recovery in an isolated repository.
+- Full evidence and restore instructions are in `docs/overhaul/PRESERVATION.md`; architecture and bounded jobs are in `ARCHITECTURE.md` and `ROADMAP.md`.
+- Local commit work and design proposal are complete. Remote publication is not complete: exact-destination authorization is still pending after automatic approval review rejected the batch.
+- No implementation overhaul, vendor source update, dependency install, simulator run, or hardware command has started.
