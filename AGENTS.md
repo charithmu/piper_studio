@@ -40,8 +40,8 @@ Before running **any** ROS 2 command, build, test, or launch, source all three l
 
 ```bash
 source /opt/ros/jazzy/setup.bash
-source /home/atlasdev/projects/ros2_projects/piper_studio/.venv/bin/activate
-source /home/atlasdev/projects/ros2_projects/piper_studio/install/setup.bash  # only after first build
+source /home/atlasdev/projects/dev/ros2_projects/piper_studio/.venv/bin/activate
+source /home/atlasdev/projects/dev/ros2_projects/piper_studio/install/setup.bash  # only after first build
 ```
 
 - ROS distro is **jazzy** at `/opt/ros/jazzy`.
@@ -75,3 +75,10 @@ source /home/atlasdev/projects/ros2_projects/piper_studio/install/setup.bash  # 
 - `src/agx_arm_ros/README.md`
 - `src/agx_arm_ros/src/agx_arm_moveit/README.md`
 - `src/pyAgxArm/README.md`
+
+## Preservation and overhaul planning (2026-10-08)
+
+- Read `comms/INBOX.md` and keep progress/questions in the communication files.
+- Existing implementation and later local branch tips are archived; see `docs/overhaul/PRESERVATION.md` before changing submodule pins or consolidating repositories.
+- The active overhaul proposal and acceptance roadmap are under `docs/overhaul/`. They are proposals, not evidence of implemented or tested behavior.
+- Current user authorization covers source preservation and design. Upstream migration and repository consolidation follow the agreed design; hardware movement, firmware changes, and shared/system installs require their separate approvals.

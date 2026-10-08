@@ -1,0 +1,137 @@
+{
+  "date": "2026-10-08",
+  "status": "locally_committed; push_pending_exact_destination_authorization",
+  "legacy_superrepo_commit": "f6aa65b",
+  "historical_planning_commit": "2f5f491",
+  "legacy_branch": "archive/legacy-work-20261008",
+  "planning_branch": "planning/overhaul-20261008",
+  "backup": "/tmp/piper-studio-preservation-20261008T153911Z",
+  "package_refs": [
+    {
+      "repo": "src/pyAgxArm",
+      "branch": "archive/legacy-work-20261008",
+      "sha": "cd6f878df75c55c3dfd0c3abb91e3e8cbe384b5b",
+      "remote": "git@github.com:charithmu/pyAgxArm.git",
+      "published": false
+    },
+    {
+      "repo": "src/agx_arm_ros",
+      "branch": "archive/legacy-branch-tip-20261008",
+      "sha": "6d7ec4703a3e61288129e631280212211298a93b",
+      "original_branch": "ros2",
+      "remote": "git@github.com:charithmu/agx_arm_ros.git",
+      "published": false
+    },
+    {
+      "repo": "src/agx_arm_ros",
+      "branch": "archive/legacy-work-20261008",
+      "sha": "125ebe2917d121b42cef16222c7faefcf8a6ee24",
+      "remote": "git@github.com:charithmu/agx_arm_ros.git",
+      "published": false
+    },
+    {
+      "repo": "src/agx_arm_gzsim",
+      "branch": "archive/legacy-branch-tip-20261008",
+      "sha": "0ff53338fb70cf8e47f73ca6e90ae4594bb53f5a",
+      "original_branch": "main",
+      "remote": "git@github.com:charithmu/agx_arm_gzsim.git",
+      "published": false
+    },
+    {
+      "repo": "src/agx_arm_gzsim",
+      "branch": "archive/legacy-work-20261008",
+      "sha": "735e076615b36e735f980cc22913443d1acc279f",
+      "remote": "git@github.com:charithmu/agx_arm_gzsim.git",
+      "published": false
+    },
+    {
+      "repo": "src/agx_arm_motion",
+      "branch": "archive/legacy-work-20261008",
+      "sha": "235fdd602e67ff5d6ae36b8dcdaff05566f5c3cf",
+      "remote": "git@github.com:charithmu/agx_arm_motion.git",
+      "published": false
+    },
+    {
+      "repo": "src/agx_arm_detect",
+      "branch": "archive/legacy-branch-tip-20261008",
+      "sha": "20f0e7da66c3841615d43cc4b406d6f5d3ccd304",
+      "original_branch": "main",
+      "remote": "git@github.com:charithmu/agx_arm_detect.git",
+      "published": false
+    },
+    {
+      "repo": "src/agx_arm_detect",
+      "branch": "archive/legacy-work-20261008",
+      "sha": "20678a329c7c08aca544347f5b7fd576cf0341fd",
+      "remote": "git@github.com:charithmu/agx_arm_detect.git",
+      "published": false
+    },
+    {
+      "repo": "src/agx_arm_wristcam",
+      "branch": "archive/legacy-branch-tip-20261008",
+      "sha": "fac10b0f1031dee46ec2eafecdbc07b033cfd9a2",
+      "original_branch": "main",
+      "remote": "git@github.com:charithmu/agx_arm_eyes.git",
+      "published": false
+    },
+    {
+      "repo": "src/agx_arm_wristcam",
+      "branch": "archive/legacy-work-20261008",
+      "sha": "3a4d689b6040b0734dac028aab3bc34a122a83dc",
+      "remote": "git@github.com:charithmu/agx_arm_eyes.git",
+      "published": false
+    },
+    {
+      "repo": "src/agx_arm_graspgen",
+      "branch": "archive/legacy-branch-tip-20261008",
+      "sha": "4b29e09d4f0105c8c7f88a15fc0e91ecb325175a",
+      "original_branch": "main",
+      "remote": "git@github.com:charithmu/agx_arm_graspgen.git",
+      "published": false
+    },
+    {
+      "repo": "src/agx_arm_graspgen",
+      "branch": "archive/legacy-work-20261008",
+      "sha": "4f3b99b21eb2a246f4b43b7a7f4c2a236f8a1db2",
+      "remote": "git@github.com:charithmu/agx_arm_graspgen.git",
+      "published": false
+    },
+    {
+      "repo": "src/agx_arm_manipulation",
+      "branch": "archive/legacy-branch-tip-20261008",
+      "sha": "16dc98b481ce62076876cc97181849dc32c2d949",
+      "original_branch": "main",
+      "remote": "git@github.com:charithmu/agx_arm_manipulation.git",
+      "published": false
+    },
+    {
+      "repo": "src/agx_arm_manipulation",
+      "branch": "archive/legacy-work-20261008",
+      "sha": "7b814f42fa411189ec2946595c6edb1924b309cb",
+      "remote": "git@github.com:charithmu/agx_arm_manipulation.git",
+      "published": false
+    },
+    {
+      "repo": "src/agx_arm_workspace",
+      "branch": "archive/legacy-work-20261008",
+      "sha": "2164dd2155f60098a7107f8d5e2cec3d0b2cf13c",
+      "remote": "git@github.com:charithmu/agx_arm_workspace.git",
+      "published": false
+    },
+    {
+      "repo": "src/agx_arm_mjsim",
+      "branch": "archive/legacy-work-20261008",
+      "sha": "95f6d895483d941f3e933dae2e6ab2ffbd205409",
+      "remote": "git@github.com:charithmu/agx_arm_mjsim.git",
+      "published": false
+    }
+  ],
+  "legacy_description": {
+    "sha": "f56478761ebbb4e038270fec1e3f6f760f83a131",
+    "branch": "archive/legacy-tcp-description-20261008",
+    "base": "3080af4b579238c850b709c411abdc88fc930c82",
+    "bundle": "legacy/agx_arm_urdf-tcp.bundle",
+    "patch": "legacy/agx_arm_urdf-tcp.patch",
+    "published_as": "portable bundle/patch in superrepo planning branch; no push to official vendor repository"
+  }
+}

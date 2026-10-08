@@ -1,0 +1,25 @@
+{
+  "verified_date": "2026-10-08",
+  "method": "git ls-remote against official GitHub repositories",
+  "status": "research candidates; not a tested compatibility lock",
+  "sources": [
+    {
+      "name": "pyAgxArm",
+      "url": "https://github.com/agilexrobotics/pyAgxArm.git",
+      "branch": "master",
+      "sha": "841a625f5f4920e776f20b934eb13048b747e6d0"
+    },
+    {
+      "name": "agx_arm_ros",
+      "url": "https://github.com/agilexrobotics/agx_arm_ros.git",
+      "branch": "ros2",
+      "sha": "e4ccec1999279d063c2962030b9437b78b0d0db6"
+    },
+    {
+      "name": "agx_arm_urdf",
+      "url": "https://github.com/agilexrobotics/agx_arm_urdf.git",
+      "branch": "main",
+      "sha": "983788b58d7eae76511177f768d85877534917fe"
+    }
+  ]
+}
