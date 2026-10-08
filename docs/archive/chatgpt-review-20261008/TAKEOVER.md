@@ -250,9 +250,9 @@ Exact commit: `f56478761ebbb4e038270fec1e3f6f760f83a131`; parent `3080af4b579238
 
 It previously had no ref in the nested description repository. A local `archive/legacy-tcp-description-20261008` branch was created. The exact commit is now preserved in:
 
-- [Git bundle](docs/overhaul/legacy/agx_arm_urdf-tcp.bundle), 1,272 bytes.
-- [Readable patch](docs/overhaul/legacy/agx_arm_urdf-tcp.patch), 3,317 bytes.
-- [Restore instructions](docs/overhaul/legacy/README.md).
+- [Git bundle](docs/archive/legacy-tcp-description/agx_arm_urdf-tcp.bundle), 1,272 bytes.
+- [Readable patch](docs/archive/legacy-tcp-description/agx_arm_urdf-tcp.patch), 3,317 bytes.
+- [Restore instructions](docs/archive/legacy-tcp-description/README.md).
 
 Bundle SHA256: `5bb8297a657dc0b099391087b137067b95ec5beec62bfee718286aba5b6334d4`. Verification passed. Recovery into `/tmp/piper-studio-preservation-20261008T153911Z/description-restore-check`, cloned from the original backup, recovered the exact commit and both file blobs.
 
@@ -403,7 +403,7 @@ Do not use `git submodule update --remote`, reset, recursive branch checkout, or
 - [Preservation record](docs/overhaul/PRESERVATION.md) and [full ref inventory](docs/overhaul/preservation.json).
 - [Audit](docs/overhaul/AUDIT.md), [architecture](docs/overhaul/ARCHITECTURE.md), [roadmap](docs/overhaul/ROADMAP.md).
 - [Research sources](docs/overhaul/UPSTREAMS.md) and [official candidate SHAs](docs/overhaul/official-candidates.json).
-- [Legacy model recovery](docs/overhaul/legacy/README.md).
+- [Legacy model recovery](docs/archive/legacy-tcp-description/README.md).
 - [Status](comms/STATUS.md), [questions](comms/NEEDS_USER.md), [inbox](comms/INBOX.md), [integration facts](comms/FOR_OTHERS.md).
 
 This document is a timestamped handoff, not an automatic authority over later user instructions or live repository state. Its most important distinctions are: **archived versus working, proposed versus approved, researched versus tested, and committed locally versus published**. Preserve those distinctions in every continuation report.

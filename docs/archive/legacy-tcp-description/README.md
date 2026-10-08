@@ -11,7 +11,7 @@ The saved ROS branch tip `6d7ec47` references nested description commit `f564787
 Restore the ref only in an initialized description repository containing the parent. From the superrepo root:
 
 ```bash
-git -C src/agx_arm_ros/src/agx_arm_description/agx_arm_urdf fetch "$PWD/docs/overhaul/legacy/agx_arm_urdf-tcp.bundle" refs/heads/archive/legacy-tcp-description-20261008:refs/heads/archive/legacy-tcp-description-20261008
+git -C src/agx_arm_ros/src/agx_arm_description/agx_arm_urdf fetch "$PWD/docs/archive/legacy-tcp-description/agx_arm_urdf-tcp.bundle" refs/heads/archive/legacy-tcp-description-20261008:refs/heads/archive/legacy-tcp-description-20261008
 ```
 
 This preserves an earlier experiment. The overhaul should compare it against current official flange/TCP composition before retaining any patch.

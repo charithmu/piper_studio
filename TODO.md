@@ -8,7 +8,7 @@ This file is intended to be edited directly as the roadmap changes.
 - [x] Add a root README that explains the meta-workspace and common workflows
 - [x] Add a unified launcher script with a simple sim-versus-real switch
 - [ ] Add a root helper for selective package builds and test shortcuts if the current launcher proves insufficient
-- [ ] **Generalize `agx_arm_motion` so it can target both sim and real MoveIt configurations** (gates `agx_arm_manipulation`; see `ORCHESTRATION.md`)
+- [ ] **Generalize `agx_arm_motion` so it can target both sim and real MoveIt configurations** (gates `agx_arm_manipulation`)
 
 ## Phase 1: camera adapter stack
 

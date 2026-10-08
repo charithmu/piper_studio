@@ -2,9 +2,7 @@
 
 `piper_studio` is a ROS 2 workspace for AgileX Piper-family arms that keeps the upstream hardware and MoveIt stacks in-tree, adds simulation and higher-level motion packages on top, and is intended to grow into a full sim-to-real manipulation workspace.
 
-The 2026-10-08 legacy snapshot and earlier plans are preserved on separate archive/planning branches. The proposed official-stack migration, control hierarchy, optional planning and learning profiles, and validation roadmap are in [docs/overhaul/README.md](docs/overhaul/README.md). The archived workflows below have not been revalidated; see the audit and preservation record before using them.
-
-New agents should read [TAKEOVER.md](TAKEOVER.md) for the original user instructions, complete session context, commit/branch state, unresolved approvals, and continuation procedure.
+Legacy implementation, consolidated 2026-10-08. Historical plans and the October review notes are under [docs/archive/](docs/archive/). The workflows below have not been revalidated since the move to the current path.
 
 The current development strategy is:
 
@@ -26,7 +24,6 @@ The current development strategy is:
 - `scripts/piper_studio.sh`: root workflow launcher for common build, visualization, planning, and CAN tasks
 - `DESIGN.md`: workspace roadmap and package design
 - `TODO.md`: human-editable implementation backlog
-- `ORCHESTRATION.md`: multi-agent deployment plan (parallel vs sequential, per-agent briefs)
 
 ## Setup
 

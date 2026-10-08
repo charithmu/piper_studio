@@ -38,7 +38,7 @@ It is preserved on local branch `archive/legacy-tcp-description-20261008`, in [t
 A fresh legacy snapshot uses `3080af4` and does not require this special restore. To inspect the later ROS branch together with its exact old nested description, first initialize the original description checkout, then fetch the bundled ref from the superrepo root:
 
 ```bash
-git -C src/agx_arm_ros/src/agx_arm_description/agx_arm_urdf fetch "$PWD/docs/overhaul/legacy/agx_arm_urdf-tcp.bundle" refs/heads/archive/legacy-tcp-description-20261008:refs/heads/archive/legacy-tcp-description-20261008
+git -C src/agx_arm_ros/src/agx_arm_description/agx_arm_urdf fetch "$PWD/docs/archive/legacy-tcp-description/agx_arm_urdf-tcp.bundle" refs/heads/archive/legacy-tcp-description-20261008:refs/heads/archive/legacy-tcp-description-20261008
 ```
 
 Select that description branch only in an isolated clean checkout when inspecting the later ROS work. The new overhaul must evaluate the patch against the current official flange/TCP design; it is not automatically retained.

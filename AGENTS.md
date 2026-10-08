@@ -7,14 +7,6 @@
 - `src/agx_arm_motion`, `src/agx_arm_gzsim`, and future sibling packages are supplemental workspace packages that add motion-planning, simulation, and higher-level tooling.
 - The workspace Python environment lives in `.venv/`. Activate it before Python tooling so package installs and tests stay local to this workspace.
 
-## Deployment Discipline
-
-- Multi-agent rollout is governed by `ORCHESTRATION.md`. Each wave ends in
-  a **human checkpoint** that must pass before the next wave dispatches.
-  Outcomes are logged in `log/checkpoints.md`.
-- Agents must keep their work inside the package(s) named in their brief
-  and must not edit `agx_arm_ros` or `pyAgxArm` (upstream-frozen).
-
 ## Ownership
 
 - **Upstream-frozen, do not edit without coordination:** `src/pyAgxArm`,
@@ -69,16 +61,9 @@ source /home/atlasdev/projects/dev/ros2_projects/piper_studio/install/setup.bash
 - `README.md`
 - `DESIGN.md`
 - `TODO.md`
-- `ORCHESTRATION.md`
 - `src/agx_arm_gzsim/README.md`
 - `src/agx_arm_motion/README.md`
 - `src/agx_arm_ros/README.md`
 - `src/agx_arm_ros/src/agx_arm_moveit/README.md`
 - `src/pyAgxArm/README.md`
 
-## Preservation and overhaul planning (2026-10-08)
-
-- Read `comms/INBOX.md` and keep progress/questions in the communication files.
-- Existing implementation and later local branch tips are archived; see `docs/overhaul/PRESERVATION.md` before changing submodule pins or consolidating repositories.
-- The active overhaul proposal and acceptance roadmap are under `docs/overhaul/`. They are proposals, not evidence of implemented or tested behavior.
-- Current user authorization covers source preservation and design. Upstream migration and repository consolidation follow the agreed design; hardware movement, firmware changes, and shared/system installs require their separate approvals.

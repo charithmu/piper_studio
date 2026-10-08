@@ -2,8 +2,6 @@
 
 This document is the human-editable design reference for the workspace. It should capture the intended architecture, package boundaries, and rollout sequence for new features. Agents should follow it, but human edits are authoritative.
 
-2026-10-08: this document retains the earlier design. The proposed overhaul is in [docs/overhaul/ARCHITECTURE.md](docs/overhaul/ARCHITECTURE.md), with its staged [roadmap](docs/overhaul/ROADMAP.md). The proposal is awaiting user review and has not been implemented.
-
 ## Goals
 
 - Build a sim-first workspace for AgileX Piper-family arms that can be ported onto real hardware with minimal divergence.
