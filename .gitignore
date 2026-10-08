@@ -1,11 +1,9 @@
 .venv/
+.venv-legacy/
 .vscode/
 build/
 install/
+log/
 **/__pycache__/
 **/*.pyc
-log/latest
-log/latest_list
-log/list_*/
-log/**
-for_reference/**
+for_reference/

@@ -1,0 +1,27 @@
+<?xml version="1.0"?>
+<!-- Official agx_arm_moveit semantics (groups, end effector, collision matrix) plus Piper Studio named poses. -->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="piper">
+  <xacro:arg name="arm_type" default="piper" />
+  <xacro:arg name="effector_type" default="agx_gripper" />
+  <xacro:arg name="revo2_type" default="left" />
+  <xacro:include filename="$(find agx_arm_moveit)/config/agx_arm.srdf.xacro" />
+
+  <!-- joint2/joint3 sit 0.01 rad inside their hard stops, matching config/initial_positions.yaml. -->
+  <group_state name="rest" group="arm">
+    <joint name="joint1" value="0" />
+    <joint name="joint2" value="0.01" />
+    <joint name="joint3" value="-0.01" />
+    <joint name="joint4" value="0" />
+    <joint name="joint5" value="0" />
+    <joint name="joint6" value="0" />
+  </group_state>
+  <!-- Elbow up, tool pointing down over the area in front of the base. -->
+  <group_state name="ready" group="arm">
+    <joint name="joint1" value="0" />
+    <joint name="joint2" value="1.0" />
+    <joint name="joint3" value="-1.0" />
+    <joint name="joint4" value="0" />
+    <joint name="joint5" value="1.0" />
+    <joint name="joint6" value="0" />
+  </group_state>
+</robot>

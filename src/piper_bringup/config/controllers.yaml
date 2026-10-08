@@ -1,0 +1,45 @@
+# Shared by every backend (mock, real, gazebo, mujoco, isaac). Only the hardware plugin differs.
+#
+# Command ownership: exactly one of arm_controller (trajectories, MoveIt) and
+# arm_position_controller (streaming targets: teleop, Servo, policies) is active.
+# Switch with: ros2 control switch_controllers --activate X --deactivate Y
+controller_manager:
+  ros__parameters:
+    update_rate: 200  # agx_arm_ctrl publishes feedback at 200 Hz
+
+    joint_state_broadcaster:
+      type: joint_state_broadcaster/JointStateBroadcaster
+    arm_controller:
+      type: joint_trajectory_controller/JointTrajectoryController
+    arm_position_controller:
+      type: position_controllers/JointGroupPositionController
+    gripper_controller:
+      type: parallel_gripper_action_controller/GripperActionController
+
+arm_controller:
+  ros__parameters:
+    joints: [joint1, joint2, joint3, joint4, joint5, joint6]
+    command_interfaces: [position]
+    state_interfaces: [position, velocity]
+    allow_nonzero_velocity_at_trajectory_end: false
+    constraints:
+      stopped_velocity_tolerance: 0.02
+      goal_time: 1.0
+      joint1: {trajectory: 0.2, goal: 0.02}
+      joint2: {trajectory: 0.2, goal: 0.02}
+      joint3: {trajectory: 0.2, goal: 0.02}
+      joint4: {trajectory: 0.2, goal: 0.02}
+      joint5: {trajectory: 0.2, goal: 0.02}
+      joint6: {trajectory: 0.2, goal: 0.02}
+
+arm_position_controller:
+  ros__parameters:
+    joints: [joint1, joint2, joint3, joint4, joint5, joint6]
+
+gripper_controller:
+  ros__parameters:
+    joint: gripper  # opening width in metres
+    goal_tolerance: 0.002
+    allow_stalling: true  # a grasped object stops the fingers; report success, not failure
+    stall_timeout: 0.5
+    stall_velocity_threshold: 0.001

@@ -51,3 +51,11 @@
 - Superrepo main now pins those tips; historical plans and the ChatGPT review moved to docs/archive/. Archive/planning branches deleted (all merged).
 - Tag `legacy-final-20261008` marks the legacy state. Superrepo push pending (project settings deny `git push`; user runs it).
 - Next: new monorepo architecture on official upstream (agx_arm_ros, pyAgxArm) after user go-ahead.
+
+## 2026-10-08 18:10 UTC M1: new workspace on the official stack (Claude, branch `rewrite`)
+- Official agx_arm_ros e4ccec1 (+agx_arm_urdf 983788b) as an unmodified submodule; pyAgxArm 841a625 in .venv via uv.
+- New packages: piper_description (official model + TCP + backend switch), piper_bringup (single launch, shared controllers, MoveIt, command_guard), piper_py (API/CLI).
+- Tests pass: description unmodified vs official; mock + MoveIt end to end; real-backend plumbing with fake_driver (no arm).
+- Found and fixed: NaN commands from inactive ros2_control would reach agx_arm_ctrl as 0.0 (rest pose) -> command_guard; JTC does not enforce URDF limits -> client checks.
+- Facts for others: TCP = gripper_base + 0.138 m (flange + 0.1425 m); top-down reach only at TCP z < ~0.12 m; legacy/Menagerie MJCF kinematics differ by up to 11 mm.
+- Next: real arm read-only (user present), then Gazebo/MuJoCo/Isaac.

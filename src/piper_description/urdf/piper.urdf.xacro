@@ -1,0 +1,64 @@
+<?xml version="1.0"?>
+<!--
+  Piper Studio robot description.
+
+  Geometry, limits and inertials come unmodified from the official AgileX
+  agx_arm_urdf model (see docs/description/DECISIONS.md). This file only adds
+  workspace frames (tcp_link, optional world anchor) and the ros2_control block
+  that selects the hardware backend.
+-->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="piper">
+  <!-- mock | real | gazebo | mujoco | isaac -->
+  <xacro:arg name="hardware" default="mock" />
+  <xacro:arg name="gripper" default="true" />
+  <xacro:arg name="initial_positions_file" default="$(find piper_description)/config/initial_positions.yaml" />
+  <!-- TCP offset from gripper_base (gripper) or flange_link (no gripper). The default is the
+       fingertip centre: the finger meshes end at z = 0.138 m in gripper_base. -->
+  <xacro:arg name="tcp_xyz" default="0 0 0.138" />
+  <xacro:arg name="tcp_rpy" default="0 0 0" />
+  <!-- When set, add this link and fix base_link to it (simulators need a world anchor). -->
+  <xacro:arg name="world_link" default="" />
+  <!-- Backend-specific inputs. -->
+  <xacro:arg name="controllers_file" default="" />
+  <xacro:arg name="mujoco_model" default="" />
+
+  <xacro:property name="use_gripper" value="$(arg gripper)" />
+
+  <xacro:if value="${use_gripper}">
+    <xacro:include filename="$(find agx_arm_description)/agx_arm_urdf/piper/urdf/piper_with_gripper_description.xacro" />
+  </xacro:if>
+  <xacro:unless value="${use_gripper}">
+    <xacro:include filename="$(find agx_arm_description)/agx_arm_urdf/piper/urdf/piper_description.urdf" />
+    <!-- The gripper xacro adds flange_link; mirror it so tcp/mount frames have the same parent. -->
+    <link name="flange_link" />
+    <joint name="flange_joint" type="fixed">
+      <parent link="link6" />
+      <child link="flange_link" />
+      <origin xyz="0 0 0" rpy="0 0 0" />
+    </joint>
+  </xacro:unless>
+
+  <link name="tcp_link" />
+  <joint name="tcp_joint" type="fixed">
+    <parent link="${'gripper_base' if use_gripper else 'flange_link'}" />
+    <child link="tcp_link" />
+    <origin xyz="$(arg tcp_xyz)" rpy="$(arg tcp_rpy)" />
+  </joint>
+
+  <xacro:if value="${'$(arg world_link)' != ''}">
+    <link name="$(arg world_link)" />
+    <joint name="$(arg world_link)_to_base_joint" type="fixed">
+      <parent link="$(arg world_link)" />
+      <child link="base_link" />
+      <origin xyz="0 0 0" rpy="0 0 0" />
+    </joint>
+  </xacro:if>
+
+  <xacro:include filename="$(find piper_description)/urdf/piper.ros2_control.xacro" />
+  <xacro:piper_ros2_control
+    hardware="$(arg hardware)"
+    gripper="${use_gripper}"
+    initial_positions_file="$(arg initial_positions_file)"
+    controllers_file="$(arg controllers_file)"
+    mujoco_model="$(arg mujoco_model)" />
+</robot>

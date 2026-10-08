@@ -1,0 +1,11 @@
+# Startup joint values for simulated and mock hardware.
+# joint2 and joint3 rest on a hard stop at 0.0; start 0.01 rad inside the limit
+# so floating-point drift cannot make MoveIt reject the start state as out of bounds.
+initial_positions:
+  joint1: 0.0
+  joint2: 0.01
+  joint3: -0.01
+  joint4: 0.0
+  joint5: 0.0
+  joint6: 0.0
+  gripper: 0.0

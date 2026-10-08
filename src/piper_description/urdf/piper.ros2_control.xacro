@@ -1,0 +1,59 @@
+<?xml version="1.0"?>
+<!--
+  One ros2_control block for every backend. Joint names and interfaces are identical across
+  backends so the same controllers.yaml drives mock, real and simulated arms; only the
+  hardware plugin changes.
+
+  real: the official agx_arm_ctrl node owns the CAN bus. It publishes measured state on
+  feedback/joint_states and accepts position targets on control/joint_states.
+  JointStateTopicSystem bridges them into ros2_control so trajectory controllers track measured
+  state. Commands go through piper_bringup's command_guard (hw/joint_commands -> control/joint_states),
+  which drops NaN (published while no controller is active), out-of-limit and jump commands.
+-->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+  <xacro:macro name="piper_joint" params="name initial">
+    <joint name="${name}">
+      <command_interface name="position" />
+      <state_interface name="position">
+        <param name="initial_value">${initial}</param>
+      </state_interface>
+      <state_interface name="velocity" />
+    </joint>
+  </xacro:macro>
+
+  <xacro:macro name="piper_ros2_control" params="hardware gripper initial_positions_file controllers_file mujoco_model">
+    <xacro:property name="init" value="${xacro.load_yaml(initial_positions_file)['initial_positions']}" />
+    <xacro:property name="known" value="${['mock', 'real']}" />
+    <xacro:if value="${hardware not in known}">
+      ${xacro.fatal('hardware:=' + hardware + ' is not implemented yet; supported: ' + ', '.join(known))}
+    </xacro:if>
+
+    <ros2_control name="PiperSystem" type="system">
+      <hardware>
+        <xacro:if value="${hardware == 'mock'}">
+          <plugin>mock_components/GenericSystem</plugin>
+          <param name="calculate_dynamics">true</param>
+        </xacro:if>
+        <xacro:if value="${hardware == 'real'}">
+          <plugin>joint_state_topic_hardware_interface/JointStateTopicSystem</plugin>
+          <!-- Relative names so a namespaced launch keeps driver and hardware paired. -->
+          <param name="joint_commands_topic">hw/joint_commands</param>
+          <param name="joint_states_topic">feedback/joint_states</param>
+          <!-- Always forward the controller output; agx_arm_ctrl expects a continuous stream. -->
+          <param name="trigger_joint_command_threshold">-1</param>
+        </xacro:if>
+      </hardware>
+
+      <xacro:piper_joint name="joint1" initial="${init['joint1']}" />
+      <xacro:piper_joint name="joint2" initial="${init['joint2']}" />
+      <xacro:piper_joint name="joint3" initial="${init['joint3']}" />
+      <xacro:piper_joint name="joint4" initial="${init['joint4']}" />
+      <xacro:piper_joint name="joint5" initial="${init['joint5']}" />
+      <xacro:piper_joint name="joint6" initial="${init['joint6']}" />
+      <!-- Gripper opening width in metres (official single-DOF model; fingers are URDF mimics). -->
+      <xacro:if value="${gripper}">
+        <xacro:piper_joint name="gripper" initial="${init['gripper']}" />
+      </xacro:if>
+    </ros2_control>
+  </xacro:macro>
+</robot>

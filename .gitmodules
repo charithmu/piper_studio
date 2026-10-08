@@ -1,34 +1,3 @@
-[submodule "src/pyAgxArm"]
-	path = src/pyAgxArm
-	url = git@github.com:charithmu/pyAgxArm.git
-[submodule "src/agx_arm_ros"]
-	path = src/agx_arm_ros
-	url = git@github.com:charithmu/agx_arm_ros.git
-[submodule "src/agx_arm_motion"]
-	path = src/agx_arm_motion
-	url = git@github.com:charithmu/agx_arm_motion.git
-[submodule "src/agx_arm_gzsim"]
-	path = src/agx_arm_gzsim
-	url = git@github.com:charithmu/agx_arm_gzsim.git
-[submodule "src/agx_arm_detect"]
-	path = src/agx_arm_detect
-	url = git@github.com:charithmu/agx_arm_detect.git
-[submodule "src/agx_arm_wristcam"]
-	path = src/agx_arm_wristcam
-	url = git@github.com:charithmu/agx_arm_eyes.git
-[submodule "src/agx_arm_graspgen"]
-	path = src/agx_arm_graspgen
-	url = git@github.com:charithmu/agx_arm_graspgen.git
-[submodule "src/agx_arm_manipulation"]
-	path = src/agx_arm_manipulation
-	url = git@github.com:charithmu/agx_arm_manipulation.git
-[submodule "src/support/moveit_calibration"]
-	path = src/support/moveit_calibration
-	url = https://github.com/moveit/moveit_calibration.git
-	branch = ros2
-[submodule "src/agx_arm_workspace"]
-	path = src/agx_arm_workspace
-	url = https://github.com/charithmu/agx_arm_workspace.git
-[submodule "src/agx_arm_mjsim"]
-	path = src/agx_arm_mjsim
-	url = git@github.com:charithmu/agx_arm_mjsim.git
+[submodule "external/agx_arm_ros"]
+	path = external/agx_arm_ros
+	url = https://github.com/agilexrobotics/agx_arm_ros.git

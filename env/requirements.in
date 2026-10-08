@@ -1,0 +1,13 @@
+# Workspace Python environment (layered on /opt/ros/jazzy via --system-site-packages).
+# Compile with: uv pip compile env/requirements.in -o env/requirements.txt --python .venv/bin/python
+# numpy is pinned to the Ubuntu/ROS Jazzy ABI (python3-numpy 1.26.4); NumPy 2 breaks compiled ROS extensions.
+numpy==1.26.4
+pyAgxArm @ git+https://github.com/agilexrobotics/pyAgxArm.git@841a625f5f4920e776f20b934eb13048b747e6d0
+# Must match mujoco_vendor (libmujoco 3.12.0) used by mujoco_ros2_control.
+mujoco==3.12.0
+trimesh
+pyyaml
+lxml
+# colcon-core pulls pytest; pin it to the Ubuntu version because ROS Jazzy launch_testing breaks on pytest 8+.
+pytest==7.4.4
+colcon-common-extensions
