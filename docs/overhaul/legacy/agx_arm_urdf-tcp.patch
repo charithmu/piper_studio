@@ -1,0 +1,76 @@
+From f56478761ebbb4e038270fec1e3f6f760f83a131 Mon Sep 17 00:00:00 2001
+From: Charith Munasinghe <mung@zhaw.ch>
+Date: Fri, 15 May 2026 18:36:28 +0200
+Subject: [PATCH] chore: Add agx_arm_with_tcp URDF and XACRO as top level entry
+ points and for TCP configuration
+
+---
+ agx_arm_with_tcp.urdf.xacro | 17 +++++++++++++++++
+ agx_arm_with_tcp.xacro      | 29 +++++++++++++++++++++++++++++
+ 2 files changed, 46 insertions(+)
+ create mode 100644 agx_arm_with_tcp.urdf.xacro
+ create mode 100644 agx_arm_with_tcp.xacro
+
+diff --git a/agx_arm_with_tcp.urdf.xacro b/agx_arm_with_tcp.urdf.xacro
+new file mode 100644
+index 0000000000000000000000000000000000000000..06123f4ce0db671c52757a10ebf6627706cee39d
+--- /dev/null
++++ b/agx_arm_with_tcp.urdf.xacro
+@@ -0,0 +1,17 @@
++<?xml version="1.0"?>
++<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="agx_arm">
++  <xacro:arg name="arm_type" default="piper" />
++  <xacro:arg name="effector_type" default="none" />
++  <xacro:arg name="revo2_type" default="left" />
++  <xacro:arg name="tcp_offset_xyz" default="0 0 0" />
++  <xacro:arg name="tcp_offset_rpy" default="0 0 0" />
++
++  <xacro:include filename="$(find agx_arm_description)/agx_arm_urdf/agx_arm_with_tcp.xacro" />
++  <xacro:agx_arm_with_tcp
++    arm_type="$(arg arm_type)"
++    effector_type="$(arg effector_type)"
++    revo2_type="$(arg revo2_type)"
++    tcp_offset_xyz="$(arg tcp_offset_xyz)"
++    tcp_offset_rpy="$(arg tcp_offset_rpy)"
++  />
++</robot>
+\ No newline at end of file
+diff --git a/agx_arm_with_tcp.xacro b/agx_arm_with_tcp.xacro
+new file mode 100644
+index 0000000000000000000000000000000000000000..8cf20d337539ccd590d275304e6c3a171f874a35
+--- /dev/null
++++ b/agx_arm_with_tcp.xacro
+@@ -0,0 +1,29 @@
++<?xml version="1.0"?>
++<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
++  <xacro:macro name="agx_arm_with_tcp" params="arm_type effector_type revo2_type tcp_offset_xyz tcp_offset_rpy">
++    <xacro:property name="flange_link" value="${'link7' if arm_type == 'nero' else 'link6'}" />
++    <xacro:property name="tcp_parent_link" value="${'gripper_base' if effector_type == 'agx_gripper' else flange_link}" />
++
++    <xacro:if value="$(eval effector_type == 'agx_gripper')">
++      <xacro:include filename="$(find agx_arm_description)/agx_arm_urdf/${arm_type}/urdf/${arm_type}_with_gripper_description.xacro" />
++    </xacro:if>
++
++    <xacro:if value="$(eval effector_type == 'revo2' and revo2_type == 'left')">
++      <xacro:include filename="$(find agx_arm_description)/agx_arm_urdf/${arm_type}/urdf/${arm_type}_with_left_revo2_description.xacro" />
++    </xacro:if>
++    <xacro:if value="$(eval effector_type == 'revo2' and revo2_type == 'right')">
++      <xacro:include filename="$(find agx_arm_description)/agx_arm_urdf/${arm_type}/urdf/${arm_type}_with_right_revo2_description.xacro" />
++    </xacro:if>
++
++    <xacro:if value="$(eval effector_type == 'none')">
++      <xacro:include filename="$(find agx_arm_description)/agx_arm_urdf/${arm_type}/urdf/${arm_type}_description.urdf" />
++    </xacro:if>
++
++    <link name="tcp_link" />
++    <joint name="tcp_joint" type="fixed">
++      <parent link="${tcp_parent_link}" />
++      <child link="tcp_link" />
++      <origin xyz="${tcp_offset_xyz}" rpy="${tcp_offset_rpy}" />
++    </joint>
++  </xacro:macro>
++</robot>
+\ No newline at end of file
+-- 
+2.43.0
+
