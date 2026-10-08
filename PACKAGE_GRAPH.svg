@@ -1,0 +1,214 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="1120" viewBox="0 0 1800 1120" role="img" aria-labelledby="title desc">
+  <title id="title">Piper Studio package graph</title>
+  <desc id="desc">Overview of Piper Studio packages grouped into SDK, upstream core stack, workspace-owned simulation and workspace packages, perception and manipulation packages, and vendored support packages.</desc>
+  <defs>
+    <marker id="arrow-dark" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#45556c" />
+    </marker>
+    <marker id="arrow-dashed" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#8a6a2f" />
+    </marker>
+    <style>
+      text {
+        font-family: "Segoe UI", "Noto Sans", sans-serif;
+        fill: #1f2937;
+      }
+      .title {
+        font-size: 34px;
+        font-weight: 700;
+      }
+      .subtitle {
+        font-size: 18px;
+        fill: #4b5563;
+      }
+      .group-title {
+        font-size: 22px;
+        font-weight: 700;
+      }
+      .pkg-title {
+        font-size: 20px;
+        font-weight: 700;
+      }
+      .pkg-text {
+        font-size: 16px;
+      }
+      .legend-text {
+        font-size: 17px;
+      }
+      .group {
+        stroke-width: 2;
+        rx: 18;
+      }
+      .pkg {
+        stroke-width: 2;
+        rx: 14;
+      }
+      .solid {
+        stroke: #45556c;
+        stroke-width: 3;
+        fill: none;
+        marker-end: url(#arrow-dark);
+      }
+      .dashed {
+        stroke: #8a6a2f;
+        stroke-width: 3;
+        stroke-dasharray: 10 8;
+        fill: none;
+        marker-end: url(#arrow-dashed);
+      }
+      .edge-label {
+        font-size: 15px;
+        fill: #374151;
+      }
+      .legend-box {
+        fill: #ffffff;
+        stroke: #d1d5db;
+        stroke-width: 1.5;
+        rx: 12;
+      }
+    </style>
+  </defs>
+
+  <rect x="0" y="0" width="1800" height="1120" fill="#fbfcfe" />
+  <text x="60" y="68" class="title">Piper Studio Package Graph</text>
+  <text x="60" y="102" class="subtitle">One-diagram overview of the SDK, upstream ROS stack, simulation overlays, workspace composition, perception pipeline, and calibration support.</text>
+
+  <rect x="60" y="150" width="240" height="170" class="group" fill="#f5f7fb" stroke="#b7c3d6" />
+  <text x="80" y="185" class="group-title">Standalone SDK</text>
+
+  <rect x="85" y="210" width="190" height="88" class="pkg" fill="#e7f0ff" stroke="#245ea8" />
+  <text x="105" y="244" class="pkg-title">pyAgxArm</text>
+  <text x="105" y="268" class="pkg-text">CAN SDK</text>
+  <text x="105" y="290" class="pkg-text">standalone, not built with colcon</text>
+
+  <rect x="340" y="150" width="420" height="420" class="group" fill="#f5f7fb" stroke="#b7c3d6" />
+  <text x="360" y="185" class="group-title">Upstream-frozen core stack</text>
+
+  <rect x="370" y="220" width="160" height="95" class="pkg" fill="#e7f0ff" stroke="#245ea8" />
+  <text x="390" y="255" class="pkg-title">agx_arm_msgs</text>
+  <text x="390" y="281" class="pkg-text">custom ROS interfaces</text>
+
+  <rect x="560" y="220" width="170" height="95" class="pkg" fill="#e7f0ff" stroke="#245ea8" />
+  <text x="580" y="255" class="pkg-title">agx_arm_ctrl</text>
+  <text x="580" y="281" class="pkg-text">hardware bridge and bringup</text>
+
+  <rect x="370" y="355" width="160" height="115" class="pkg" fill="#e7f0ff" stroke="#245ea8" />
+  <text x="390" y="390" class="pkg-title">agx_arm_description</text>
+  <text x="390" y="416" class="pkg-text">URDF and Xacro</text>
+  <text x="390" y="438" class="pkg-text">robot models</text>
+
+  <rect x="560" y="355" width="170" height="115" class="pkg" fill="#e7f0ff" stroke="#245ea8" />
+  <text x="580" y="390" class="pkg-title">agx_arm_moveit</text>
+  <text x="580" y="416" class="pkg-text">base MoveIt</text>
+  <text x="580" y="438" class="pkg-text">configuration</text>
+
+  <rect x="790" y="150" width="470" height="420" class="group" fill="#f5f7fb" stroke="#b7c3d6" />
+  <text x="810" y="185" class="group-title">Workspace-owned simulation and composition</text>
+
+  <rect x="820" y="220" width="180" height="95" class="pkg" fill="#eaf8ee" stroke="#2f7d49" />
+  <text x="840" y="255" class="pkg-title">agx_arm_gzsim</text>
+  <text x="840" y="281" class="pkg-text">Gazebo Harmonic overlay</text>
+
+  <rect x="1030" y="220" width="180" height="95" class="pkg" fill="#eaf8ee" stroke="#2f7d49" />
+  <text x="1050" y="255" class="pkg-title">agx_arm_mjsim</text>
+  <text x="1050" y="281" class="pkg-text">MuJoCo overlay</text>
+
+  <rect x="820" y="355" width="180" height="125" class="pkg" fill="#eaf8ee" stroke="#2f7d49" />
+  <text x="840" y="390" class="pkg-title">agx_arm_motion</text>
+  <text x="840" y="416" class="pkg-text">MoveIt facade</text>
+  <text x="840" y="438" class="pkg-text">currently sim-first</text>
+
+  <rect x="1030" y="355" width="180" height="125" class="pkg" fill="#eaf8ee" stroke="#2f7d49" />
+  <text x="1050" y="390" class="pkg-title">agx_arm_workspace</text>
+  <text x="1050" y="416" class="pkg-text">workspace URDF</text>
+  <text x="1050" y="438" class="pkg-text">and real-arm bringup</text>
+
+  <rect x="60" y="620" width="1200" height="330" class="group" fill="#f5f7fb" stroke="#b7c3d6" />
+  <text x="80" y="655" class="group-title">Workspace-owned perception and manipulation</text>
+
+  <rect x="90" y="700" width="220" height="125" class="pkg" fill="#fff5e6" stroke="#b36b00" />
+  <text x="110" y="735" class="pkg-title">agx_arm_wristcam</text>
+  <text x="110" y="761" class="pkg-text">camera adapter</text>
+  <text x="110" y="783" class="pkg-text">and calibration</text>
+
+  <rect x="360" y="700" width="220" height="125" class="pkg" fill="#fff5e6" stroke="#b36b00" />
+  <text x="380" y="735" class="pkg-title">agx_arm_detect</text>
+  <text x="380" y="761" class="pkg-text">AprilTag and</text>
+  <text x="380" y="783" class="pkg-text">detection pipelines</text>
+
+  <rect x="630" y="700" width="220" height="125" class="pkg" fill="#fff5e6" stroke="#b36b00" />
+  <text x="650" y="735" class="pkg-title">agx_arm_graspgen</text>
+  <text x="650" y="761" class="pkg-text">grasp candidate</text>
+  <text x="650" y="783" class="pkg-text">generation</text>
+
+  <rect x="900" y="700" width="220" height="125" class="pkg" fill="#fff5e6" stroke="#b36b00" />
+  <text x="920" y="735" class="pkg-title">agx_arm_manipulation</text>
+  <text x="920" y="761" class="pkg-text">task-level behaviors</text>
+
+  <rect x="1310" y="620" width="430" height="330" class="group" fill="#f5f7fb" stroke="#b7c3d6" />
+  <text x="1330" y="655" class="group-title">Vendored support packages</text>
+
+  <rect x="1340" y="700" width="170" height="125" class="pkg" fill="#f3edf9" stroke="#6b4aa5" />
+  <text x="1360" y="735" class="pkg-title">moveit_calibration_</text>
+  <text x="1360" y="761" class="pkg-title">plugins</text>
+  <text x="1360" y="787" class="pkg-text">calibration back-end</text>
+
+  <rect x="1540" y="700" width="170" height="125" class="pkg" fill="#f3edf9" stroke="#6b4aa5" />
+  <text x="1560" y="735" class="pkg-title">moveit_calibration_</text>
+  <text x="1560" y="761" class="pkg-title">gui</text>
+  <text x="1560" y="787" class="pkg-text">RViz calibration UI</text>
+
+  <path d="M 275 254 C 370 254, 470 254, 560 254" class="solid" />
+  <text x="360" y="238" class="edge-label">authoritative low-level SDK</text>
+
+  <path d="M 530 268 C 540 268, 548 268, 560 268" class="solid" />
+
+  <path d="M 530 412 C 540 412, 548 412, 560 412" class="solid" />
+  <path d="M 530 430 C 680 430, 760 255, 820 255" class="solid" />
+  <path d="M 530 440 C 740 440, 900 255, 1030 255" class="solid" />
+
+  <path d="M 730 395 C 770 395, 790 267, 820 267" class="solid" />
+  <path d="M 730 405 C 820 405, 930 267, 1030 267" class="solid" />
+  <path d="M 730 425 C 770 425, 790 417, 820 417" class="solid" />
+  <path d="M 1000 430 C 1015 430, 1020 430, 1030 430" class="solid" />
+  <text x="867" y="454" class="edge-label">current sim profile dependency</text>
+
+  <path d="M 500 470 C 720 560, 900 560, 1120 417" class="dashed" />
+  <text x="730" y="560" class="edge-label">composes robot model</text>
+
+  <path d="M 645 315 C 760 520, 990 600, 1120 480" class="dashed" />
+  <text x="855" y="525" class="edge-label">wraps hardware bringup</text>
+
+  <path d="M 645 470 C 820 560, 1030 560, 1120 480" class="dashed" />
+  <text x="855" y="585" class="edge-label">wraps real-arm MoveIt launch</text>
+
+  <path d="M 310 762 C 620 840, 930 540, 1120 480" class="dashed" />
+  <text x="640" y="680" class="edge-label">composes selected camera into workspace model</text>
+
+  <path d="M 1510 762 C 1520 762, 1530 762, 1540 762" class="solid" />
+  <path d="M 1625 825 C 1500 910, 1260 920, 310 792" class="dashed" />
+  <text x="1360" y="905" class="edge-label">supports eye-in-hand calibration workflows</text>
+
+  <path d="M 310 740 C 330 740, 340 740, 360 740" class="dashed" />
+  <text x="315" y="720" class="edge-label">standardized camera topics and TF</text>
+
+  <path d="M 580 762 C 600 762, 610 762, 630 762" class="dashed" />
+  <text x="590" y="744" class="edge-label">tag poses and TF</text>
+
+  <path d="M 850 784 C 870 784, 880 784, 900 784" class="dashed" />
+  <text x="853" y="766" class="edge-label">grasp candidates</text>
+
+  <path d="M 1000 455 C 1065 520, 1070 625, 1010 700" class="dashed" />
+  <text x="1030" y="590" class="edge-label">motion primitives</text>
+
+  <rect x="60" y="980" width="690" height="100" class="legend-box" />
+  <text x="84" y="1015" class="group-title">Legend</text>
+  <line x1="90" y1="1050" x2="180" y2="1050" class="solid" />
+  <text x="200" y="1056" class="legend-text">Current package or architecture dependency</text>
+  <line x1="520" y1="1050" x2="610" y2="1050" class="dashed" />
+  <text x="630" y="1056" class="legend-text">Composition link or planned runtime flow</text>
+
+  <rect x="800" y="980" width="940" height="100" class="legend-box" />
+  <text x="824" y="1015" class="group-title">Reading order</text>
+  <text x="824" y="1050" class="legend-text">SDK → upstream ROS stack → simulation and workspace composition → perception pipeline → task-level manipulation</text>
+</svg>

@@ -1,0 +1,3 @@
+# Handoff note (added 2026-10-08 by the Isaac Sim session)
+
+The self-contained handoff for the agent assigned to Piper Studio is **`/home/atlasdev/projects/dev/ros2_projects/piper_studio/HANDOFF.md`** (working agreement, machine rules, mission, task list). Messages between the agent and the user/other threads go through `comms/` in this workspace (`STATUS.md`, `NEEDS_USER.md`, `INBOX.md`, `FOR_OTHERS.md`). This workspace has uncommitted user changes: back them up before touching anything, and ask before pushing to his GitHub forks. The canonical text lives in `/home/atlasdev/projects/dev/robosim/handoff/` (`piper-studio-agent.md`, `AGENT_AGREEMENT.md`).
