@@ -45,3 +45,9 @@
 - Distinguishes local commits from publication and proposals from implemented/tested behavior. Exact-destination approval remains unanswered; no push retried or executed.
 - Checked 29 local links in the takeover file and verified the recorded legacy-bundle checksum. Installed metadata versions were rechecked without importing the SDK or invoking hardware.
 - Source repositories were clean at task start. Save this documentation on the current planning branch; no runtime/source migration is part of this task.
+
+## 2026-10-08 16:40 UTC cleanup: legacy work consolidated on main (Claude)
+- All local package work merged onto each repo's main/ros2 and pushed to the charithmu forks; remote SHAs verified equal to superrepo pins.
+- Superrepo main now pins those tips; historical plans and the ChatGPT review moved to docs/archive/. Archive/planning branches deleted (all merged).
+- Tag `legacy-final-20261008` marks the legacy state. Superrepo push pending (project settings deny `git push`; user runs it).
+- Next: new monorepo architecture on official upstream (agx_arm_ros, pyAgxArm) after user go-ahead.
