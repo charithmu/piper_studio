@@ -4,6 +4,7 @@
     ros2 launch piper_bringup piper.launch.py rviz:=true
     ros2 launch piper_bringup piper.launch.py backend:=gazebo [gui:=true]
     ros2 launch piper_bringup piper.launch.py backend:=mujoco [gui:=true]
+    ros2 launch piper_bringup piper.launch.py backend:=isaac [gui:=true]   # runs Isaac Sim (GPU) via scripts/isaac.sh
     ros2 launch piper_bringup piper.launch.py backend:=real can_port:=can0
 
 backend:=real starts the official agx_arm_ctrl driver. Safety defaults:
@@ -20,8 +21,9 @@ from pathlib import Path
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import (AppendEnvironmentVariable, DeclareLaunchArgument, IncludeLaunchDescription,
-                            ExecuteProcess, OpaqueFunction, SetEnvironmentVariable)
+from launch.actions import (AppendEnvironmentVariable, DeclareLaunchArgument, ExecuteProcess, GroupAction,
+                            IncludeLaunchDescription, OpaqueFunction, RegisterEventHandler, SetEnvironmentVariable)
+from launch.event_handlers import OnProcessExit
 from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
@@ -31,7 +33,7 @@ import tempfile
 
 from piper_description import SIMULATORS, mujoco_model, physics_model, robot_description, xacro_file
 
-BACKENDS = ["mock", "real", "gazebo", "mujoco"]
+BACKENDS = ["mock", "real", "gazebo", "mujoco", "isaac"]
 
 
 def share(package: str) -> Path:
@@ -114,13 +116,16 @@ def launch_setup(context):
     else:
         active, inactive = ["joint_state_broadcaster", *commanders], ["arm_position_controller"]
 
+    spawners = [
+        Node(package="controller_manager", executable="spawner",
+             arguments=[*active, "--controller-manager-timeout", "60"], output="screen"),
+        Node(package="controller_manager", executable="spawner",
+             arguments=[*inactive, "--inactive", "--controller-manager-timeout", "60"], output="screen"),
+    ]
     actions = [
         Node(package="robot_state_publisher", executable="robot_state_publisher",
              parameters=[config.robot_description, sim_time], output="log"),
-        Node(package="controller_manager", executable="spawner",
-             arguments=[*active, "--controller-manager-timeout", "30"], output="screen"),
-        Node(package="controller_manager", executable="spawner",
-             arguments=[*inactive, "--inactive", "--controller-manager-timeout", "30"], output="screen"),
+        *([] if backend == "isaac" else spawners),  # isaac: started after /clock, below
         Node(package="moveit_ros_move_group", executable="move_group",
              parameters=[config.to_dict(), sim_time], output="screen",
              condition=IfCondition(LaunchConfiguration("moveit"))),
@@ -131,10 +136,24 @@ def launch_setup(context):
                          sim_time],
              condition=IfCondition(LaunchConfiguration("rviz"))),
     ]
-    if backend in ("mock", "real"):
-        actions.append(Node(package="controller_manager", executable="ros2_control_node",
-                            parameters=[controllers], output="screen",
-                            remappings=[("~/robot_description", "/robot_description")]))
+    if backend in ("mock", "real", "isaac"):
+        control = Node(package="controller_manager", executable="ros2_control_node",
+                       parameters=[controllers, sim_time], output="screen",
+                       remappings=[("~/robot_description", "/robot_description")])
+        if backend == "isaac":
+            # Controllers on sim time cannot activate before Isaac's /clock ticks; Isaac takes ~30 s to start.
+            wait = Node(package="piper_bringup", executable="wait_for_clock.py", output="screen",
+                        arguments=["240"], parameters=[{"use_sim_time": False}])
+            actions.append(wait)
+            actions.append(RegisterEventHandler(OnProcessExit(
+                target_action=wait, on_exit=[control, *spawners])))
+        else:
+            actions.append(control)
+    if backend == "isaac" and arg("isaac_runner") == "true":
+        # Isaac Sim is a separate process in its own environment; it must use this launch's ROS_DOMAIN_ID.
+        actions.append(ExecuteProcess(
+            cmd=[arg("isaac_script"), "run", *(["--gui"] if arg("gui") == "true" else [])],
+            output="screen", sigterm_timeout="20", sigkill_timeout="30"))
     if backend == "gazebo":
         actions += gazebo(arg("gui") == "true", urdf)
     if backend == "mujoco":
@@ -165,6 +184,10 @@ def generate_launch_description():
         DeclareLaunchArgument("rviz", default_value="false", choices=["true", "false"]),
         DeclareLaunchArgument("gui", default_value="false", choices=["true", "false"],
                               description="simulators: show the simulator GUI"),
+        DeclareLaunchArgument("isaac_runner", default_value="true", choices=["true", "false"],
+                              description="isaac only: start Isaac Sim (false: you run scripts/isaac.sh yourself)"),
+        DeclareLaunchArgument("isaac_script", default_value=os.path.join(os.environ.get("PIPER_STUDIO_WS", "."), "scripts/isaac.sh"),
+                              description="isaac only: path of scripts/isaac.sh"),
         DeclareLaunchArgument("can_port", default_value="can0"),
         DeclareLaunchArgument("auto_enable", default_value="false", choices=["true", "false"],
                               description="real only: enable motors at driver start"),

@@ -42,6 +42,7 @@ ros2 launch piper_bringup piper.launch.py                 # mock hardware + Move
 ros2 launch piper_bringup piper.launch.py rviz:=true      # with RViz
 ros2 launch piper_bringup piper.launch.py backend:=gazebo [gui:=true]   # Gazebo Harmonic
 ros2 launch piper_bringup piper.launch.py backend:=mujoco [gui:=true]   # MuJoCo (model generated at launch)
+ros2 launch piper_bringup piper.launch.py backend:=isaac    # Isaac Sim, own process on the GPU; see isaac/README.md
 ros2 launch piper_description view.launch.py              # model only, joint sliders
 ```
 

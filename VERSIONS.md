@@ -34,4 +34,4 @@ The tested combination. Source revisions are authoritative in git (submodule pin
 | real plumbing (ros2_control <-> driver topics, command guard) | pass, **no arm** | `piper_py/test/test_real_plumbing.py` with `fake_driver` |
 | real arm | not run | needs the user present |
 | MuJoCo 3.12 + MoveIt + piper_py | pass (provisional actuator model) | `piper_py/test/test_bringup.py` [mujoco]; `piper_bringup/test/test_mujoco_model.py` (FK = official to 1e-6 m, finger coupling) |
-| Isaac Sim | not started | |
+| Isaac Sim 6.1 + MoveIt + piper_py | pass (opt-in: uses the GPU) | `PIPER_TEST_BACKENDS=isaac`; fingers verified against Isaac ground truth (±0.5 × gripper) |

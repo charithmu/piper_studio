@@ -11,19 +11,21 @@
   which drops NaN (published while no controller is active), out-of-limit and jump commands.
 -->
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro">
-  <xacro:macro name="piper_joint" params="name initial">
+  <xacro:macro name="piper_joint" params="name initial effort:=false">
     <joint name="${name}">
       <command_interface name="position" />
       <state_interface name="position">
         <param name="initial_value">${initial}</param>
       </state_interface>
       <state_interface name="velocity" />
+      <!-- Isaac's joint-state publisher always sends efforts; JointStateTopicSystem needs the interface. -->
+      <xacro:if value="${effort}"><state_interface name="effort" /></xacro:if>
     </joint>
   </xacro:macro>
 
   <xacro:macro name="piper_ros2_control" params="hardware gripper initial_positions_file controllers_file mujoco_model mujoco_headless">
     <xacro:property name="init" value="${xacro.load_yaml(initial_positions_file)['initial_positions']}" />
-    <xacro:property name="known" value="${['mock', 'real', 'gazebo', 'mujoco']}" />
+    <xacro:property name="known" value="${['mock', 'real', 'gazebo', 'mujoco', 'isaac']}" />
     <xacro:if value="${hardware not in known}">
       ${xacro.fatal('hardware:=' + hardware + ' is not implemented yet; supported: ' + ', '.join(known))}
     </xacro:if>
@@ -45,6 +47,15 @@
         <xacro:if value="${hardware == 'gazebo'}">
           <plugin>gz_ros2_control/GazeboSimSystem</plugin>
         </xacro:if>
+        <xacro:if value="${hardware == 'isaac'}">
+          <!-- Isaac Sim runs as a separate process (isaac/run_piper.py) and exchanges joint states and
+               position targets over ROS topics, like the real driver. Its own ROS bridge publishes
+               /clock. The fingers are driven by the Isaac runner from `gripper`. -->
+          <plugin>joint_state_topic_hardware_interface/JointStateTopicSystem</plugin>
+          <param name="joint_commands_topic">isaac/joint_commands</param>
+          <param name="joint_states_topic">isaac/joint_states</param>
+          <param name="trigger_joint_command_threshold">-1</param>
+        </xacro:if>
         <xacro:if value="${hardware == 'mujoco'}">
           <!-- MJCF generated from this description by piper_description.mujoco_model();
                the fingers follow `gripper` through MJCF equality constraints. -->
@@ -55,20 +66,24 @@
         </xacro:if>
       </hardware>
 
-      <xacro:piper_joint name="joint1" initial="${init['joint1']}" />
-      <xacro:piper_joint name="joint2" initial="${init['joint2']}" />
-      <xacro:piper_joint name="joint3" initial="${init['joint3']}" />
-      <xacro:piper_joint name="joint4" initial="${init['joint4']}" />
-      <xacro:piper_joint name="joint5" initial="${init['joint5']}" />
-      <xacro:piper_joint name="joint6" initial="${init['joint6']}" />
+      <xacro:piper_joint name="joint1" initial="${init['joint1']}" effort="${hardware == 'isaac'}" />
+      <xacro:piper_joint name="joint2" initial="${init['joint2']}" effort="${hardware == 'isaac'}" />
+      <xacro:piper_joint name="joint3" initial="${init['joint3']}" effort="${hardware == 'isaac'}" />
+      <xacro:piper_joint name="joint4" initial="${init['joint4']}" effort="${hardware == 'isaac'}" />
+      <xacro:piper_joint name="joint5" initial="${init['joint5']}" effort="${hardware == 'isaac'}" />
+      <xacro:piper_joint name="joint6" initial="${init['joint6']}" effort="${hardware == 'isaac'}" />
       <!-- Gripper opening width in metres (official single-DOF model; fingers are URDF mimics). -->
       <xacro:if value="${gripper}">
-        <xacro:piper_joint name="gripper" initial="${init['gripper']}" />
-        <!-- Simulators must move the physical fingers. They follow `gripper` through the URDF mimic
-             relation (+/-0.5); ros2_control mimic joints carry state interfaces only. -->
+        <xacro:piper_joint name="gripper" initial="${init['gripper']}" effort="${hardware == 'isaac'}" />
+        <!-- Gazebo must be told about the mimic fingers (state interfaces only). Mock and Isaac leave
+             them out: the URDF mimic relation (+/-0.5) is enough for ros2_control, and Isaac's runner
+             couples the fingers to `gripper` in physics. -->
         <xacro:if value="${hardware == 'gazebo'}">
-          <joint name="gripper_joint1"><state_interface name="position" /><state_interface name="velocity" /></joint>
-          <joint name="gripper_joint2"><state_interface name="position" /><state_interface name="velocity" /></joint>
+          <xacro:property name="fe" value="${False}" />
+          <joint name="gripper_joint1"><state_interface name="position" /><state_interface name="velocity" />
+            <xacro:if value="${fe}"><state_interface name="effort" /></xacro:if></joint>
+          <joint name="gripper_joint2"><state_interface name="position" /><state_interface name="velocity" />
+            <xacro:if value="${fe}"><state_interface name="effort" /></xacro:if></joint>
         </xacro:if>
       </xacro:if>
     </ros2_control>

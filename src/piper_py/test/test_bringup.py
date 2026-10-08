@@ -1,6 +1,7 @@
 """End-to-end check of piper_bringup + MoveIt + piper_py, identical for every backend.
 
-Backends: PIPER_TEST_BACKENDS (comma separated, default "mock,gazebo,mujoco").
+Backends: PIPER_TEST_BACKENDS (comma separated, default "mock,gazebo,mujoco"). "isaac" is opt-in because it
+uses the shared GPU: PIPER_TEST_BACKENDS=isaac (needs scripts/isaac.sh build-usd first).
 """
 
 import math
@@ -62,6 +63,9 @@ class TestBringup(unittest.TestCase):
         if backend == "gazebo":
             self.assertIn("/clock", topics)
             self.assertIn("gz_ros_control", nodes)
+        elif backend == "isaac":
+            self.assertIn("/clock", topics)
+            self.assertIn("/isaac/joint_states", topics)
         elif backend == "mujoco":
             self.assertIn("/clock", topics)
             self.assertNotIn("gz_ros_control", nodes)

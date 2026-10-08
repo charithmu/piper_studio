@@ -78,9 +78,10 @@ def _without_ros2_control(urdf: str) -> str:
     return ET.tostring(root, encoding="unicode")
 
 
-def physics_model(urdf: str) -> str:
-    """Model for a simulator's physics engine (not for ROS): no mimic constraints, widened limits."""
-    root = ET.fromstring(strip_mimic(urdf))
+def physics_model(urdf: str, keep_mimic: bool = False) -> str:
+    """Model for a simulator's physics engine (not for ROS): widened joint limits, and no mimic
+    constraints unless the engine implements them natively (keep_mimic=True, e.g. PhysX)."""
+    root = ET.fromstring(urdf if keep_mimic else strip_mimic(urdf))
     for joint in root.findall("joint"):
         margin = PHYSICS_LIMIT_MARGIN.get(joint.get("type"))
         limit = joint.find("limit")
