@@ -8,11 +8,13 @@
     piper named ready
     piper pose 0.25 0 0.10 [--quat 0 1 0 0] [--linear]   # tool-down reach is limited to z < ~0.12 m
     piper gripper 0.05
+    piper demo --backend NAME --out run.json    # scripted sequence over every control level, recorded
 """
 
 import argparse
 import json
 import sys
+from pathlib import Path
 
 from piper_py.robot import Piper
 
@@ -42,7 +44,13 @@ def main(argv=None):
     g = sub.add_parser("gripper", help="set gripper opening width (m)")
     g.add_argument("width", type=float)
     g.add_argument("--effort", type=float, default=0.0)
+    d = sub.add_parser("demo", help="run the scripted demo sequence and record it")
+    d.add_argument("--backend", default="unknown", help="label stored in the record")
+    d.add_argument("--out", type=Path, required=True)
     a = p.parse_args(argv)
+    if a.cmd == "demo":
+        from piper_py import demo
+        return demo.main(a.namespace, a.backend, a.out)
 
     with Piper(namespace=a.namespace) as arm:
         if a.cmd == "state":

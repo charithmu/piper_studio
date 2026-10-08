@@ -152,7 +152,8 @@ def launch_setup(context):
     if backend == "isaac" and arg("isaac_runner") == "true":
         # Isaac Sim is a separate process in its own environment; it must use this launch's ROS_DOMAIN_ID.
         actions.append(ExecuteProcess(
-            cmd=[arg("isaac_script"), "run", *(["--gui"] if arg("gui") == "true" else [])],
+            cmd=[arg("isaac_script"), "run", *(["--gui"] if arg("gui") == "true" else []),
+                 *(["--video", arg("isaac_video")] if arg("isaac_video") else [])],
             output="screen", sigterm_timeout="20", sigkill_timeout="30"))
     if backend == "gazebo":
         actions += gazebo(arg("gui") == "true", urdf)
@@ -188,6 +189,8 @@ def generate_launch_description():
                               description="isaac only: start Isaac Sim (false: you run scripts/isaac.sh yourself)"),
         DeclareLaunchArgument("isaac_script", default_value=os.path.join(os.environ.get("PIPER_STUDIO_WS", "."), "scripts/isaac.sh"),
                               description="isaac only: path of scripts/isaac.sh"),
+        DeclareLaunchArgument("isaac_video", default_value="",
+                              description="isaac only: record the Isaac camera view to this mp4"),
         DeclareLaunchArgument("can_port", default_value="can0"),
         DeclareLaunchArgument("auto_enable", default_value="false", choices=["true", "false"],
                               description="real only: enable motors at driver start"),

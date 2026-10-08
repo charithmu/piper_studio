@@ -13,7 +13,9 @@ The legacy implementation is preserved at tag `legacy-final-20261008`.
 external/agx_arm_ros      official AgileX ROS 2 stack (driver, description, MoveIt config, msgs), pinned, unmodified
 src/piper_description     our robot model: official URDF + TCP/mount frames + ros2_control backend switch; model audit tool
 src/piper_bringup         one launch file for every backend; shared controllers; MoveIt config; command guard (real arm)
-src/piper_py              Python API + `piper` CLI: state, joint/trajectory/streaming/gripper/MoveIt motion
+src/piper_py              Python API + `piper` CLI: state, joint/trajectory/streaming/gripper/MoveIt motion, demo recorder
+isaac/                    Isaac Sim runner and USD conversion (own environment; see isaac/README.md)
+tools/                    demo page builder, MuJoCo replay renderer
 env/                      pinned Python environment (uv)
 scripts/                  bootstrap.sh (rebuild from clean clone), env.sh (source before anything)
 docs/description/         model audit and description decisions
@@ -62,6 +64,13 @@ with Piper() as arm:
     r = arm.move_pose([0.25, 0.0, 0.10], [0, 1, 0, 0])
     print(r.success, r.code)        # success only if execution succeeded
 ```
+
+### Demo
+
+`scripts/run_demo.sh BACKEND OUT/` runs one scripted sequence (planning, straight-line moves, gripper, direct trajectory,
+50 Hz streaming) on a backend and records it; `tools/build_demo_page.py OUT/ SITE/` builds the comparison page
+(videos, step results, cross-backend agreement). On atlas it is served at
+`https://atlas.buri-fence.ts.net:8700/piper-studio/demo/` (tailnet only).
 
 ### Control levels
 

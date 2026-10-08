@@ -70,3 +70,10 @@
 - `backend:=mujoco` generates the MJCF from piper_description at launch (mujoco_ros2_control converter, 2 s, cached by content hash) and runs the shared controllers/MoveIt; the shared test passes on mock, Gazebo and MuJoCo (suite run twice, 14/14).
 - Generated model: FK equals the official URDF to 1e-6 m; fingers coupled by equality constraints. Actuator model is provisional (position servos + gravity compensation).
 - Found and fixed: piper_py could return joint states hundreds of ms stale (reliable queue shared with action callbacks) -> latest-sample QoS in its own callback group; base-link1 contact locking joint1; underdamped gripper.
+
+## 2026-10-08 22:30 UTC M5: Isaac Sim backend + demo page (Claude, branch `rewrite`)
+- `backend:=isaac`: Isaac Sim 6.1 as its own headless process (isaac/, scripts/isaac.sh), ROS 2 topics to ros2_control's JointStateTopicSystem; same controllers/MoveIt; all 8 end-to-end checks pass (opt-in test).
+- Scripted 11-step demo passes on mock, Gazebo, MuJoCo, Isaac; end states agree within 0.035 rad / 4.3 mm; videos from Isaac (live render) and MuJoCo (replay).
+- Fixed on the way: ros2_control before /clock (gate), finger coupling (per-frame in runner), servo damping (MuJoCo-equivalent gains), recorder starvation (own node, deep queue).
+- Coordination: no shared Isaac session used; board lines on robosim/handoff/STATUS.md; ROS domains 70-161 only; GPU back to baseline after every run.
+- Exposure: tailnet-only route https://atlas.buri-fence.ts.net:8700/piper-studio/demo/ (static page, local :8780, user service web-piper-studio-demo).

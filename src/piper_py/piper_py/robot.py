@@ -68,7 +68,7 @@ class Piper:
 
     def __init__(self, namespace: str = "", node_name: str = "piper_py",
                  group: str = "arm", tcp_link: str = "tcp_link", base_frame: str = "base_link",
-                 wait: float = 30.0):
+                 wait: float = 30.0, use_sim_time: bool = False):
         if not rclpy.ok():
             rclpy.init()
             self._owns_context = True
@@ -77,7 +77,11 @@ class Piper:
         self.group, self.tcp_link, self.base_frame = group, tcp_link, base_frame
         ns = namespace.strip("/")
         self._prefix = f"/{ns}" if ns else ""
-        self.node = Node(node_name, namespace=ns or None)
+        # use_sim_time: node.get_clock() follows /clock, so client-side pacing (streaming loops) is in
+        # simulation time and independent of the simulator's real-time factor.
+        self.node = Node(node_name, namespace=ns or None,
+                         parameter_overrides=[rclpy.parameter.Parameter("use_sim_time", value=use_sim_time)]
+                         if use_sim_time else [])
         self._lock = threading.Lock()
         self._joint_state: JointState | None = None
         self._joint_state_time = 0.0

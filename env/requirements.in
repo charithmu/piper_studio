@@ -16,3 +16,6 @@ colcon-common-extensions
 obj2mjcf==0.0.25
 scipy
 pycollada
+# Video encoding for demo recordings (tools/render_mujoco_video.py)
+imageio
+imageio-ffmpeg

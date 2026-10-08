@@ -32,6 +32,7 @@ The tested combination. Source revisions are authoritative in git (submodule pin
 | mock + MoveIt + piper_py | pass | `piper_py/test/test_bringup.py` [mock] |
 | Gazebo Harmonic + MoveIt + piper_py | pass (kinematic position control) | `piper_py/test/test_bringup.py` [gazebo]; finger mimic verified against Gazebo ground truth |
 | real plumbing (ros2_control <-> driver topics, command guard) | pass, **no arm** | `piper_py/test/test_real_plumbing.py` with `fake_driver` |
+| scripted demo (11 steps, every control level) | pass on mock, Gazebo, MuJoCo, Isaac | `scripts/run_demo.sh`; end states agree with mock within 0.035 rad / 4.3 mm |
 | real arm | not run | needs the user present |
 | MuJoCo 3.12 + MoveIt + piper_py | pass (provisional actuator model) | `piper_py/test/test_bringup.py` [mujoco]; `piper_bringup/test/test_mujoco_model.py` (FK = official to 1e-6 m, finger coupling) |
 | Isaac Sim 6.1 + MoveIt + piper_py | pass (opt-in: uses the GPU) | `PIPER_TEST_BACKENDS=isaac`; fingers verified against Isaac ground truth (±0.5 × gripper) |

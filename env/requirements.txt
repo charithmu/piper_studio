@@ -101,6 +101,10 @@ fsspec==2026.9.0
     # via etils
 glfw==2.10.2
     # via mujoco
+imageio==2.38.1
+    # via -r env/requirements.in
+imageio-ffmpeg==0.6.0
+    # via -r env/requirements.in
 iniconfig==2.3.1
     # via pytest
 lxml==6.1.3
@@ -117,6 +121,7 @@ numpy==1.26.4
     # via
     #   -r env/requirements.in
     #   coacd
+    #   imageio
     #   mujoco
     #   obj2mjcf
     #   pycollada
@@ -135,7 +140,9 @@ packaging==26.3
     #   pytest-rerunfailures
     #   python-can
 pillow==12.3.0
-    # via obj2mjcf
+    # via
+    #   imageio
+    #   obj2mjcf
 pluggy==1.6.0
     # via
     #   pytest

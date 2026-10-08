@@ -52,11 +52,12 @@ from pxr import PhysxSchema, UsdPhysics  # noqa: E402
 PHYSICS_HZ = 240.0
 FRAME_HZ = 60.0  # app updates (and ROS publishing) per second; 4 physics substeps each
 ARM = [f"joint{i}" for i in range(1, 7)]
-# Provisional position-servo gains (stand-in for the unidentified firmware loop), as in MuJoCo's inputs.xml.
-# (stiffness N*m/rad or N/m, damping, max force)
-GAINS = {"joint1": (400, 40, 100), "joint2": (400, 40, 100), "joint3": (400, 40, 100),
-         "joint4": (100, 10, 100), "joint5": (100, 10, 100), "joint6": (50, 7, 100),
-         "gripper": (400, 40, 10), "gripper_joint1": (400, 40, 10), "gripper_joint2": (400, 40, 10)}
+# Provisional position-servo gains (stand-in for the unidentified firmware loop). Same kp as MuJoCo's inputs.xml;
+# kd is the damping MuJoCo derives for dampratio=1 from the real link inertias (kv = 15.7/16.4/16.4/0.6/2.3/0.3 N*m*s/rad;
+# gripper dampratio 2 -> 8 N*s/m), so the two simulators have equivalent servos. (stiffness, damping, max force)
+GAINS = {"joint1": (400, 15.7, 100), "joint2": (400, 16.4, 100), "joint3": (400, 16.4, 100),
+         "joint4": (100, 0.6, 100), "joint5": (100, 2.3, 100), "joint6": (50, 0.31, 100),
+         "gripper": (400, 8, 10), "gripper_joint1": (400, 8, 10), "gripper_joint2": (400, 8, 10)}
 INITIAL = {"joint2": 0.01, "joint3": -0.01}  # config/initial_positions.yaml
 
 stage_utils.create_new_stage()
@@ -139,8 +140,8 @@ if args.video:
     import omni.replicator.core as rep
     import imageio.v2 as imageio
 
-    cam = rep.create.camera(position=(0.75, -0.75, 0.55), look_at=(0.15, 0.0, 0.2), focal_length=22)
-    rp = rep.create.render_product(cam, (960, 540))
+    cam = rep.create.camera(position=(1.05, -0.95, 0.62), look_at=(0.12, 0.0, 0.2), focal_length=20)
+    rp = rep.create.render_product(cam, (1280, 720))
     rgb = rep.AnnotatorRegistry.get_annotator("rgb")
     rgb.attach([rp])
     args.video.parent.mkdir(parents=True, exist_ok=True)
