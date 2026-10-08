@@ -28,8 +28,10 @@ from moveit_msgs.msg import (Constraints, JointConstraint, MotionPlanRequest, Mo
                              OrientationConstraint, PositionConstraint)
 from rcl_interfaces.srv import GetParameters
 from rclpy.action import ActionClient
+from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
+from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import JointState
 from shape_msgs.msg import SolidPrimitive
 from std_msgs.msg import Float64MultiArray
@@ -78,10 +80,16 @@ class Piper:
         self.node = Node(node_name, namespace=ns or None)
         self._lock = threading.Lock()
         self._joint_state: JointState | None = None
-        self.node.create_subscription(JointState, f"{self._prefix}/joint_states", self._on_joints, 10)
+        self._joint_state_time = 0.0
+        # State monitors take the newest sample only (depth 1) in their own callback group, so a
+        # backlog or a long-running action callback can never hand the caller a stale state.
+        state_group = ReentrantCallbackGroup()
+        self.node.create_subscription(JointState, f"{self._prefix}/joint_states", self._on_joints,
+                                      qos_profile_sensor_data, callback_group=state_group)
         # Raw driver feedback (backend:=real only); used to verify state before activating controllers.
         self._feedback: tuple[float, JointState] | None = None
-        self.node.create_subscription(JointState, f"{self._prefix}/feedback/joint_states", self._on_feedback, 10)
+        self.node.create_subscription(JointState, f"{self._prefix}/feedback/joint_states", self._on_feedback,
+                                      qos_profile_sensor_data, callback_group=state_group)
         self._stream = self.node.create_publisher(
             Float64MultiArray, f"{self._prefix}/arm_position_controller/commands", 10)
         self._list_controllers = self.node.create_client(
@@ -130,6 +138,12 @@ class Piper:
     def _on_joints(self, msg: JointState):
         with self._lock:
             self._joint_state = msg
+            self._joint_state_time = time.monotonic()
+
+    def state_age(self) -> float:
+        """Seconds since the last joint state arrived (inf if none yet)."""
+        with self._lock:
+            return time.monotonic() - self._joint_state_time if self._joint_state else math.inf
 
     def joint_state(self) -> dict[str, float]:
         """Latest measured positions by joint name (arm joints plus gripper width)."""

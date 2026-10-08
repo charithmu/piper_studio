@@ -65,3 +65,8 @@
 - Found and fixed: the official virtual gripper joint is massless, so Gazebo dropped it; DART cannot drive a joint off a limit it rests on (a closed gripper never reopened). Fixed in a generated physics model (tested), not in the official description.
 - Gazebo transport is isolated per ROS_DOMAIN_ID (GZ_PARTITION=piper_d<id>); the server runs in-process (ros_gz_sim gzserver).
 - Next: MuJoCo, then Isaac. Real arm still waiting for the user.
+
+## 2026-10-08 19:50 UTC M4: MuJoCo backend (Claude, branch `rewrite`)
+- `backend:=mujoco` generates the MJCF from piper_description at launch (mujoco_ros2_control converter, 2 s, cached by content hash) and runs the shared controllers/MoveIt; the shared test passes on mock, Gazebo and MuJoCo (suite run twice, 14/14).
+- Generated model: FK equals the official URDF to 1e-6 m; fingers coupled by equality constraints. Actuator model is provisional (position servos + gravity compensation).
+- Found and fixed: piper_py could return joint states hundreds of ms stale (reliable queue shared with action callbacks) -> latest-sample QoS in its own callback group; base-link1 contact locking joint1; underdamped gripper.

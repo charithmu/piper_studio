@@ -6,6 +6,10 @@
 
 from __future__ import annotations
 
+import hashlib
+import os
+import subprocess
+import tempfile
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
@@ -36,6 +40,44 @@ def robot_description(hardware: str = "mock", **mappings) -> str:
 PHYSICS_LIMIT_MARGIN = {"revolute": 0.01, "prismatic": 0.002}  # rad, m
 
 
+def mujoco_model(urdf: str, inputs: str | Path, scene: str | Path, cache_dir: str | Path | None = None) -> Path:
+    """Generate the MuJoCo scene for a description with mujoco_ros2_control's URDF converter.
+
+    `inputs` adds actuators, equality constraints and solver options; `scene` is a world file that
+    includes the generated robot. Output goes to a directory named by the hash of all inputs, so an
+    unchanged model is reused. Needs the workspace venv (mujoco, trimesh, obj2mjcf, pycollada).
+    Returns the path of the scene file to load.
+    """
+    from ament_index_python.packages import get_package_prefix
+    physics = collision_meshes_as_visuals(_without_ros2_control(urdf))
+    inputs, scene = Path(inputs).resolve(), Path(scene).resolve()
+    digest = hashlib.sha256("\0".join(
+        [physics, inputs.read_text(), scene.read_text()]).encode()).hexdigest()[:16]
+    out = Path(cache_dir or Path(tempfile.gettempdir()) / "piper_studio_mujoco") / digest
+    if not (out / "scene.xml").exists():
+        out.mkdir(parents=True, exist_ok=True)
+        (out / "piper.urdf").write_text(physics)
+        converter = (Path(get_package_prefix("mujoco_ros2_control"))
+                     / "lib/mujoco_ros2_control/make_mjcf_from_robot_description.py")
+        venv = os.environ.get("VIRTUAL_ENV")
+        python = str(Path(venv) / "bin/python") if venv else "python3"
+        run = subprocess.run([python, str(converter), "-u", str(out / "piper.urdf"), "-m", str(inputs),
+                              "--scene", str(scene), "-o", str(out), "-c", "-s"],
+                             cwd=out, capture_output=True, text=True)
+        if run.returncode != 0:
+            raise RuntimeError(f"MJCF conversion failed ({converter.name}):\n{run.stdout[-2000:]}{run.stderr[-2000:]}")
+        (out / "scene.xml").write_text(scene.read_text())  # converter output dir + our world wrapper
+    return out / "scene.xml"
+
+
+def _without_ros2_control(urdf: str) -> str:
+    root = ET.fromstring(urdf)
+    for tag in ("ros2_control", "gazebo"):
+        for el in root.findall(tag):
+            root.remove(el)
+    return ET.tostring(root, encoding="unicode")
+
+
 def physics_model(urdf: str) -> str:
     """Model for a simulator's physics engine (not for ROS): no mimic constraints, widened limits."""
     root = ET.fromstring(strip_mimic(urdf))
@@ -45,6 +87,24 @@ def physics_model(urdf: str) -> str:
         if margin and limit is not None and limit.get("lower") is not None:
             limit.set("lower", repr(float(limit.get("lower")) - margin))
             limit.set("upper", repr(float(limit.get("upper")) + margin))
+    return ET.tostring(root, encoding="unicode")
+
+
+def collision_meshes_as_visuals(urdf: str) -> str:
+    """Use each link's collision mesh for its visual too.
+
+    mujoco_ros2_control's converter keys meshes by file stem, so link.dae (visual) and link.stl
+    (collision) collide and the visual sub-meshes end up as collision geometry (some are flat and
+    have no convex hull). The official STL collision meshes are complete, so visuals lose only colour.
+    """
+    root = ET.fromstring(urdf)
+    for link in root.findall("link"):
+        coll = link.find("collision/geometry/mesh")
+        vis = link.find("visual/geometry/mesh")
+        if coll is not None and vis is not None:
+            vis.set("filename", coll.get("filename"))
+            if coll.get("scale"):
+                vis.set("scale", coll.get("scale"))
     return ET.tostring(root, encoding="unicode")
 
 

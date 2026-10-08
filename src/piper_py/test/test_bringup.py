@@ -1,6 +1,6 @@
 """End-to-end check of piper_bringup + MoveIt + piper_py, identical for every backend.
 
-Backends: PIPER_TEST_BACKENDS (comma separated, default "mock,gazebo").
+Backends: PIPER_TEST_BACKENDS (comma separated, default "mock,gazebo,mujoco").
 """
 
 import math
@@ -21,7 +21,7 @@ DOWN = [0.0, 1.0, 0.0, 0.0]  # tcp z axis pointing down (180 deg about base y)
 # Joint 5 (+/-70 deg) limits vertical approach to TCP heights below ~0.12 m, 0.17-0.30 m forward.
 
 
-BACKENDS = os.environ.get("PIPER_TEST_BACKENDS", "mock,gazebo").split(",")
+BACKENDS = os.environ.get("PIPER_TEST_BACKENDS", "mock,gazebo,mujoco").split(",")
 
 
 @pytest.mark.launch_test
@@ -62,8 +62,11 @@ class TestBringup(unittest.TestCase):
         if backend == "gazebo":
             self.assertIn("/clock", topics)
             self.assertIn("gz_ros_control", nodes)
-        else:
+        elif backend == "mujoco":
+            self.assertIn("/clock", topics)
             self.assertNotIn("gz_ros_control", nodes)
+        else:
+            self.assertNotIn("/clock", topics)
 
     def test_1_direct_trajectory(self):
         target = [0.2, 0.8, -0.8, 0.1, 0.5, -0.2]

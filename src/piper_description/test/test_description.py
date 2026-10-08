@@ -105,3 +105,4 @@ def test_physics_model_widens_limits_and_drops_mimic():
         assert math.isclose(float(b.get("lower")), float(a.get("lower")) - margin)
         assert math.isclose(float(b.get("upper")), float(a.get("upper")) + margin)
     assert not phys.findall("joint/mimic")
+

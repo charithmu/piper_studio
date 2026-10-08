@@ -44,6 +44,15 @@ Simulators get the same description plus two generated, tested transforms (`pipe
   2 mm. Gazebo/DART velocity control cannot move a joint off a limit it rests on: a gripper closed to
   0 never reopened. Commanded targets stay within the official limits enforced by ros2_control,
   MoveIt and piper_py, so they never touch a physics stop.
+- MuJoCo: `mujoco_model()` runs mujoco_ros2_control's URDF converter on the simulator description
+  (collision STLs reused as visuals, because the converter keys meshes by file stem and mixed up the
+  DAE visuals with the collision meshes) plus `piper_bringup/config/mujoco/inputs.xml`: position
+  actuators named like the ros2_control joints, finger equality constraints (±0.5 × gripper),
+  contact exclusions (world–link1 because the fused base is not filtered as a parent; finger–finger
+  as in the official SRDF). FK equals the official URDF to 1e-6 m; mass is conserved (fixed links
+  fused into link6). The **actuator model is provisional**: critically damped position servos
+  (kp 400/400/400/100/100/50, gripper 400 with dampratio 2) with ideal gravity compensation,
+  standing in for the unidentified firmware loop.
 - Gazebo position control is kinematic (velocity commands proportional to position error, joint
   ground truth matches commands to ~1e-13). It validates interfaces, kinematics and planning, not
   actuator dynamics.

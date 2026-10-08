@@ -3,6 +3,7 @@
     ros2 launch piper_bringup piper.launch.py                       # mock hardware + MoveIt
     ros2 launch piper_bringup piper.launch.py rviz:=true
     ros2 launch piper_bringup piper.launch.py backend:=gazebo [gui:=true]
+    ros2 launch piper_bringup piper.launch.py backend:=mujoco [gui:=true]
     ros2 launch piper_bringup piper.launch.py backend:=real can_port:=can0
 
 backend:=real starts the official agx_arm_ctrl driver. Safety defaults:
@@ -28,9 +29,9 @@ from launch_ros.actions import Node
 from moveit_configs_utils import MoveItConfigsBuilder
 import tempfile
 
-from piper_description import SIMULATORS, physics_model, robot_description, xacro_file
+from piper_description import SIMULATORS, mujoco_model, physics_model, robot_description, xacro_file
 
-BACKENDS = ["mock", "real", "gazebo"]
+BACKENDS = ["mock", "real", "gazebo", "mujoco"]
 
 
 def share(package: str) -> Path:
@@ -87,6 +88,12 @@ def gazebo(gui: bool, urdf: str):
     ]
 
 
+def mujoco(controllers: str):
+    """MuJoCo: mujoco_ros2_control's controller manager steps the generated model."""
+    return [Node(package="mujoco_ros2_control", executable="ros2_control_node", output="screen",
+                 parameters=[controllers, {"use_sim_time": True}])]
+
+
 def launch_setup(context):
     arg = lambda name: LaunchConfiguration(name).perform(context)  # noqa: E731
     backend, gripper = arg("backend"), arg("gripper")
@@ -94,6 +101,11 @@ def launch_setup(context):
         raise RuntimeError(f"backend:={backend} is not supported; choose one of {BACKENDS}")
     controllers = str(share("piper_bringup") / "config/controllers.yaml")
     urdf = robot_description(backend, gripper=gripper, controllers_file=controllers)
+    if backend == "mujoco":
+        cfg = share("piper_bringup") / "config/mujoco"
+        scene = mujoco_model(urdf, cfg / "inputs.xml", cfg / "scene.xml")
+        urdf = robot_description(backend, gripper=gripper, controllers_file=controllers,
+                                 mujoco_model=scene, mujoco_headless=arg("gui") != "true")
     config = moveit_config(backend, gripper, urdf)
     sim_time = {"use_sim_time": backend in SIMULATORS}
     commanders = ["arm_controller"] + (["gripper_controller"] if gripper == "true" else [])
@@ -125,6 +137,8 @@ def launch_setup(context):
                             remappings=[("~/robot_description", "/robot_description")]))
     if backend == "gazebo":
         actions += gazebo(arg("gui") == "true", urdf)
+    if backend == "mujoco":
+        actions += mujoco(controllers)
     if backend == "real":
         actions.append(Node(package="piper_bringup", executable="command_guard.py", name="command_guard",
                             output="screen"))

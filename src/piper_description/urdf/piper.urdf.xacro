@@ -20,6 +20,7 @@
   <!-- Backend-specific inputs. -->
   <xacro:arg name="controllers_file" default="" />
   <xacro:arg name="mujoco_model" default="" />
+  <xacro:arg name="mujoco_headless" default="true" />
 
   <xacro:property name="use_gripper" value="$(arg gripper)" />
 
@@ -50,5 +51,6 @@
     gripper="${use_gripper}"
     initial_positions_file="$(arg initial_positions_file)"
     controllers_file="$(arg controllers_file)"
-    mujoco_model="$(arg mujoco_model)" />
+    mujoco_model="$(arg mujoco_model)"
+    mujoco_headless="$(arg mujoco_headless)" />
 </robot>

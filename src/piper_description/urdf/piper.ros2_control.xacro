@@ -21,9 +21,9 @@
     </joint>
   </xacro:macro>
 
-  <xacro:macro name="piper_ros2_control" params="hardware gripper initial_positions_file controllers_file mujoco_model">
+  <xacro:macro name="piper_ros2_control" params="hardware gripper initial_positions_file controllers_file mujoco_model mujoco_headless">
     <xacro:property name="init" value="${xacro.load_yaml(initial_positions_file)['initial_positions']}" />
-    <xacro:property name="known" value="${['mock', 'real', 'gazebo']}" />
+    <xacro:property name="known" value="${['mock', 'real', 'gazebo', 'mujoco']}" />
     <xacro:if value="${hardware not in known}">
       ${xacro.fatal('hardware:=' + hardware + ' is not implemented yet; supported: ' + ', '.join(known))}
     </xacro:if>
@@ -44,6 +44,14 @@
         </xacro:if>
         <xacro:if value="${hardware == 'gazebo'}">
           <plugin>gz_ros2_control/GazeboSimSystem</plugin>
+        </xacro:if>
+        <xacro:if value="${hardware == 'mujoco'}">
+          <!-- MJCF generated from this description by piper_description.mujoco_model();
+               the fingers follow `gripper` through MJCF equality constraints. -->
+          <plugin>mujoco_ros2_control/MujocoSystemInterface</plugin>
+          <param name="mujoco_model">${mujoco_model}</param>
+          <param name="headless">${mujoco_headless}</param>
+          <param name="sim_speed_factor">1.0</param>
         </xacro:if>
       </hardware>
 

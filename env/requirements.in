@@ -5,9 +5,14 @@ numpy==1.26.4
 pyAgxArm @ git+https://github.com/agilexrobotics/pyAgxArm.git@841a625f5f4920e776f20b934eb13048b747e6d0
 # Must match mujoco_vendor (libmujoco 3.12.0) used by mujoco_ros2_control.
 mujoco==3.12.0
-trimesh
+# Match mujoco_ros2_control requirements.txt (the converter is tested against it).
+trimesh==4.11.4
 pyyaml
 lxml
 # colcon-core pulls pytest; pin it to the Ubuntu version because ROS Jazzy launch_testing breaks on pytest 8+.
 pytest==7.4.4
 colcon-common-extensions
+# URDF -> MJCF conversion (mujoco_ros2_control make_mjcf_from_robot_description.py)
+obj2mjcf==0.0.25
+scipy
+pycollada

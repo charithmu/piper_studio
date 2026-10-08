@@ -1,0 +1,64 @@
+<!--
+  MuJoCo additions to the generated model (mujoco_ros2_control make_mjcf_from_robot_description.py).
+  Kinematics, limits and inertials come from piper_description; only simulator-specific actuation,
+  constraints and solver settings live here.
+
+  Actuator model (PROVISIONAL, not identified on the real arm): critically damped position servos
+  with ideal gravity compensation (gravcomp), standing in for the firmware's own position loop.
+  forcerange equals the URDF effort values, which are vendor placeholders (DECISIONS.md D4).
+  Actuator names equal the ros2_control joint names.
+-->
+<mujoco_inputs>
+  <raw_inputs>
+    <option integrator="implicitfast" cone="elliptic" impratio="10"/>
+
+    <default>
+      <default class="visual">
+        <geom group="2" type="mesh" contype="0" conaffinity="0"/>
+      </default>
+      <default class="collision">
+        <geom group="3" type="mesh"/>
+      </default>
+    </default>
+
+    <actuator>
+      <position name="joint1" joint="joint1" kp="400" dampratio="1" forcerange="-100 100"/>
+      <position name="joint2" joint="joint2" kp="400" dampratio="1" forcerange="-100 100"/>
+      <position name="joint3" joint="joint3" kp="400" dampratio="1" forcerange="-100 100"/>
+      <position name="joint4" joint="joint4" kp="100" dampratio="1" forcerange="-100 100"/>
+      <position name="joint5" joint="joint5" kp="100" dampratio="1" forcerange="-100 100"/>
+      <position name="joint6" joint="joint6" kp="50" dampratio="1" forcerange="-100 100"/>
+      <!-- Opening width; the fingers follow through the equality constraints below. -->
+      <!-- dampratio is computed from the gripper joint alone; the equality-coupled fingers roughly
+           double the effective mass, so 2 gives a critically damped response (no overshoot). -->
+      <position name="gripper" joint="gripper" kp="400" dampratio="2" forcerange="-10 10"/>
+    </actuator>
+
+    <!-- The fixed base is fused into the world body, and MuJoCo does not filter parent-child
+         contacts when the parent is the world: without this, link1 rubs on the base and cannot turn. -->
+    <contact>
+      <exclude body1="world" body2="link1"/>
+      <!-- Finger collision meshes meet at width 0 (the official SRDF disables this pair too);
+           without this a closing gripper stalls a few millimetres short of closed. -->
+      <exclude body1="gripper_link1" body2="gripper_link2"/>
+    </contact>
+
+    <!-- URDF mimic relations: gripper_joint1 = 0.5 * gripper, gripper_joint2 = -0.5 * gripper. -->
+    <equality>
+      <joint joint1="gripper_joint1" joint2="gripper" polycoef="0 0.5 0 0 0" solimp="0.95 0.99 0.001" solref="0.005 1"/>
+      <joint joint1="gripper_joint2" joint2="gripper" polycoef="0 -0.5 0 0 0" solimp="0.95 0.99 0.001" solref="0.005 1"/>
+    </equality>
+  </raw_inputs>
+
+  <processed_inputs>
+    <modify_element type="body" name="link1" gravcomp="1"/>
+    <modify_element type="body" name="link2" gravcomp="1"/>
+    <modify_element type="body" name="link3" gravcomp="1"/>
+    <modify_element type="body" name="link4" gravcomp="1"/>
+    <modify_element type="body" name="link5" gravcomp="1"/>
+    <modify_element type="body" name="link6" gravcomp="1"/>
+    <modify_element type="body" name="gripper_link" gravcomp="1"/>
+    <modify_element type="body" name="gripper_link1" gravcomp="1"/>
+    <modify_element type="body" name="gripper_link2" gravcomp="1"/>
+  </processed_inputs>
+</mujoco_inputs>

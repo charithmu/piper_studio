@@ -19,8 +19,9 @@ scripts/                  bootstrap.sh (rebuild from clean clone), env.sh (sourc
 docs/description/         model audit and description decisions
 ```
 
-Gazebo runs from `piper_bringup` (each `ROS_DOMAIN_ID` gets its own `GZ_PARTITION`). Planned:
-MuJoCo, Isaac and `piper_perception` (wrist camera). See
+Gazebo and MuJoCo run from `piper_bringup`; their models are generated from `piper_description`
+(each `ROS_DOMAIN_ID` gets its own `GZ_PARTITION`). Planned: Isaac and `piper_perception` (wrist
+camera). See
 [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ## Setup
@@ -40,6 +41,7 @@ source scripts/env.sh         # ROS Jazzy + .venv + overlay; do this in every sh
 ros2 launch piper_bringup piper.launch.py                 # mock hardware + MoveIt (headless)
 ros2 launch piper_bringup piper.launch.py rviz:=true      # with RViz
 ros2 launch piper_bringup piper.launch.py backend:=gazebo [gui:=true]   # Gazebo Harmonic
+ros2 launch piper_bringup piper.launch.py backend:=mujoco [gui:=true]   # MuJoCo (model generated at launch)
 ros2 launch piper_description view.launch.py              # model only, joint sliders
 ```
 
