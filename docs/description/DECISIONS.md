@@ -32,6 +32,22 @@ description, not maintained by hand.
 | D9 | AgileX Isaac description (Dec 2025) | Reference only; regenerate USD from D1 | J1 upper 2.168 is a digit swap of 2.618. J6 velocity 3. Old two-finger gripper. |
 | D10 | Piper-L material (IIT) | Not applicable | Different link lengths (joint3→4 0.338 vs 0.285 m). |
 
+## Simulator models
+
+Simulators get the same description plus two generated, tested transforms (`piper_description`):
+
+- `robot_description(<simulator>)` (ROS side: robot_state_publisher, MoveIt, ros2_control): gives the
+  virtual `gripper_link` a 10 g placeholder inertial, because physics engines drop massless moving
+  links (SDFormat removed the `gripper` joint). Limits and kinematics stay official.
+- `physics_model()` (what the physics engine loads): no URDF `<mimic>` constraints, because
+  gz_ros2_control drives the mimic fingers in software, and every joint limit widened by 0.01 rad /
+  2 mm. Gazebo/DART velocity control cannot move a joint off a limit it rests on: a gripper closed to
+  0 never reopened. Commanded targets stay within the official limits enforced by ros2_control,
+  MoveIt and piper_py, so they never touch a physics stop.
+- Gazebo position control is kinematic (velocity commands proportional to position error, joint
+  ground truth matches commands to ~1e-13). It validates interfaces, kinematics and planning, not
+  actuator dynamics.
+
 ## Consequences found while qualifying
 
 - **Top-down reach.** With the TCP at the fingertips, joint 5 (±70°) allows a vertical tool-down

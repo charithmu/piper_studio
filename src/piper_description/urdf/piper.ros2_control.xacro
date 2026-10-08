@@ -23,7 +23,7 @@
 
   <xacro:macro name="piper_ros2_control" params="hardware gripper initial_positions_file controllers_file mujoco_model">
     <xacro:property name="init" value="${xacro.load_yaml(initial_positions_file)['initial_positions']}" />
-    <xacro:property name="known" value="${['mock', 'real']}" />
+    <xacro:property name="known" value="${['mock', 'real', 'gazebo']}" />
     <xacro:if value="${hardware not in known}">
       ${xacro.fatal('hardware:=' + hardware + ' is not implemented yet; supported: ' + ', '.join(known))}
     </xacro:if>
@@ -42,6 +42,9 @@
           <!-- Always forward the controller output; agx_arm_ctrl expects a continuous stream. -->
           <param name="trigger_joint_command_threshold">-1</param>
         </xacro:if>
+        <xacro:if value="${hardware == 'gazebo'}">
+          <plugin>gz_ros2_control/GazeboSimSystem</plugin>
+        </xacro:if>
       </hardware>
 
       <xacro:piper_joint name="joint1" initial="${init['joint1']}" />
@@ -53,7 +56,27 @@
       <!-- Gripper opening width in metres (official single-DOF model; fingers are URDF mimics). -->
       <xacro:if value="${gripper}">
         <xacro:piper_joint name="gripper" initial="${init['gripper']}" />
+        <!-- Simulators must move the physical fingers. They follow `gripper` through the URDF mimic
+             relation (+/-0.5); ros2_control mimic joints carry state interfaces only. -->
+        <xacro:if value="${hardware == 'gazebo'}">
+          <joint name="gripper_joint1"><state_interface name="position" /><state_interface name="velocity" /></joint>
+          <joint name="gripper_joint2"><state_interface name="position" /><state_interface name="velocity" /></joint>
+        </xacro:if>
       </xacro:if>
     </ros2_control>
+
+    <xacro:if value="${hardware == 'gazebo'}">
+      <xacro:if value="${controllers_file == ''}">
+        ${xacro.fatal('hardware:=gazebo needs controllers_file:=/path/to/controllers.yaml')}
+      </xacro:if>
+      <!-- The controller manager runs inside Gazebo; the fingers follow `gripper` via URDF mimic. -->
+      <gazebo>
+        <plugin filename="gz_ros2_control-system" name="gz_ros2_control::GazeboSimROS2ControlPlugin">
+          <parameters>${controllers_file}</parameters>
+        </plugin>
+        <!-- Simulator ground truth for every joint, including the mimic fingers (gz topic .../joint_state). -->
+        <plugin filename="gz-sim-joint-state-publisher-system" name="gz::sim::systems::JointStatePublisher" />
+      </gazebo>
+    </xacro:if>
   </xacro:macro>
 </robot>

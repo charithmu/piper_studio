@@ -59,3 +59,9 @@
 - Found and fixed: NaN commands from inactive ros2_control would reach agx_arm_ctrl as 0.0 (rest pose) -> command_guard; JTC does not enforce URDF limits -> client checks.
 - Facts for others: TCP = gripper_base + 0.138 m (flange + 0.1425 m); top-down reach only at TCP z < ~0.12 m; legacy/Menagerie MJCF kinematics differ by up to 11 mm.
 - Next: real arm read-only (user present), then Gazebo/MuJoCo/Isaac.
+
+## 2026-10-08 18:45 UTC M3: Gazebo Harmonic backend (Claude, branch `rewrite`)
+- `backend:=gazebo` uses the same controllers.yaml and MoveIt config; the shared integration test passes on mock and Gazebo.
+- Found and fixed: the official virtual gripper joint is massless, so Gazebo dropped it; DART cannot drive a joint off a limit it rests on (a closed gripper never reopened). Fixed in a generated physics model (tested), not in the official description.
+- Gazebo transport is isolated per ROS_DOMAIN_ID (GZ_PARTITION=piper_d<id>); the server runs in-process (ros_gz_sim gzserver).
+- Next: MuJoCo, then Isaac. Real arm still waiting for the user.

@@ -104,7 +104,8 @@ class Piper:
 
     # ------------------------------------------------------------------ lifecycle
     def close(self):
-        self._executor.shutdown()
+        self._executor.shutdown(timeout_sec=2.0)
+        self._spin.join(timeout=2.0)
         self.node.destroy_node()
         if self._owns_context and rclpy.ok():
             rclpy.shutdown()
@@ -272,7 +273,12 @@ class Piper:
                       _FJT_CODES.get(code, str(code)), res.result.error_string)
 
     def gripper(self, width: float, max_effort: float = 0.0, timeout: float = 10.0) -> Result:
-        """Command the gripper opening width in metres. A stall (object grasped) counts as success."""
+        """Command the gripper opening width in metres.
+
+        Succeeds if the width is reached, or if the fingers stall while *closing* (code GRASPED:
+        something is between them). A stall while opening, or without moving, is a failure.
+        """
+        start = self.joint_state().get("gripper")
         cmd = JointState(name=["gripper"], position=[float(width)])
         if max_effort > 0:
             cmd.effort = [float(max_effort)]
@@ -280,9 +286,15 @@ class Piper:
         if err:
             return err
         r = res.result
-        ok = r.reached_goal or r.stalled
-        return Result(ok, "SUCCESS" if r.reached_goal else ("STALLED" if r.stalled else "FAILED"),
-                      details={"width": r.state.position[0] if r.state.position else None})
+        final = r.state.position[0] if r.state.position else None
+        details = {"width": final, "start": start, "goal": width}
+        if r.reached_goal:
+            return Result(True, "SUCCESS", details=details)
+        closed = start is not None and final is not None and final < start - 0.002
+        if r.stalled and width < (start or 0.0) and closed:
+            return Result(True, "GRASPED", "stalled while closing", details)
+        return Result(False, "STALLED" if r.stalled else "FAILED",
+                      "gripper did not reach the goal", details)
 
     # ------------------------------------------------------------------ MoveIt
     def _plan_and_execute(self, constraints: Constraints, velocity_scaling: float,

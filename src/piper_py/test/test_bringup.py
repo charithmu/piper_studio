@@ -1,7 +1,11 @@
-"""End-to-end check on mock hardware: piper_bringup + MoveIt + piper_py."""
+"""End-to-end check of piper_bringup + MoveIt + piper_py, identical for every backend.
+
+Backends: PIPER_TEST_BACKENDS (comma separated, default "mock,gazebo").
+"""
 
 import math
 import os
+import time
 import unittest
 
 import launch
@@ -17,21 +21,30 @@ DOWN = [0.0, 1.0, 0.0, 0.0]  # tcp z axis pointing down (180 deg about base y)
 # Joint 5 (+/-70 deg) limits vertical approach to TCP heights below ~0.12 m, 0.17-0.30 m forward.
 
 
+BACKENDS = os.environ.get("PIPER_TEST_BACKENDS", "mock,gazebo").split(",")
+
+
 @pytest.mark.launch_test
-def generate_test_description():
+@launch_testing.parametrize("backend", BACKENDS)
+def generate_test_description(backend):
     bringup = os.path.join(get_package_share_directory("piper_bringup"), "launch", "piper.launch.py")
     return launch.LaunchDescription([
         IncludeLaunchDescription(PythonLaunchDescriptionSource(bringup),
-                                 launch_arguments={"backend": "mock", "rviz": "false"}.items()),
+                                 launch_arguments={"backend": backend, "rviz": "false"}.items()),
         launch_testing.actions.ReadyToTest(),
-    ])
+    ]), {"backend": backend}
 
 
-class TestMockBringup(unittest.TestCase):
+class TestBringup(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.arm = Piper(wait=0)
-        cls.arm.wait_ready(60.0, moveit=True)
+        cls.arm.wait_ready(90.0, moveit=True)
+        deadline = time.monotonic() + 60
+        while time.monotonic() < deadline:  # spawners finish asynchronously
+            if cls.arm.controllers().get("gripper_controller") == "active":
+                break
+            time.sleep(0.2)
 
     @classmethod
     def tearDownClass(cls):
@@ -41,6 +54,16 @@ class TestMockBringup(unittest.TestCase):
         for name, (a, b) in zip(("j1", "j2", "j3", "j4", "j5", "j6"),
                                 zip(self.arm.joint_positions(), target)):
             self.assertAlmostEqual(a, b, delta=tol, msg=name)
+
+    def test_0_backend_is_running(self, backend):
+        topics = dict(self.arm.node.get_topic_names_and_types())
+        nodes = self.arm.node.get_node_names()
+        print(f"[backend under test] {backend}")
+        if backend == "gazebo":
+            self.assertIn("/clock", topics)
+            self.assertIn("gz_ros_control", nodes)
+        else:
+            self.assertNotIn("gz_ros_control", nodes)
 
     def test_1_direct_trajectory(self):
         target = [0.2, 0.8, -0.8, 0.1, 0.5, -0.2]
@@ -77,7 +100,8 @@ class TestMockBringup(unittest.TestCase):
         self.assertNotEqual(r.code, "SUCCESS")
 
     def test_7_gripper(self):
-        for width in (0.06, 0.0):
+        # Close fully onto the limit and reopen: a simulator joint must not stick at its hard stop.
+        for width in (0.06, 0.0, 0.05, 0.0):
             r = self.arm.gripper(width)
             self.assertTrue(r, r)
             self.assertTrue(math.isclose(self.arm.joint_state()["gripper"], width, abs_tol=0.003))

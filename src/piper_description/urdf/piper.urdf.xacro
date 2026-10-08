@@ -3,8 +3,9 @@
   Piper Studio robot description.
 
   Geometry, limits and inertials come unmodified from the official AgileX
-  agx_arm_urdf model (see docs/description/DECISIONS.md). This file only adds
-  workspace frames (tcp_link, optional world anchor) and the ros2_control block
+  agx_arm_urdf model (see docs/description/DECISIONS.md). The official model is rooted at a
+  fixed `world` link (world -> base_link). This file only adds
+  workspace frames (tcp_link) and the ros2_control block
   that selects the hardware backend.
 -->
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="piper">
@@ -16,8 +17,6 @@
        fingertip centre: the finger meshes end at z = 0.138 m in gripper_base. -->
   <xacro:arg name="tcp_xyz" default="0 0 0.138" />
   <xacro:arg name="tcp_rpy" default="0 0 0" />
-  <!-- When set, add this link and fix base_link to it (simulators need a world anchor). -->
-  <xacro:arg name="world_link" default="" />
   <!-- Backend-specific inputs. -->
   <xacro:arg name="controllers_file" default="" />
   <xacro:arg name="mujoco_model" default="" />
@@ -44,15 +43,6 @@
     <child link="tcp_link" />
     <origin xyz="$(arg tcp_xyz)" rpy="$(arg tcp_rpy)" />
   </joint>
-
-  <xacro:if value="${'$(arg world_link)' != ''}">
-    <link name="$(arg world_link)" />
-    <joint name="$(arg world_link)_to_base_joint" type="fixed">
-      <parent link="$(arg world_link)" />
-      <child link="base_link" />
-      <origin xyz="0 0 0" rpy="0 0 0" />
-    </joint>
-  </xacro:if>
 
   <xacro:include filename="$(find piper_description)/urdf/piper.ros2_control.xacro" />
   <xacro:piper_ros2_control

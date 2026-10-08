@@ -29,7 +29,8 @@ The tested combination. Source revisions are authoritative in git (submodule pin
 | Profile | Status | Evidence |
 |---|---|---|
 | Description (official model unmodified, TCP) | pass | `colcon test --packages-select piper_description` |
-| mock + MoveIt + piper_py | pass | `piper_py/test/test_mock_bringup.py` |
+| mock + MoveIt + piper_py | pass | `piper_py/test/test_bringup.py` [mock] |
+| Gazebo Harmonic + MoveIt + piper_py | pass (kinematic position control) | `piper_py/test/test_bringup.py` [gazebo]; finger mimic verified against Gazebo ground truth |
 | real plumbing (ros2_control <-> driver topics, command guard) | pass, **no arm** | `piper_py/test/test_real_plumbing.py` with `fake_driver` |
 | real arm | not run | needs the user present |
-| Gazebo / MuJoCo / Isaac | not started | |
+| MuJoCo / Isaac | not started | |
