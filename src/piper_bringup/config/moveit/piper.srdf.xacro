@@ -4,7 +4,18 @@
   <xacro:arg name="arm_type" default="piper" />
   <xacro:arg name="effector_type" default="agx_gripper" />
   <xacro:arg name="revo2_type" default="left" />
+  <xacro:arg name="camera" default="none" />
   <xacro:include filename="$(find agx_arm_moveit)/config/agx_arm.srdf.xacro" />
+
+  <xacro:if value="${'$(arg camera)' != 'none'}">
+    <!-- wrist camera and its bracket are rigidly mounted on link6 -->
+    <xacro:macro name="never" params="a b"><disable_collisions link1="${a}" link2="${b}" reason="Adjacent" /></xacro:macro>
+    <xacro:never a="camera_link" b="link6" /> <xacro:never a="camera_link" b="link5" />
+    <xacro:never a="camera_link" b="flange_link" /> <xacro:never a="camera_link" b="gripper_base" />
+    <xacro:never a="camera_link" b="camera_bracket_link" />
+    <xacro:never a="camera_bracket_link" b="link6" /> <xacro:never a="camera_bracket_link" b="link5" />
+    <xacro:never a="camera_bracket_link" b="flange_link" /> <xacro:never a="camera_bracket_link" b="gripper_base" />
+  </xacro:if>
 
   <!-- joint2/joint3 sit 0.01 rad inside their hard stops, matching config/initial_positions.yaml. -->
   <group_state name="rest" group="arm">

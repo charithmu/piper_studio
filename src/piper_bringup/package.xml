@@ -29,6 +29,8 @@
   <exec_depend>moveit_kinematics</exec_depend>
   <exec_depend>moveit_planners</exec_depend>
   <exec_depend>moveit_simple_controller_manager</exec_depend>
+  <exec_depend>moveit_servo</exec_depend>
+  <exec_depend>python3-yaml</exec_depend>
   <exec_depend>moveit_ros_visualization</exec_depend>
   <exec_depend>rviz2</exec_depend>
   <exec_depend>ros_gz_sim</exec_depend>

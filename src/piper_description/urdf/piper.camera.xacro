@@ -1,0 +1,68 @@
+<?xml version="1.0"?>
+<!--
+  Wrist camera: Intel RealSense D435 on link6, the placement AgileX uses in piper_isaac_sim (a camera_stand on link6 with
+  the camera tilted 1.22 rad toward the gripper), using the D435 model from realsense2_description (Apache-2.0).
+
+  The bracket here is our own simple placeholder geometry (a block with the camera tilt): piper_isaac_sim carries no
+  license, so its mesh is not copied. To see AgileX's stand mesh from a local checkout set
+  camera_bracket_mesh:=/path/to/realsense_mid_stand.dae (not redistributed). The real bracket is yet to be designed.
+
+  Frames (names as published by the realsense2_camera driver): camera_link, camera_color_frame,
+  camera_color_optical_frame (z forward), camera_depth_optical_frame. Depth is aligned to color in simulation.
+-->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+  <xacro:include filename="$(find realsense2_description)/urdf/_d435.urdf.xacro" />
+
+  <xacro:macro name="piper_camera" params="parent hardware bracket_mesh width height hfov_deg update_rate">
+    <xacro:sensor_d435 parent="${parent}" name="camera" use_nominal_extrinsics="true" use_mesh="true">
+      <origin xyz="-0.029 0.065 0.022" rpy="0 -1.22 -1.57" />
+    </xacro:sensor_d435>
+
+    <link name="camera_bracket_link">
+      <inertial>
+        <origin xyz="0 0 0" rpy="0 0 0" />
+        <mass value="0.04" />
+        <inertia ixx="1e-5" ixy="0" ixz="0" iyy="1e-5" iyz="0" izz="1e-5" />
+      </inertial>
+      <xacro:if value="${bracket_mesh == ''}">
+        <visual>
+          <origin xyz="0 0.0 0" rpy="0 0 0" />
+          <geometry><box size="0.04 0.02 0.04" /></geometry>
+          <material name="bracket_grey"><color rgba="0.35 0.35 0.38 1" /></material>
+        </visual>
+        <collision>
+          <origin xyz="0 0.0 0" rpy="0 0 0" />
+          <geometry><box size="0.04 0.02 0.04" /></geometry>
+        </collision>
+      </xacro:if>
+      <xacro:unless value="${bracket_mesh == ''}">
+        <visual><geometry><mesh filename="file://${bracket_mesh}" /></geometry></visual>
+      </xacro:unless>
+    </link>
+    <joint name="camera_bracket_joint" type="fixed">
+      <origin xyz="-0.015 0.050 0.022" rpy="0 0 0" />
+      <parent link="${parent}" />
+      <child link="camera_bracket_link" />
+    </joint>
+
+    <!-- Simulated image sensors (Gazebo). MuJoCo and Isaac define theirs in their own model/runner. The sensor looks along
+         x of camera_color_frame; gz_frame_id makes the ROS messages carry the optical frame. -->
+    <xacro:if value="${hardware == 'gazebo'}">
+      <gazebo reference="camera_color_frame">
+        <sensor name="camera" type="rgbd_camera">
+          <always_on>1</always_on>
+          <update_rate>${update_rate}</update_rate>
+          <visualize>0</visualize>
+          <topic>camera</topic>
+          <gz_frame_id>camera_color_optical_frame</gz_frame_id>
+          <camera>
+            <horizontal_fov>${hfov_deg * 3.14159265359 / 180.0}</horizontal_fov>
+            <image><width>${width}</width><height>${height}</height></image>
+            <clip><near>0.07</near><far>6.0</far></clip>
+            <depth_camera><clip><near>0.1</near><far>6.0</far></clip></depth_camera>
+          </camera>
+        </sensor>
+      </gazebo>
+    </xacro:if>
+  </xacro:macro>
+</robot>

@@ -2,15 +2,16 @@
 # Isaac Sim helpers for Piper Studio. Isaac runs in its own environment (never installed into .venv).
 #   scripts/isaac.sh build-usd     export the description (ROS side) and convert it to USD (Isaac side)
 #   scripts/isaac.sh run [args]    run the Isaac runner (isaac/run_piper.py); args: --seconds N --video f.mp4 --gui
+#   scripts/isaac.sh check         compare Isaac's USD with the URDF (fingertip pose over random configs, mass)
 #   scripts/isaac.sh stop          stop this workspace's runner (by PID file; never touches other Isaac processes)
 # Configuration (environment variables):
-#   ISAAC_ENV_SH   script that activates an Isaac Sim 6.x python env   (default ~/projects/dev/robosim/env.sh)
+#   ISAAC_ENV_SH   script that activates an Isaac Sim 6.x python env   (default ~/projects/sim/robosim/env.sh)
 #   PIPER_ISAAC_DATA   generated URDF/USD location                     (default ~/data/ml/isaac/piper_studio)
 #   ROS_DOMAIN_ID  must equal the domain of the ROS side (default 0)
 # See isaac/README.md for what this needs and how to recreate it on another machine.
 set -euo pipefail
 ws="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-ISAAC_ENV_SH="${ISAAC_ENV_SH:-$HOME/projects/dev/robosim/env.sh}"
+ISAAC_ENV_SH="${ISAAC_ENV_SH:-$HOME/projects/sim/robosim/env.sh}"
 DATA="${PIPER_ISAAC_DATA:-$HOME/data/ml/isaac/piper_studio}"
 PIDFILE="$DATA/run.pid"
 USD="$DATA/usd/piper_isaac/piper_isaac.usda"
@@ -27,7 +28,7 @@ in_isaac() {
 
 case "$cmd" in
   build-usd)
-    mkdir -p "$DATA"
+    mkdir -p "$DATA"; rm -rf "${DATA:?}/usd"   # the importer would otherwise write to usd/piper_isaac_1
     ( set +u; source "$ws/scripts/env.sh"
       ros2 run piper_description export_urdf.py --hardware isaac --physics --out "$DATA/piper_isaac.urdf" )
     in_isaac python "$ws/isaac/convert_urdf.py" "$DATA/piper_isaac.urdf" "$DATA/usd" > "$DATA/convert.log" 2>&1
@@ -42,6 +43,9 @@ case "$cmd" in
     wait "$child" || true
     # a trapped signal interrupts wait; wait again until the runner is really gone
     while kill -0 "$child" 2>/dev/null; do wait "$child" || true; done ;;
+  check)
+    ( set +u; source "$ws/scripts/env.sh"; python "$ws/tools/make_fk_reference.py" "$DATA/fk_reference.json" )
+    in_isaac python "$ws/isaac/check_model.py" "$USD" "$DATA/fk_reference.json" 2>&1 | grep "check_model" ;;
   stop)
     [ -f "$PIDFILE" ] || { echo "not running"; exit 0; }
     pid="$(cat "$PIDFILE")"

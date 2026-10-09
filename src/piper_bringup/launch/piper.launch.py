@@ -6,6 +6,7 @@
     ros2 launch piper_bringup piper.launch.py backend:=mujoco [gui:=true]
     ros2 launch piper_bringup piper.launch.py backend:=isaac [gui:=true]   # runs Isaac Sim (GPU) via scripts/isaac.sh
     ros2 launch piper_bringup piper.launch.py backend:=real can_port:=can0
+    ... servo:=false                                              # without MoveIt Servo (TCP-frame jogging)
 
 backend:=real starts the official agx_arm_ctrl driver. Safety defaults:
   * the driver does NOT enable the motors unless auto_enable:=true; enable explicitly with
@@ -18,6 +19,8 @@ backend:=real starts the official agx_arm_ctrl driver. Safety defaults:
 
 import os
 from pathlib import Path
+
+import yaml
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
@@ -40,13 +43,13 @@ def share(package: str) -> Path:
     return Path(get_package_share_directory(package))
 
 
-def moveit_config(backend: str, gripper: str, urdf: str):
+def moveit_config(backend: str, gripper: str, urdf: str, camera: str = "none"):
     config = (
         MoveItConfigsBuilder("piper", package_name="piper_bringup")
         .robot_description(file_path=str(xacro_file()), mappings={"hardware": "mock", "gripper": gripper})
         .robot_description_semantic(
             file_path="config/moveit/piper.srdf.xacro",
-            mappings={"effector_type": "agx_gripper" if gripper == "true" else "none"})
+            mappings={"effector_type": "agx_gripper" if gripper == "true" else "none", "camera": camera})
         .robot_description_kinematics(file_path="config/moveit/kinematics.yaml")
         .joint_limits(file_path="config/moveit/joint_limits.yaml")
         .trajectory_execution(file_path="config/moveit/moveit_controllers.yaml")
@@ -102,13 +105,16 @@ def launch_setup(context):
     if backend not in BACKENDS:
         raise RuntimeError(f"backend:={backend} is not supported; choose one of {BACKENDS}")
     controllers = str(share("piper_bringup") / "config/controllers.yaml")
-    urdf = robot_description(backend, gripper=gripper, controllers_file=controllers)
+    camera = arg("camera")
+    cam_map = {"camera": camera, "camera_bracket_mesh": arg("camera_bracket_mesh")} if camera != "none" else {}
+    urdf = robot_description(backend, gripper=gripper, controllers_file=controllers, **cam_map)
     if backend == "mujoco":
         cfg = share("piper_bringup") / "config/mujoco"
-        scene = mujoco_model(urdf, cfg / "inputs.xml", cfg / "scene.xml")
+        scene = mujoco_model(urdf, cfg / "inputs.xml", cfg / "scene.xml",
+                             camera={"width": 640, "height": 480, "hfov_deg": 69.4} if camera != "none" else None)
         urdf = robot_description(backend, gripper=gripper, controllers_file=controllers,
-                                 mujoco_model=scene, mujoco_headless=arg("gui") != "true")
-    config = moveit_config(backend, gripper, urdf)
+                                 mujoco_model=scene, mujoco_headless=arg("gui") != "true", **cam_map)
+    config = moveit_config(backend, gripper, urdf, camera)
     sim_time = {"use_sim_time": backend in SIMULATORS}
     commanders = ["arm_controller"] + (["gripper_controller"] if gripper == "true" else [])
     if backend == "real":
@@ -136,6 +142,16 @@ def launch_setup(context):
                          sim_time],
              condition=IfCondition(LaunchConfiguration("rviz"))),
     ]
+    if arg("servo") == "true":
+        servo_params = yaml.safe_load((share("piper_bringup") / "config/servo.yaml").read_text())
+        servo_params["is_primary_planning_scene_monitor"] = arg("moveit") != "true"  # move_group owns the scene if present
+        actions.append(Node(package="moveit_servo", executable="servo_node", name="servo_node", output="screen",
+                            parameters=[{"moveit_servo": servo_params},
+                                        {"update_period": servo_params["publish_period"],  # read by the acceleration-limit smoothing plugin
+                                         "planning_group_name": servo_params["move_group_name"]},
+                                        config.robot_description,
+                                        config.robot_description_semantic, config.robot_description_kinematics,
+                                        config.joint_limits, sim_time]))
     if backend in ("mock", "real", "isaac"):
         control = Node(package="controller_manager", executable="ros2_control_node",
                        parameters=[controllers, sim_time], output="screen",
@@ -182,6 +198,12 @@ def generate_launch_description():
         DeclareLaunchArgument("backend", default_value="mock", choices=BACKENDS),
         DeclareLaunchArgument("gripper", default_value="true", choices=["true", "false"]),
         DeclareLaunchArgument("moveit", default_value="true", choices=["true", "false"]),
+        DeclareLaunchArgument("camera", default_value="none", choices=["none", "d435"],
+                              description="wrist RealSense D435 (simulated image/depth topics under /camera)"),
+        DeclareLaunchArgument("camera_bracket_mesh", default_value="",
+                              description="optional path of a bracket mesh (e.g. AgileX's realsense_mid_stand.dae)"),
+        DeclareLaunchArgument("servo", default_value="true", choices=["true", "false"],
+                              description="start MoveIt Servo (TCP-frame jogging via the streaming controller)"),
         DeclareLaunchArgument("rviz", default_value="false", choices=["true", "false"]),
         DeclareLaunchArgument("gui", default_value="false", choices=["true", "false"],
                               description="simulators: show the simulator GUI"),

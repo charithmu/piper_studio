@@ -59,7 +59,7 @@ remains an option if in-process control is wanted later.
 ## Recreating this on another machine
 
 Requirements: Isaac Sim 6.x as a pip install (Python 3.12) with its `isaacsim.ros2.*` extensions, NVIDIA GPU, a
-launcher that activates that environment and defines `ISAAC_SIM_DIR` (here `~/projects/dev/robosim/env.sh`).
+launcher that activates that environment and defines `ISAAC_SIM_DIR` (here `~/projects/sim/robosim/env.sh`).
 
 ```bash
 export ISAAC_ENV_SH=/path/to/your/isaac-env.sh      # sources the Isaac Sim 6.x env, sets ISAAC_SIM_DIR

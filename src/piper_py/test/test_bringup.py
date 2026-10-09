@@ -112,3 +112,19 @@ class TestBringup(unittest.TestCase):
             r = self.arm.gripper(width)
             self.assertTrue(r, r)
             self.assertTrue(math.isclose(self.arm.joint_state()["gripper"], width, abs_tol=0.003))
+
+    def test_8_servo_tcp_motion(self):
+        """Cartesian (TCP-frame) motion through MoveIt Servo and the streaming controller."""
+        self.assertTrue(self.arm.use_trajectories())
+        self.assertTrue(self.arm.move_named("ready", velocity_scaling=0.6))
+        time.sleep(0.5)
+        p0, q0 = self.arm.tcp_pose()
+        target = [p0[0] + 0.02, p0[1] + 0.03, p0[2] - 0.02]
+        r = self.arm.servo_to_pose(target, q0, timeout=30.0)
+        self.assertTrue(r, r)
+        time.sleep(0.3)
+        p1, q1 = self.arm.tcp_pose()
+        err = math.dist(p1, target)
+        self.assertLess(err, 0.006, f"TCP {err * 1000:.1f} mm from target")
+        self.assertGreater(abs(sum(a * b for a, b in zip(q0, q1))), 0.9995)  # orientation held
+        self.assertTrue(self.arm.use_trajectories())

@@ -23,7 +23,7 @@
     </joint>
   </xacro:macro>
 
-  <xacro:macro name="piper_ros2_control" params="hardware gripper initial_positions_file controllers_file mujoco_model mujoco_headless">
+  <xacro:macro name="piper_ros2_control" params="hardware gripper initial_positions_file controllers_file mujoco_model mujoco_headless camera:=none">
     <xacro:property name="init" value="${xacro.load_yaml(initial_positions_file)['initial_positions']}" />
     <xacro:property name="known" value="${['mock', 'real', 'gazebo', 'mujoco', 'isaac']}" />
     <xacro:if value="${hardware not in known}">
@@ -72,6 +72,15 @@
       <xacro:piper_joint name="joint4" initial="${init['joint4']}" effort="${hardware == 'isaac'}" />
       <xacro:piper_joint name="joint5" initial="${init['joint5']}" effort="${hardware == 'isaac'}" />
       <xacro:piper_joint name="joint6" initial="${init['joint6']}" effort="${hardware == 'isaac'}" />
+      <!-- MuJoCo renders the MJCF camera named "camera" and publishes it through this sensor (topics as the RealSense driver). -->
+      <xacro:if value="${hardware == 'mujoco' and camera != 'none'}">
+        <sensor name="camera">
+          <param name="frame_name">camera_color_optical_frame</param>
+          <param name="info_topic">/camera/color/camera_info</param>
+          <param name="image_topic">/camera/color/image_raw</param>
+          <param name="depth_topic">/camera/aligned_depth_to_color/image_raw</param>
+        </sensor>
+      </xacro:if>
       <!-- Gripper opening width in metres (official single-DOF model; fingers are URDF mimics). -->
       <xacro:if value="${gripper}">
         <xacro:piper_joint name="gripper" initial="${init['gripper']}" effort="${hardware == 'isaac'}" />

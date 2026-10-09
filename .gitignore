@@ -7,3 +7,4 @@ log/
 **/__pycache__/
 **/*.pyc
 for_reference/
+MUJOCO_LOG.TXT
