@@ -4,16 +4,16 @@ Prepared 2026-10-08 UTC for a new agent, at the user's explicit request. This re
 
 **Current state:** legacy source and plans are committed locally; the new overhaul is designed but not implemented. **No push has executed.** Publication is pending exact-destination authorization after automatic approval review rejected the batch push. No build, simulator, dependency install, CAN command, firmware change, or real-arm test has been performed by this agent.
 
-Workspace: `/home/atlasdev/projects/dev/ros2_projects/piper_studio`, on Linux workstation `atlas`, account `atlasdev`. User/GitHub identity: `charithmu` (Charith Munasinghe). Git author configuration: `Charith Munasinghe <mung@zhaw.ch>`.
+Workspace: `/home/atlasdev/projects/ros/piper_studio`, on Linux workstation `atlas`, account `atlasdev`. User/GitHub identity: `charithmu` (Charith Munasinghe). Git author configuration: `Charith Munasinghe <mung@zhaw.ch>`.
 
 ## 1. User instructions and how the scope evolved
 
 ### 1.1 Original startup instruction, verbatim
 
-> You are the Piper Studio agent on the Linux workstation "atlas" (account atlasdev). Your working directory is /home/atlasdev/projects/dev/ros2_projects/piper_studio. You have no prior context, so before doing anything read these files completely, in this order:
-> 1) /home/atlasdev/projects/dev/ros2_projects/piper_studio/HANDOFF.md  (self-contained: how we work, machine rules, your mission and task list; follow it exactly)
+> You are the Piper Studio agent on the Linux workstation "atlas" (account atlasdev). Your working directory is /home/atlasdev/projects/ros/piper_studio. You have no prior context, so before doing anything read these files completely, in this order:
+> 1) /home/atlasdev/projects/ros/piper_studio/HANDOFF.md  (self-contained: how we work, machine rules, your mission and task list; follow it exactly)
 > 2) this workspace's AGENTS.md, README.md, PLAN.md, TODO.md, ORCHESTRATION.md
-> 3) /home/atlasdev/projects/dev/ml_tests/README.md and CLAUDE.md  (machine knowledge base and rules)
+> 3) /home/atlasdev/projects/platform/README.md and CLAUDE.md  (machine knowledge base and rules)
 > Short version of the rules: report to me after every step with evidence; one bounded job at a time; I am an expert in robotics, so be technical and precise and discuss concepts alternatives and best practices with me.; my working tree here has uncommitted changes, so review it first and commit by working with me first and never push, reset or delete without asking; there is no passwordless sudo, so give me exact commands one at a time with an explanation; ask before installs outside this workspace, network exposure, and anything that moves the real arm (I must be present). There are other agents working on this workstation and some of them are using Claude code. Since You cannot talk to other agents: communicate through the files in comms/ described in HANDOFF.md section 1.4 (read comms/INBOX.md at the start of each session; put questions in comms/NEEDS_USER.md and progress in comms/STATUS.md) and through this chat.
 > Your first reply: what you read, your understanding of the mission in five lines, your questions, and the proposed first step (task 0) with a time estimate. Do not change anything until I agree.
 
@@ -59,8 +59,8 @@ The latest task is to write this complete takeover file. **That request is not a
 
 ```bash
 source /opt/ros/jazzy/setup.bash
-source /home/atlasdev/projects/dev/ros2_projects/piper_studio/.venv/bin/activate
-source /home/atlasdev/projects/dev/ros2_projects/piper_studio/install/setup.bash
+source /home/atlasdev/projects/ros/piper_studio/.venv/bin/activate
+source /home/atlasdev/projects/ros/piper_studio/install/setup.bash
 ```
 
 - ROS is Jazzy; Gazebo is Harmonic. The existing venv activation still points internally to the old path without `/dev`, and installed overlay files have missing-path problems. Sourcing these is not proof they work. For read-only Python checks this agent activated the environment then explicitly used `.venv/bin/python` with `PYTHONDONTWRITEBYTECODE=1`.
@@ -68,15 +68,15 @@ source /home/atlasdev/projects/dev/ros2_projects/piper_studio/install/setup.bash
 - Keep the SDK excluded from colcon using `COLCON_IGNORE` or a subsequently agreed equivalent. Vendor SDK/ROS source is upstream-frozen without coordination; this session made no functional source edits there.
 - Large data/models/recordings belong under `/home/atlasdev/data/ml/` or `/home/atlasdev/extra`, not in the project. New data folders require owner/source notes. Do not commit credentials or datasets.
 - Atlas has a shared RTX 4090. Read the status boards before GPU work, check `nvidia-smi`, and use `gpu-run`. No GPU work was started here.
-- Read `/home/atlasdev/projects/dev/ml_tests/README.md` and `CLAUDE.md` for machine details. Machine/environment changes require a dated knowledge-base entry; obtain permission if that external write is outside your tool scope.
+- Read `/home/atlasdev/projects/platform/README.md` and `CLAUDE.md` for machine details. Machine/environment changes require a dated knowledge-base entry; obtain permission if that external write is outside your tool scope.
 - This session could write the workspace and `/tmp`; Git metadata mutations/network operations required tool escalation. Future agents must check their own permissions. Do not bypass review rejection or work around a write boundary.
 - The preserved `.claude/settings.json` contains agent permissions and denies some Git operations. It has no detected credentials. Do not edit tool settings to bypass the push rejection.
 
 Other workstreams, read-only coordination paths:
 
-- Go2: `/home/atlasdev/projects/dev/ros2_projects/go2_studio/comms/STATUS.md` and `FOR_OTHERS.md`.
-- Isaac/integration: `/home/atlasdev/projects/dev/robosim/handoff/STATUS.md`.
-- Isaac setup: `/home/atlasdev/projects/dev/robosim/docs/SETUP_REFERENCE.md` and `SESSION_LOG.md`.
+- Go2: `/home/atlasdev/projects/ros/go2_studio/comms/STATUS.md` and `FOR_OTHERS.md`.
+- Isaac/integration: `/home/atlasdev/projects/sim/robosim/handoff/STATUS.md`.
+- Isaac setup: `/home/atlasdev/projects/sim/robosim/docs/SETUP_REFERENCE.md` and `SESSION_LOG.md`.
 - Installed native control metadata: `/home/atlasdev/data/ml/isaac/envs/isaaclab/lib/python3.12/site-packages/isaacsim/exts/isaacsim.ros2.control/config/extension.toml`; inspect it read-only and do not modify that shared installation.
 
 Their status files were read. The Isaac thread reports Sim 6.1/Lab 3.0 installation and earlier Piper USD tests; those are **that thread's evidence**, not this agent's qualification of Piper Studio. Camera and mounting measurements remain outstanding. Recheck the boards; machine/GPU state may change.
@@ -393,7 +393,7 @@ Do not use `git submodule update --remote`, reset, recursive branch checkout, or
 
 ### Suggested prompt for launching the next agent
 
-> You are taking over Piper Studio on atlas as atlasdev, cwd `/home/atlasdev/projects/dev/ros2_projects/piper_studio`. Follow the startup reading order in TAKEOVER.md section 9 and read TAKEOVER.md completely. It contains the latest conversation, preservation state, proposed design, and unfinished work. Legacy implementation and planning are committed on separate branches; no push has executed because exact destination approval is pending after automatic review rejection. Do not bypass that rejection. No runtime or hardware qualification has been performed. Preserve new edits, use comms files and this chat, and report one bounded step at a time. Summarize the actual checkout and unresolved decisions, then continue the approved scope. Ask separately before hardware movement, firmware changes, installs outside the workspace, or irreversible restructuring.
+> You are taking over Piper Studio on atlas as atlasdev, cwd `/home/atlasdev/projects/ros/piper_studio`. Follow the startup reading order in TAKEOVER.md section 9 and read TAKEOVER.md completely. It contains the latest conversation, preservation state, proposed design, and unfinished work. Legacy implementation and planning are committed on separate branches; no push has executed because exact destination approval is pending after automatic review rejection. Do not bypass that rejection. No runtime or hardware qualification has been performed. Preserve new edits, use comms files and this chat, and report one bounded step at a time. Summarize the actual checkout and unresolved decisions, then continue the approved scope. Ask separately before hardware movement, firmware changes, installs outside the workspace, or irreversible restructuring.
 
 ## 10. File index and final cautions about stale state
 

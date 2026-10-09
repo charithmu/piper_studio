@@ -1,0 +1,47 @@
+project: piper_studio
+kind: ros
+owner: ros/piper_studio
+docs: [README.md, HANDOFF.md, AGENTS.md]
+artifacts:
+  - id: piper-demo
+    pin: 7
+    type: web
+    title: Piper Studio demo
+    desc: "AgileX Piper in simulation: the same scripted sequence on mock, Gazebo, MuJoCo and Isaac Sim through one set of controllers; videos, step results, cross-backend agreement. Real arm not involved."
+    group: Experiments
+    runtime: static
+    workdir: ~/data/ml/isaac/piper_studio/site
+    start: /usr/bin/python3 -m http.server --bind 127.0.0.1 8780
+    port: 8780
+    exposure: tailnet
+    route: /piper-studio/demo
+    autostart: true
+    unit: web-piper-studio-demo.service
+    unit_scope: user
+    manage: "web-pages restart piper-studio-demo"
+    probe: {path: /}
+    notes: "Built by tools/build_demo_page.py from recorded demo runs; files in ~/data/ml/isaac/piper_studio/site."
+    links:
+      - {label: Open demo, local: "http://localhost:8780/", tailnet: "https://{ts}:8700/piper-studio/demo/"}
+  - id: piper-run-demo
+    type: job
+    title: Run the scripted demo on one backend
+    desc: "piper_py.demo on one backend and store the record. Backend mock|gazebo|mujoco|isaac; GPU only for isaac."
+    runtime: one-shot
+    workdir: .
+    start: scripts/run_demo.sh BACKEND OUTDIR [ROS_DOMAIN_ID] [MODE]
+    notes: "ROS_DOMAIN_ID range for Piper: 70-161."
+  - id: piper-build-demo-page
+    type: job
+    title: Build the static demo page
+    desc: Builds the demo page from recorded demo runs (scripts/run_demo.sh).
+    runtime: one-shot
+    workdir: .
+    start: python tools/build_demo_page.py
+  - id: piper-bootstrap
+    type: job
+    title: Rebuild the workspace from a clean clone
+    desc: Installs only inside the workspace; reports missing system packages.
+    runtime: one-shot
+    workdir: .
+    start: scripts/bootstrap.sh
