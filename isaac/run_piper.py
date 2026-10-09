@@ -26,11 +26,19 @@ ap.add_argument("--seconds", type=float, default=0.0, help="exit after this much
 ap.add_argument("--gui", action="store_true", help="open a window (default: headless)")
 ap.add_argument("--video", type=Path, help="record the camera view to this mp4 (needs ffmpeg)")
 ap.add_argument("--video-fps", type=float, default=30.0)
+ap.add_argument("--camera", default="none", help="none | d435: publish the wrist camera topics (USD must contain the camera)")
+ap.add_argument("--frame-hz", type=float, default=float(os.environ.get("PIPER_ISAAC_FRAME_HZ", "0")),
+                help="app updates (and ROS publishing) per second; 0 = auto: 240 without rendering, 90 with a camera/video "
+                     "(rendering costs ~6 ms per update). Higher = less control latency, more CPU")
 args, _ = ap.parse_known_args()
 
 from isaacsim import SimulationApp  # noqa: E402
 
-app = SimulationApp({"headless": not args.gui, "width": 1280, "height": 720})
+# Without a camera/video nothing needs rendering: skipping viewport updates cuts the per-frame cost a lot.
+_needs_render = bool(args.video) or args.gui or args.camera != "none"
+args.frame_hz = args.frame_hz or (90.0 if _needs_render else 240.0)
+app = SimulationApp({"headless": not args.gui, "width": 1280, "height": 720,
+                     "disable_viewport_updates": not _needs_render})
 
 import numpy as np  # noqa: E402
 import omni.graph.core as og  # noqa: E402
@@ -49,8 +57,8 @@ from isaacsim.core.experimental.objects import DomeLight, GroundPlane  # noqa: E
 from isaacsim.core.experimental.prims import Articulation  # noqa: E402
 from pxr import PhysxSchema, UsdPhysics  # noqa: E402
 
-PHYSICS_HZ = 240.0
-FRAME_HZ = 60.0  # app updates (and ROS publishing) per second; 4 physics substeps each
+FRAME_HZ = float(args.frame_hz)
+PHYSICS_HZ = FRAME_HZ * max(1, round(240.0 / FRAME_HZ))  # a whole number of physics substeps per frame (>= 240 Hz)  # app updates (and ROS publishing) per second; PHYSICS_HZ / FRAME_HZ substeps each
 ARM = [f"joint{i}" for i in range(1, 7)]
 from servo_gains import GAINS  # noqa: E402  (same directory; kept equal to MuJoCo's servos)
 INITIAL = {"joint2": 0.01, "joint3": -0.01}  # config/initial_positions.yaml
@@ -68,6 +76,7 @@ for _ in range(5):
 import carb.settings  # noqa: E402
 
 _settings = carb.settings.get_settings()
+_settings.set("/app/runLoops/main/rateLimitFrequency", float(FRAME_HZ))  # manual mode: dt is fixed at this rate
 _settings.set("/app/runLoops/main/rateLimitEnabled", False)
 _settings.set("/app/runLoops/present/rateLimitEnabled", False)
 _settings.set("/app/runLoops/rendering_0/rateLimitEnabled", False)
@@ -146,6 +155,11 @@ if args.video:
 # 60 Hz frames with 4 physics substeps each (240 Hz physics).
 timeline = omni.timeline.get_timeline_interface()
 timeline.set_time_codes_per_second(FRAME_HZ)
+from omni.kit.loop import _loop as omni_loop  # noqa: E402
+
+_loop = omni_loop.acquire_loop_interface()
+_loop.set_manual_mode(True)
+_loop.set_manual_step_size(1.0 / FRAME_HZ)  # each app.update advances the simulation by exactly this much
 robot = Articulation(ROBOT)
 app_utils.play(commit=True)
 for _ in range(3):
@@ -176,11 +190,18 @@ signal.signal(signal.SIGTERM, lambda *_: globals().__setitem__("stop", True))
 frame_dt = 1.0 / args.video_fps
 next_frame = 0.0
 wall0 = time.monotonic()
+last_log, last_sim, frames = wall0, 0.0, 0
+cost_update = cost_fingers = 0.0
 t0 = timeline.get_current_time()
 while app.is_running() and not stop:
+    t_a = time.perf_counter()
     app.update()
+    t_b = time.perf_counter()
     targets = robot.get_dof_position_targets().numpy()
     robot.set_dof_position_targets((ratios * targets[0, i_grip]).reshape(1, -1), dof_indices=i_fingers)
+    t_c = time.perf_counter()
+    cost_update += t_b - t_a
+    cost_fingers += t_c - t_b
     sim_t = timeline.get_current_time() - t0
     if video is not None and sim_t >= next_frame:
         frame = rgb.get_data()
@@ -189,6 +210,13 @@ while app.is_running() and not stop:
             next_frame += frame_dt
     if args.seconds and sim_t >= args.seconds:
         break
+    frames += 1
+    if time.monotonic() - last_log >= 5.0:
+        wall = time.monotonic() - last_log
+        print(f"[piper_isaac] {frames / wall:.0f} frames/s (target {FRAME_HZ:.0f}), real-time factor "
+              f"{(sim_t - last_sim) / wall:.2f}; per frame: app.update {1000 * cost_update / max(frames, 1):.1f} ms, "
+              f"finger coupling {1000 * cost_fingers / max(frames, 1):.1f} ms", flush=True)
+        last_log, last_sim, frames, cost_update, cost_fingers = time.monotonic(), sim_t, 0, 0.0, 0.0
     ahead = sim_t - (time.monotonic() - wall0)  # real-time pacing: never run faster than wall clock
     if ahead > 0.002:
         time.sleep(ahead)

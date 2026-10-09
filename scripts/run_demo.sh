@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # Run the scripted demo (piper_py.demo) on one backend and store the record.
 #   scripts/run_demo.sh BACKEND OUTDIR [ROS_DOMAIN_ID] [MODE]    BACKEND: mock | gazebo | mujoco | isaac; MODE: demo (default) | stepresp
-# isaac also records the Isaac camera view to OUTDIR/isaac.mp4. Uses the GPU only for isaac.
+# isaac also records the Isaac camera view to OUTDIR/isaac.mp4 (PIPER_NO_VIDEO=1 to skip). Uses the GPU only for isaac.
 set -uo pipefail
 ws="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 backend="${1:?backend}"; out="${2:?outdir}"; mkdir -p "$out"
 export ROS_DOMAIN_ID="${3:-$((140 + RANDOM % 60))}"
 set +u; source "$ws/scripts/env.sh"; set -u
-extra=(); [ "$backend" = isaac ] && extra=("isaac_video:=$out/isaac.mp4")
+extra=(); [ "$backend" = isaac ] && [ -z "${PIPER_NO_VIDEO:-}" ] && extra=("isaac_video:=$out/isaac.mp4")
 setsid ros2 launch piper_bringup piper.launch.py "backend:=$backend" "${extra[@]}" > "$out/$backend.launch.log" 2>&1 < /dev/null &
 lpid=$!
 trap 'kill -INT -- -"$lpid" 2>/dev/null; sleep 8; kill -KILL -- -"$lpid" 2>/dev/null' EXIT

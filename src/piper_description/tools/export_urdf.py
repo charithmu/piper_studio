@@ -24,8 +24,10 @@ def main():
     p.add_argument("--physics", action="store_true")
     p.add_argument("--keep-mimic", action="store_true", help="with --physics: keep URDF mimic joints")
     p.add_argument("--no-gripper", action="store_true")
+    p.add_argument("--camera", default="none", help="none | d435 (wrist RealSense)")
     a = p.parse_args()
-    urdf = robot_description(a.hardware, gripper=not a.no_gripper)
+    cam = {"camera": a.camera} if a.camera != "none" else {}
+    urdf = robot_description(a.hardware, gripper=not a.no_gripper, **cam)
     if a.physics:
         urdf = physics_model(urdf, keep_mimic=a.keep_mimic)
 

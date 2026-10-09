@@ -36,7 +36,7 @@ Use a unique `ROS_DOMAIN_ID` (the runner inherits it). Standalone runner options
 3. `run_piper.py` loads the USD, sets the provisional drive gains (same family as MuJoCo's servos), couples the
    fingers to `gripper` (`gripper_joint1 = +0.5 g`, `gripper_joint2 = -0.5 g`, as in the URDF mimic), builds the ROS 2
    OmniGraph (clock, joint state publish/subscribe, articulation controller) and paces frames to real time
-   (60 Hz frames, 240 Hz physics).
+   (frame rate auto: 240 Hz without rendering, 90 Hz with a camera or video; physics >= 240 Hz).
 
 Why topics and not `isaacsim.ros2.control`: the ros2_control manager stays in the apt ROS install, identical
 to the real-arm path (`JointStateTopicSystem`), so controller behavior is the same on every backend and the

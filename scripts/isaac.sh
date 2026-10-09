@@ -8,6 +8,7 @@
 #   ISAAC_ENV_SH   script that activates an Isaac Sim 6.x python env   (default ~/projects/sim/robosim/env.sh)
 #   PIPER_ISAAC_DATA   generated URDF/USD location                     (default ~/data/ml/isaac/piper_studio)
 #   ROS_DOMAIN_ID  must equal the domain of the ROS side (default 0)
+#   PIPER_ISAAC_FRAME_HZ  app/ROS frame rate of the runner (default 60; physics is 240 Hz)
 # See isaac/README.md for what this needs and how to recreate it on another machine.
 set -euo pipefail
 ws="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -20,7 +21,7 @@ cmd="${1:-}"; shift || true
 # Run a command in a clean environment (no system ROS, no ~/.local) inside Isaac's env, on the GPU.
 in_isaac() {
   env -i HOME="$HOME" PATH="/usr/bin:/bin:$HOME/.local/bin" \
-    RMW_IMPLEMENTATION=rmw_fastrtps_cpp ROS_DOMAIN_ID="${ROS_DOMAIN_ID:-0}" PIPER_ISAAC_PIDFILE="$PIDFILE" \
+    RMW_IMPLEMENTATION=rmw_fastrtps_cpp ROS_DOMAIN_ID="${ROS_DOMAIN_ID:-0}" PIPER_ISAAC_PIDFILE="$PIDFILE" ${PIPER_ISAAC_FRAME_HZ:+PIPER_ISAAC_FRAME_HZ="$PIPER_ISAAC_FRAME_HZ"} \
     ${GZ_PARTITION:+GZ_PARTITION="$GZ_PARTITION"} \
     bash -c 'source "$0"; export LD_LIBRARY_PATH="$ISAAC_SIM_DIR/exts/isaacsim.ros2.core/jazzy/lib"; exec gpu-run "$@"' \
     "$ISAAC_ENV_SH" "$@"

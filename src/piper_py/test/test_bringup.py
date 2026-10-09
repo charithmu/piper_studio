@@ -128,3 +128,24 @@ class TestBringup(unittest.TestCase):
         self.assertLess(err, 0.006, f"TCP {err * 1000:.1f} mm from target")
         self.assertGreater(abs(sum(a * b for a, b in zip(q0, q1))), 0.9995)  # orientation held
         self.assertTrue(self.arm.use_trajectories())
+
+    def test_9_wrist_camera(self):
+        """Simulated D435: colour, aligned depth and camera_info on the RealSense driver's topics and frames."""
+        import numpy as np
+        self.assertTrue(self.arm.use_trajectories())
+        self.assertTrue(self.arm.move_named("ready", velocity_scaling=0.6))
+        time.sleep(0.5)
+        color, hc = self.arm.image("color", timeout=60.0)
+        depth, hd = self.arm.image("depth", timeout=60.0)
+        info = self.arm.camera_info(timeout=30.0)
+        self.assertEqual(color.shape, (480, 640, 3))
+        self.assertEqual(depth.shape, (480, 640))
+        self.assertEqual((info.width, info.height), (640, 480))
+        self.assertEqual(hc.frame_id, "camera_color_optical_frame")
+        self.assertEqual(hd.frame_id, "camera_color_optical_frame")
+        self.assertGreater(float(color.std()), 5.0, "colour image is blank")
+        valid = np.isfinite(depth) & (depth > 0)
+        self.assertGreater(float(valid.mean()), 0.2, "depth image is mostly empty")
+        self.assertTrue(0.05 < float(np.nanmedian(depth[valid])) < 5.0, "depth is not in metres")
+        # pinhole model of a 69.4 deg horizontal field of view: fx = (w/2) / tan(hfov/2)
+        self.assertAlmostEqual(info.k[0], 320.0 / math.tan(math.radians(69.4) / 2), delta=5.0)
