@@ -22,8 +22,8 @@ docs/description/         model audit and description decisions
 ```
 
 Gazebo and MuJoCo run from `piper_bringup`; their models are generated from `piper_description`
-(each `ROS_DOMAIN_ID` gets its own `GZ_PARTITION`). Planned: Isaac and `piper_perception` (wrist
-camera). See
+(each `ROS_DOMAIN_ID` gets its own `GZ_PARTITION`; the Gazebo server runs headless with EGL rendering so camera
+sensors work without a display). Isaac Sim runs as its own process (see `isaac/README.md`). See
 [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ## Setup
@@ -46,6 +46,7 @@ ros2 launch piper_bringup piper.launch.py backend:=gazebo [gui:=true]   # Gazebo
 ros2 launch piper_bringup piper.launch.py backend:=mujoco [gui:=true]   # MuJoCo (model generated at launch)
 ros2 launch piper_bringup piper.launch.py backend:=isaac    # Isaac Sim, own process on the GPU; see isaac/README.md
 ros2 launch piper_description view.launch.py              # model only, joint sliders
+ros2 launch piper_bringup piper.launch.py backend:=gazebo camera:=d435   # simulated wrist D435 on /camera/color/image_raw etc. (also mujoco, isaac)
 ```
 
 ```bash
@@ -69,8 +70,8 @@ with Piper() as arm:
 
 `scripts/run_demo.sh BACKEND OUT/` runs one scripted sequence (planning, straight-line moves, gripper, direct trajectory,
 50 Hz streaming) on a backend and records it; `tools/build_demo_page.py OUT/ SITE/` builds the comparison page
-(videos, step results, cross-backend agreement). On atlas it is served at
-`https://atlas.buri-fence.ts.net:8700/piper-studio/demo/` (tailnet only).
+(videos, step results, cross-backend agreement, plus status, control-level, architecture and camera pages).
+On atlas it is served at `https://atlas.buri-fence.ts.net:8700/piper-studio/demo/` (tailnet only).
 
 ### Control levels
 
@@ -80,8 +81,9 @@ with Piper() as arm:
 | Streaming joint targets | `arm_position_controller` via `Piper.use_streaming()` + `stream_joints()` | teleop, policies, servoing |
 | Trajectories | `arm_controller` (FollowJointTrajectory) via `Piper.move_joints()` | scripted motion, no planner |
 | Planning | MoveIt `move_group` via `Piper.move_pose()/move_named()/move_to_joints()` | collision-aware, Cartesian (Pilz LIN) |
+| Cartesian servoing | MoveIt Servo via `Piper.servo_twist()/servo_to_pose()` | TCP jogging and tracking (through the streaming controller) |
 | Gripper | `gripper_controller` (ParallelGripperCommand), width in m | all |
-| Vendor-native | `agx_arm_ctrl` topics (`control/move_*`, MIT) or pyAgxArm directly | firmware features, impedance research |
+| Vendor-native | `agx_arm_ctrl` topics (`control/move_*`, MIT) or pyAgxArm directly | firmware features, impedance research (not wrapped by `piper_py` yet; see the control levels page of the demo site) |
 
 Exactly one controller owns the arm at a time (`arm_controller` or `arm_position_controller`).
 

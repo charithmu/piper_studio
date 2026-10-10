@@ -43,6 +43,15 @@ to the real-arm path (`JointStateTopicSystem`), so controller behavior is the sa
 Isaac-hosted controller manager (own ROS ABI, USD-synthesized URDF) is not needed. `isaacsim.ros2.control`
 remains an option if in-process control is wanted later.
 
+## Wrist camera and scene objects
+
+`scripts/isaac.sh build-usd d435` builds a second USD (with the D435 meshes) and writes `camera_pose.json`: the colour optical frame in
+`link6`, turned 180 deg about x because USD cameras look along -Z with +Y up. `ros2 launch ... backend:=isaac camera:=d435` then makes the
+runner create a USD camera there (640x480, 69.4 deg horizontal, near 0.05 m) and publish it through Isaac's ROS 2 camera graph on the
+RealSense topics (`/camera/color/image_raw`, `/camera/aligned_depth_to_color/image_raw`, `/camera/color/camera_info`, frame
+`camera_color_optical_frame`). The static objects of `piper_bringup/config/scene_objects.yaml` are passed as JSON (`--scene`) so all
+simulators see the same scene. Cost: each rendered view is about 8 ms per frame (real-time factor ~0.6 with the wrist camera at 90 Hz frames).
+
 ## Things learned (each cost time)
 
 - The importer output has the physics in a variant set; select `physx` or the stage has no articulation.
@@ -54,6 +63,8 @@ remains an option if in-process control is wanted later.
 - With sim time, ros2_control must not start before `/clock` ticks (Isaac takes ~30 s): the launch gates
   `ros2_control_node` and the spawners on `wait_for_clock.py`.
 - `gpu-run` does not forward signals; the runner writes `run.pid` and `scripts/isaac.sh stop` signals it.
+- A bare PhysX PD drive sags under gravity (about 9 mm at the TCP, which defeated Servo's 3 mm tolerance); the runner turns gravity off
+  for the arm's rigid bodies, as MuJoCo's gravcomp and the real arm's firmware do.
 - Hand-authored PhysX mimic joints did not couple the fingers; the runner applies the ratio per frame instead.
 
 ## Recreating this on another machine

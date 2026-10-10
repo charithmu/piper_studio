@@ -91,7 +91,8 @@ exercised only against a stand-in driver. ✓ = passed in the automated test or 
 <h2>What does not work yet</h2>
 <ul>
 <li><b>Real arm:</b> never driven. Needs you present. First session is read-only (state, feedback, <code>arm_status</code>), then enable, then slow moves.</li>
-<li><b>Isaac wrist camera and shared scene:</b> {html.escape(facts.get("isaac_camera_note", "not built yet (the plan is a camera prim under the optical frame, published through Isaac's OmniGraph camera helper)."))}</li>
+<li><b>Isaac speed with cameras:</b> every rendered view costs Isaac about 8&nbsp;ms per frame. With the wrist camera alone it runs at about 0.6 of real time at 90&nbsp;Hz frames; with the observer video as well, about 0.4. Simulated time stays correct (everything runs on <code>/clock</code>), it is just slower on the wall clock. Without cameras it runs at real time.</li>
+<li><b>Gazebo camera viewpoint</b> is 4&nbsp;cm ahead of the true D435 optical centre (the housing workaround), so Gazebo's view differs slightly from MuJoCo's and Isaac's, which agree closely. A visibility mask for the housing would remove the offset.</li>
 <li><b>Isaac control latency:</b> joint targets travel over ROS topics to Isaac and back (one extra hop). NVIDIA recommends the in-process
 <code>isaacsim.ros2.control</code> for this; not tried yet. See the <a href="control.html">control levels</a> page and the architecture notes.</li>
 <li><b>Firmware-level modes</b> of the arm (Cartesian PTP/line/arc, per-joint MIT impedance, unsmoothed joint streaming, CPV, limits/payload/protection) are not exposed by our API. Details and the recommendation on the <a href="control.html">control levels</a> page.</li>
@@ -103,6 +104,8 @@ exercised only against a stand-in driver. ✓ = passed in the automated test or 
 <h2>Bugs found and fixed in this round</h2>
 <ul>
 <li><b>Gazebo camera showed only background.</b> Two causes, both ours: (1) the sensor frame sits <i>inside</i> the D435 housing mesh, so every ray hit the housing or nothing, fixed by placing the sensor at the lens plane (4&nbsp;cm along its viewing axis); (2) headless Gazebo needs the EGL renderer, so the server now starts as <code>gz sim -s --headless-rendering</code> through <code>piper_bringup/scripts/gz_server.sh</code>. A minimal world proved the renderer itself was fine (100&nbsp;% depth, correct range) before I looked at the robot.</li>
+<li><b>Isaac arm sagged under gravity</b> (bare PhysX PD drive, about 9&nbsp;mm at the TCP), so Servo pose tracking settled 9&nbsp;mm short and its test failed. The Isaac arm bodies now feel no gravity, like MuJoCo's gravity compensation and the real arm's firmware; Servo converges to 3&nbsp;mm and the Isaac end-to-end test passes 10/10. This changes Isaac's tracking numbers on the demo page.</li>
+<li><b>MuJoCo camera published at 5&nbsp;Hz</b> (the plugin default): set to 30&nbsp;Hz with <code>camera_publish_rate</code>.</li>
 <li><b>Orphaned Gazebo servers</b> after a hard kill: the wrapper now has a watchdog that stops the server if the wrapper dies.</li>
 <li><b>A test that never ran the camera check</b> on the simulators (the test launch did not request the camera): fixed; it also skips cleanly on backends without a camera.</li>
 </ul>
@@ -285,7 +288,7 @@ def architecture_svg() -> str:
     s.append(_arrow(246, 648, 262, 648))
     s.append(_arrow(592, 648, 608, 648))
     s.append(_box(16, 690, 230, 52, "u", "realsense2_description", "D435 model"))
-    s.append(_box(262, 690, 330, 52, "o", "sim cameras → /camera/*", "Gazebo · MuJoCo · (Isaac planned)"))
+    s.append(_box(262, 690, 330, 52, "o", "sim cameras → /camera/*", "Gazebo · MuJoCo · Isaac"))
     s.append(_box(608, 690, 376, 52, "p", "realsense2_camera (real)", "same topics and frames · planned"))
     s.append(_arrow(246, 716, 262, 716))
     s.append(_arrow(592, 716, 608, 716))
