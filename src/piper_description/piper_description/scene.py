@@ -70,10 +70,10 @@ GAZEBO_WORLD = """<?xml version="1.0"?>
     <scene><ambient>0.5 0.5 0.5 1</ambient><background>0.6 0.75 0.9 1</background><shadows>false</shadows></scene>
     <light type="directional" name="sun"><cast_shadows>false</cast_shadows><pose>0 0 5 0 0 0</pose>
       <diffuse>0.9 0.9 0.9 1</diffuse><specular>0.2 0.2 0.2 1</specular><direction>-0.4 0.3 -0.8</direction></light>
-    <model name="ground_plane"><static>true</static><link name="link">
-      <collision name="c"><geometry><plane><normal>0 0 1</normal><size>10 10</size></plane></geometry></collision>
-      <visual name="v"><geometry><plane><normal>0 0 1</normal><size>10 10</size></plane></geometry>
-        <material><ambient>0.55 0.6 0.65 1</ambient><diffuse>0.55 0.6 0.65 1</diffuse></material></visual></link></model>
+    <model name="ground"><static>true</static><pose>0 0 -0.05 0 0 0</pose><link name="link">
+      <collision name="c"><geometry><box><size>20 20 0.1</size></box></geometry></collision>
+      <visual name="v"><geometry><box><size>20 20 0.1</size></box></geometry>
+        <material><ambient>0.45 0.5 0.55 1</ambient><diffuse>0.45 0.5 0.55 1</diffuse></material></visual></link></model>
 {objects}
   </world>
 </sdf>

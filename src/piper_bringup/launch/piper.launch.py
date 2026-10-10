@@ -35,6 +35,7 @@ from moveit_configs_utils import MoveItConfigsBuilder
 import tempfile
 
 from piper_description import SIMULATORS, mujoco_model, physics_model, robot_description, xacro_file
+from piper_description.scene import gazebo_world, load_objects, mujoco_scene
 
 BACKENDS = ["mock", "real", "gazebo", "mujoco", "isaac"]
 
@@ -62,7 +63,7 @@ def moveit_config(backend: str, gripper: str, urdf: str, camera: str = "none"):
     return config
 
 
-def gazebo(gui: bool, urdf: str):
+def gazebo(gui: bool, urdf: str, objects: list, camera: bool):
     """Gazebo Harmonic: empty world, controller manager in gz_ros2_control.
 
     The physics model (piper_description.physics_model) has no URDF mimic constraints, since
@@ -75,6 +76,16 @@ def gazebo(gui: bool, urdf: str):
     model_file.close()
     # gz-transport is not scoped by ROS_DOMAIN_ID; give each domain its own Gazebo partition so
     # parallel simulations (and tests) cannot cross-talk. Inspect with: GZ_PARTITION=<value> gz topic -l
+    world_file = tempfile.NamedTemporaryFile("w", prefix="piper_world_", suffix=".sdf", delete=False)
+    world_file.write(gazebo_world(objects))
+    world_file.close()
+    camera_bridge = [Node(package="ros_gz_bridge", executable="parameter_bridge", output="log",
+                          arguments=["/camera/image@sensor_msgs/msg/Image[gz.msgs.Image",
+                                     "/camera/depth_image@sensor_msgs/msg/Image[gz.msgs.Image",
+                                     "/camera/camera_info@sensor_msgs/msg/CameraInfo[gz.msgs.CameraInfo"],
+                          remappings=[("/camera/image", "/camera/color/image_raw"),
+                                      ("/camera/depth_image", "/camera/aligned_depth_to_color/image_raw"),
+                                      ("/camera/camera_info", "/camera/color/camera_info")])] if camera else []
     partition = os.environ.get("GZ_PARTITION") or f"piper_d{os.environ.get('ROS_DOMAIN_ID', '0')}"
     return [
         SetEnvironmentVariable("GZ_PARTITION", partition),
@@ -84,12 +95,13 @@ def gazebo(gui: bool, urdf: str):
         # (gz_sim.launch.py runs `gz sim` through a shell that leaves the server orphaned on SIGTERM.)
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(str(share("ros_gz_sim") / "launch/gz_server.launch.py")),
-            launch_arguments={"world_sdf_file": "empty.sdf", "verbosity_level": "2"}.items()),
+            launch_arguments={"world_sdf_file": world_file.name, "verbosity_level": "2"}.items()),
         *([ExecuteProcess(cmd=["gz", "sim", "-g", "-v", "2"], output="log")] if gui else []),
         Node(package="ros_gz_sim", executable="create", output="screen",
              arguments=["-file", model_file.name, "-name", "piper"]),
         Node(package="ros_gz_bridge", executable="parameter_bridge", output="log",
              arguments=["/clock@rosgraph_msgs/msg/Clock[gz.msgs.Clock"]),
+        *camera_bridge,
     ]
 
 
@@ -108,9 +120,12 @@ def launch_setup(context):
     camera = arg("camera")
     cam_map = {"camera": camera, "camera_bracket_mesh": arg("camera_bracket_mesh")} if camera != "none" else {}
     urdf = robot_description(backend, gripper=gripper, controllers_file=controllers, **cam_map)
+    objects = load_objects(share("piper_bringup") / "config/scene_objects.yaml") if arg("scene") == "true" else []
     if backend == "mujoco":
         cfg = share("piper_bringup") / "config/mujoco"
-        scene = mujoco_model(urdf, cfg / "inputs.xml", cfg / "scene.xml",
+        scene_text = Path(tempfile.gettempdir()) / f"piper_scene_{os.getpid()}.xml"
+        scene_text.write_text(mujoco_scene(cfg / "scene.xml", objects))
+        scene = mujoco_model(urdf, cfg / "inputs.xml", scene_text,
                              camera={"width": 640, "height": 480, "hfov_deg": 69.4} if camera != "none" else None)
         urdf = robot_description(backend, gripper=gripper, controllers_file=controllers,
                                  mujoco_model=scene, mujoco_headless=arg("gui") != "true", **cam_map)
@@ -172,7 +187,7 @@ def launch_setup(context):
                  *(["--video", arg("isaac_video")] if arg("isaac_video") else [])],
             output="screen", sigterm_timeout="20", sigkill_timeout="30"))
     if backend == "gazebo":
-        actions += gazebo(arg("gui") == "true", urdf)
+        actions += gazebo(arg("gui") == "true", urdf, objects, camera != "none")
     if backend == "mujoco":
         actions += mujoco(controllers)
     if backend == "real":
@@ -198,6 +213,8 @@ def generate_launch_description():
         DeclareLaunchArgument("backend", default_value="mock", choices=BACKENDS),
         DeclareLaunchArgument("gripper", default_value="true", choices=["true", "false"]),
         DeclareLaunchArgument("moveit", default_value="true", choices=["true", "false"]),
+        DeclareLaunchArgument("scene", default_value="true", choices=["true", "false"],
+                              description="simulators: add the shared static objects (config/scene_objects.yaml)"),
         DeclareLaunchArgument("camera", default_value="none", choices=["none", "d435"],
                               description="wrist RealSense D435 (simulated image/depth topics under /camera)"),
         DeclareLaunchArgument("camera_bracket_mesh", default_value="",

@@ -54,7 +54,7 @@
           <update_rate>${update_rate}</update_rate>
           <visualize>0</visualize>
           <topic>camera</topic>
-          <gz_frame_id>camera_color_optical_frame</gz_frame_id>
+          <ignition_frame_id>camera_color_optical_frame</ignition_frame_id>
           <camera>
             <horizontal_fov>${hfov_deg * 3.14159265359 / 180.0}</horizontal_fov>
             <image><width>${width}</width><height>${height}</height></image>
