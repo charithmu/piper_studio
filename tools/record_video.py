@@ -20,22 +20,27 @@ from piper_py.robot import _image_to_array
 class Recorder(Node):
     def __init__(self, targets: dict[str, str], fps: int):
         super().__init__("record_video")
-        self.fps, self.last, self.writers = fps, {}, {}
+        self.fps, self.t_out, self.prev, self.writers = fps, {}, {}, {}
         for topic, path in targets.items():
             self.writers[topic] = imageio.get_writer(path, fps=fps, codec="libx264", quality=7, macro_block_size=2)
-            self.last[topic] = None
+            self.t_out[topic], self.prev[topic] = None, None
             self.create_subscription(Image, topic, lambda m, t=topic: self.on_image(t, m), qos_profile_sensor_data)
 
     def on_image(self, topic: str, msg: Image):
         stamp = msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9
-        last = self.last[topic]
-        if last is not None and stamp - last < 1.0 / self.fps - 1e-6:
-            return
         frame = _image_to_array(msg)
         if frame.ndim == 2:
             return  # depth is not recorded
-        self.writers[topic].append_data(frame)
-        self.last[topic] = stamp
+        dt, t_out, w = 1.0 / self.fps, self.t_out[topic], self.writers[topic]
+        if t_out is None:
+            t_out = stamp
+        if stamp < t_out - 0.5 * dt:
+            return  # faster than the video rate: drop
+        while t_out < stamp - 0.5 * dt and self.prev[topic] is not None:
+            w.append_data(self.prev[topic])  # slower than the video rate: hold the last frame so the video runs in sim time
+            t_out += dt
+        w.append_data(frame)
+        self.t_out[topic], self.prev[topic] = t_out + dt, frame
 
     def close(self):
         for w in self.writers.values():

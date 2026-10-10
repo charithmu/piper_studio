@@ -17,6 +17,7 @@ backend:=real starts the official agx_arm_ctrl driver. Safety defaults:
     feedback arrives would command the arm toward the URDF initial pose.
 """
 
+import json
 import os
 from pathlib import Path
 
@@ -182,9 +183,15 @@ def launch_setup(context):
             actions.append(control)
     if backend == "isaac" and arg("isaac_runner") == "true":
         # Isaac Sim is a separate process in its own environment; it must use this launch's ROS_DOMAIN_ID.
+        scene_json = []
+        if objects:
+            scene_file = Path(tempfile.gettempdir()) / f"piper_isaac_scene_{os.getpid()}.json"
+            scene_file.write_text(json.dumps(objects))
+            scene_json = ["--scene", str(scene_file)]
         actions.append(ExecuteProcess(
             cmd=[arg("isaac_script"), "run", *(["--gui"] if arg("gui") == "true" else []),
-                 *(["--video", arg("isaac_video")] if arg("isaac_video") else [])],
+                 *(["--video", arg("isaac_video")] if arg("isaac_video") else []),
+                 *(["--camera", camera] if camera != "none" else []), *scene_json],
             output="screen", sigterm_timeout="20", sigkill_timeout="30"))
     if backend == "gazebo":
         actions += gazebo(arg("gui") == "true", urdf, objects, camera != "none")

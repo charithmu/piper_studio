@@ -13,6 +13,7 @@ description as every other backend (isaac/convert_urdf.py).
 """
 
 import argparse
+import json
 import math
 import os
 import signal
@@ -27,6 +28,8 @@ ap.add_argument("--gui", action="store_true", help="open a window (default: head
 ap.add_argument("--video", type=Path, help="record the camera view to this mp4 (needs ffmpeg)")
 ap.add_argument("--video-fps", type=float, default=30.0)
 ap.add_argument("--camera", default="none", help="none | d435: publish the wrist camera topics (USD must contain the camera)")
+ap.add_argument("--camera-pose", type=Path, help="camera pose in link6 (JSON from export_urdf.py --camera-pose-out); needed with --camera")
+ap.add_argument("--scene", type=Path, help="JSON list of static objects (same file content as piper_bringup/config/scene_objects.yaml)")
 ap.add_argument("--frame-hz", type=float, default=float(os.environ.get("PIPER_ISAAC_FRAME_HZ", "0")),
                 help="app updates (and ROS publishing) per second; 0 = auto: 240 without rendering, 90 with a camera/video "
                      "(rendering costs ~6 ms per update). Higher = less control latency, more CPU")
@@ -103,6 +106,27 @@ roots = [p.GetPath().pathString for p in stage.Traverse() if p.HasAPI(UsdPhysics
 assert len(roots) == 1, roots
 ROBOT = roots[0]
 
+# ---- shared scene objects (same as Gazebo and MuJoCo) ---------------------------------------------------------------
+if args.scene:
+    from pxr import Gf, UsdGeom
+
+    for o in json.loads(args.scene.read_text()):
+        path = f"/World/scene/{o['name']}"
+        if o["shape"] == "box":
+            geom = UsdGeom.Cube.Define(stage, path)
+            geom.GetSizeAttr().Set(1.0)
+            scale = Gf.Vec3f(*o["size"])
+        else:  # cylinder: [radius, height]
+            geom = UsdGeom.Cylinder.Define(stage, path)
+            geom.GetRadiusAttr().Set(float(o["size"][0]))
+            geom.GetHeightAttr().Set(float(o["size"][1]))
+            scale = Gf.Vec3f(1, 1, 1)
+        geom.AddTranslateOp().Set(Gf.Vec3d(*o["pos"]))
+        if o["shape"] == "box":
+            geom.AddScaleOp().Set(scale)
+        geom.GetDisplayColorAttr().Set([Gf.Vec3f(*o["rgba"][:3])])
+        UsdPhysics.CollisionAPI.Apply(geom.GetPrim())
+
 # ---- ROS 2 graph ------------------------------------------------------------------------------------------
 og.Controller.edit(
     {"graph_path": "/ROS", "evaluator_name": "execution"},
@@ -137,6 +161,33 @@ og.Controller.edit(
         ],
     },
 )
+
+# ---- wrist camera: a USD camera under link6 at the D435 colour optical frame, published like the RealSense driver ----------
+if args.camera != "none":
+    import omni.replicator.core as rep
+    from isaacsim.ros2.nodes import Ros2CameraGraphConfig, create_ros2_camera_graph
+    from pxr import Gf, UsdGeom
+
+    cfg = json.loads(args.camera_pose.read_text())
+    link = next(p for p in stage.Traverse() if p.GetName() == cfg["link"] and p.GetPath().pathString.startswith("/World/piper"))
+    cam_path = f"{link.GetPath()}/wrist_camera"
+    cam_prim = UsdGeom.Camera.Define(stage, cam_path)
+    xf = UsdGeom.Xformable(cam_prim)
+    xf.AddTranslateOp().Set(Gf.Vec3d(*cfg["pos"]))
+    qx, qy, qz, qw = cfg["quat_xyzw"]
+    xf.AddOrientOp(UsdGeom.XformOp.PrecisionDouble).Set(Gf.Quatd(qw, qx, qy, qz))
+    aperture = 20.955  # mm (USD default); the focal length sets the field of view
+    cam_prim.GetHorizontalApertureAttr().Set(aperture)
+    cam_prim.GetVerticalApertureAttr().Set(aperture * cfg["height"] / cfg["width"])
+    cam_prim.GetFocalLengthAttr().Set(aperture / (2.0 * math.tan(math.radians(cfg["hfov_deg"]) / 2.0)))
+    cam_prim.GetClippingRangeAttr().Set(Gf.Vec2f(cfg["near"], cfg["far"]))
+    wrist_rp = rep.create.render_product(cam_path, (cfg["width"], cfg["height"]))
+    create_ros2_camera_graph(Ros2CameraGraphConfig(
+        graph_path="/ROS_Camera", camera_prim=cam_path, frame_id="camera_color_optical_frame",
+        camera_info_topic="/camera/color/camera_info", rgb_topic="/camera/color/image_raw",
+        publish_depth=True, depth_topic="/camera/aligned_depth_to_color/image_raw",
+        render_product_prim=wrist_rp.path))
+    print(f"[piper_isaac] wrist camera at {cam_path}, {cfg['width']}x{cfg['height']}, hfov {cfg['hfov_deg']} deg", flush=True)
 
 # ---- optional camera recording --------------------------------------------------------------------------------
 video = None

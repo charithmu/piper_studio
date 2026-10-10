@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Isaac Sim helpers for Piper Studio. Isaac runs in its own environment (never installed into .venv).
-#   scripts/isaac.sh build-usd     export the description (ROS side) and convert it to USD (Isaac side)
+#   scripts/isaac.sh build-usd [d435]  export the description (ROS side) and convert it to USD (Isaac side); d435 adds the wrist camera
 #   scripts/isaac.sh run [args]    run the Isaac runner (isaac/run_piper.py); args: --seconds N --video f.mp4 --gui
 #   scripts/isaac.sh check         compare Isaac's USD with the URDF (fingertip pose over random configs, mass)
 #   scripts/isaac.sh stop          stop this workspace's runner (by PID file; never touches other Isaac processes)
@@ -16,6 +16,7 @@ ISAAC_ENV_SH="${ISAAC_ENV_SH:-$HOME/projects/sim/robosim/env.sh}"
 DATA="${PIPER_ISAAC_DATA:-$HOME/data/ml/isaac/piper_studio}"
 PIDFILE="$DATA/run.pid"
 USD="$DATA/usd/piper_isaac/piper_isaac.usda"
+USD_CAM="$DATA/usd_cam/piper_isaac_cam/piper_isaac_cam.usda"
 cmd="${1:-}"; shift || true
 
 # Run a command in a clean environment (no system ROS, no ~/.local) inside Isaac's env, on the GPU.
@@ -29,16 +30,28 @@ in_isaac() {
 
 case "$cmd" in
   build-usd)
-    mkdir -p "$DATA"; rm -rf "${DATA:?}/usd"   # the importer would otherwise write to usd/piper_isaac_1
-    ( set +u; source "$ws/scripts/env.sh"
-      ros2 run piper_description export_urdf.py --hardware isaac --physics --out "$DATA/piper_isaac.urdf" )
-    in_isaac python "$ws/isaac/convert_urdf.py" "$DATA/piper_isaac.urdf" "$DATA/usd" > "$DATA/convert.log" 2>&1
-    grep "USD:" "$DATA/convert.log" ;;
+    mkdir -p "$DATA"
+    if [ "${1:-}" = d435 ]; then
+      rm -rf "${DATA:?}/usd_cam"   # the importer would otherwise write to a numbered sibling
+      ( set +u; source "$ws/scripts/env.sh"
+        ros2 run piper_description export_urdf.py --hardware isaac --physics --camera d435 --out "$DATA/piper_isaac_cam.urdf" \
+          --camera-pose-out "$DATA/camera_pose.json" )
+      in_isaac python "$ws/isaac/convert_urdf.py" "$DATA/piper_isaac_cam.urdf" "$DATA/usd_cam" > "$DATA/convert_cam.log" 2>&1
+      grep "USD:" "$DATA/convert_cam.log"
+    else
+      rm -rf "${DATA:?}/usd"   # the importer would otherwise write to usd/piper_isaac_1
+      ( set +u; source "$ws/scripts/env.sh"
+        ros2 run piper_description export_urdf.py --hardware isaac --physics --out "$DATA/piper_isaac.urdf" )
+      in_isaac python "$ws/isaac/convert_urdf.py" "$DATA/piper_isaac.urdf" "$DATA/usd" > "$DATA/convert.log" 2>&1
+      grep "USD:" "$DATA/convert.log"
+    fi ;;
   run)
-    [ -f "$USD" ] || { echo "no USD at $USD; run: scripts/isaac.sh build-usd" >&2; exit 1; }
+    usd="$USD"; extra=()
+    case " $* " in *" --camera d435 "*) usd="$USD_CAM"; extra=(--camera-pose "$DATA/camera_pose.json") ;; esac
+    [ -f "$usd" ] || { echo "no USD at $usd; run: scripts/isaac.sh build-usd [d435]" >&2; exit 1; }
     [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null && { echo "runner already running (pid $(cat "$PIDFILE"))" >&2; exit 1; }
     # gpu-run does not forward signals, so forward them to the runner (it writes its pid to $PIDFILE).
-    in_isaac python "$ws/isaac/run_piper.py" --usd "$USD" "$@" &
+    in_isaac python "$ws/isaac/run_piper.py" --usd "$usd" "${extra[@]}" "$@" &
     child=$!
     trap '"$0" stop' INT TERM
     wait "$child" || true

@@ -63,6 +63,8 @@
           <param name="mujoco_model">${mujoco_model}</param>
           <param name="headless">${mujoco_headless}</param>
           <param name="sim_speed_factor">1.0</param>
+          <!-- The plugin's default image rate is 5 Hz; match the RealSense colour stream. -->
+          <xacro:if value="${camera != 'none'}"><param name="camera_publish_rate">30</param></xacro:if>
         </xacro:if>
       </hardware>
 
