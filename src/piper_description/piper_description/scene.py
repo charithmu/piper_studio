@@ -75,10 +75,18 @@ GAZEBO_WORLD = """<?xml version="1.0"?>
       <visual name="v"><geometry><box><size>20 20 0.1</size></box></geometry>
         <material><ambient>0.45 0.5 0.55 1</ambient><diffuse>0.45 0.5 0.55 1</diffuse></material></visual></link></model>
 {objects}
-  </world>
+{overview}  </world>
 </sdf>
 """
 
 
-def gazebo_world(objects: list[dict]) -> str:
-    return GAZEBO_WORLD.format(objects=sdf_models(objects))
+# Fixed observer camera (same viewpoint as tools/render_mujoco_video.py); publishes gz topic overview/image.
+OVERVIEW_CAMERA = """    <model name="overview_camera"><static>true</static><pose>0.945 -0.984 0.617 0 0.314 2.269</pose><link name="link">
+      <sensor name="overview" type="camera"><always_on>1</always_on><update_rate>30</update_rate><topic>overview/image</topic>
+        <camera><horizontal_fov>1.1</horizontal_fov><image><width>1280</width><height>720</height></image>
+          <clip><near>0.1</near><far>20</far></clip></camera></sensor></link></model>
+"""
+
+
+def gazebo_world(objects: list[dict], overview: bool = False) -> str:
+    return GAZEBO_WORLD.format(objects=sdf_models(objects), overview=OVERVIEW_CAMERA if overview else "")

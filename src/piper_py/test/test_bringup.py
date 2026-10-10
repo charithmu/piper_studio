@@ -31,7 +31,8 @@ def generate_test_description(backend):
     bringup = os.path.join(get_package_share_directory("piper_bringup"), "launch", "piper.launch.py")
     return launch.LaunchDescription([
         IncludeLaunchDescription(PythonLaunchDescriptionSource(bringup),
-                                 launch_arguments={"backend": backend, "rviz": "false"}.items()),
+                                 launch_arguments={"backend": backend, "rviz": "false",
+                                                   "camera": "none" if backend in ("mock", "real") else "d435"}.items()),
         launch_testing.actions.ReadyToTest(),
     ]), {"backend": backend}
 
@@ -129,9 +130,11 @@ class TestBringup(unittest.TestCase):
         self.assertGreater(abs(sum(a * b for a, b in zip(q0, q1))), 0.9995)  # orientation held
         self.assertTrue(self.arm.use_trajectories())
 
-    def test_9_wrist_camera(self):
+    def test_9_wrist_camera(self, backend):
         """Simulated D435: colour, aligned depth and camera_info on the RealSense driver's topics and frames."""
         import numpy as np
+        if backend in ("mock", "real", "isaac"):
+            self.skipTest("no simulated camera on this backend (yet)")
         self.assertTrue(self.arm.use_trajectories())
         self.assertTrue(self.arm.move_named("ready", velocity_scaling=0.6))
         time.sleep(0.5)

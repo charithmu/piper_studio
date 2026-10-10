@@ -46,7 +46,7 @@
     </joint>
 
     <!-- Simulated image sensors (Gazebo). MuJoCo and Isaac define theirs in their own model/runner. The sensor looks along
-         x of camera_color_frame; gz_frame_id makes the ROS messages carry the optical frame. -->
+         x of camera_color_frame (plus the lens offset below); the bridge republishes the images as ROS topics. -->
     <xacro:if value="${hardware == 'gazebo'}">
       <gazebo reference="camera_color_frame">
         <sensor name="camera" type="rgbd_camera">
@@ -54,7 +54,10 @@
           <update_rate>${update_rate}</update_rate>
           <visualize>0</visualize>
           <topic>camera</topic>
-          <ignition_frame_id>camera_color_optical_frame</ignition_frame_id>
+          <!-- Lens plane: camera_color_frame lies inside the D435 housing mesh, so a sensor there sees only its own
+               housing (uniform background). Moving it 4 cm along its viewing axis puts it in front of the glass. -->
+          <pose>0.04 0 0 0 0 0</pose>
+          <gz_frame_id>camera_color_optical_frame</gz_frame_id>
           <camera>
             <horizontal_fov>${hfov_deg * 3.14159265359 / 180.0}</horizontal_fov>
             <image><width>${width}</width><height>${height}</height></image>

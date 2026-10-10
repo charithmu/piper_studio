@@ -77,13 +77,15 @@ def gazebo(gui: bool, urdf: str, objects: list, camera: bool):
     # gz-transport is not scoped by ROS_DOMAIN_ID; give each domain its own Gazebo partition so
     # parallel simulations (and tests) cannot cross-talk. Inspect with: GZ_PARTITION=<value> gz topic -l
     world_file = tempfile.NamedTemporaryFile("w", prefix="piper_world_", suffix=".sdf", delete=False)
-    world_file.write(gazebo_world(objects))
+    world_file.write(gazebo_world(objects, overview=bool(camera)))
     world_file.close()
     camera_bridge = [Node(package="ros_gz_bridge", executable="parameter_bridge", output="log",
-                          arguments=["/camera/image@sensor_msgs/msg/Image[gz.msgs.Image",
+                          arguments=["/overview/image@sensor_msgs/msg/Image[gz.msgs.Image",
+                                     "/camera/image@sensor_msgs/msg/Image[gz.msgs.Image",
                                      "/camera/depth_image@sensor_msgs/msg/Image[gz.msgs.Image",
                                      "/camera/camera_info@sensor_msgs/msg/CameraInfo[gz.msgs.CameraInfo"],
-                          remappings=[("/camera/image", "/camera/color/image_raw"),
+                          remappings=[("/overview/image", "/overview/image_raw"),
+                                      ("/camera/image", "/camera/color/image_raw"),
                                       ("/camera/depth_image", "/camera/aligned_depth_to_color/image_raw"),
                                       ("/camera/camera_info", "/camera/color/camera_info")])] if camera else []
     partition = os.environ.get("GZ_PARTITION") or f"piper_d{os.environ.get('ROS_DOMAIN_ID', '0')}"
@@ -91,11 +93,9 @@ def gazebo(gui: bool, urdf: str, objects: list, camera: bool):
         SetEnvironmentVariable("GZ_PARTITION", partition),
         # package:// mesh URIs resolve against GZ_SIM_RESOURCE_PATH entries that contain the package dir.
         AppendEnvironmentVariable("GZ_SIM_RESOURCE_PATH", str(share("agx_arm_description").parent)),
-        # Server inside a ROS node: launch shutdown (SIGINT or SIGTERM) reliably stops it.
-        # (gz_sim.launch.py runs `gz sim` through a shell that leaves the server orphaned on SIGTERM.)
-        IncludeLaunchDescription(
-            PythonLaunchDescriptionSource(str(share("ros_gz_sim") / "launch/gz_server.launch.py")),
-            launch_arguments={"world_sdf_file": world_file.name, "verbosity_level": "2"}.items()),
+        # Headless server with EGL rendering (camera sensors need it); the wrapper stops the whole process group.
+        ExecuteProcess(cmd=[str(share("piper_bringup").parent.parent / "lib/piper_bringup/gz_server.sh"), world_file.name],
+                       output="screen", sigterm_timeout="2", sigkill_timeout="15"),
         *([ExecuteProcess(cmd=["gz", "sim", "-g", "-v", "2"], output="log")] if gui else []),
         Node(package="ros_gz_sim", executable="create", output="screen",
              arguments=["-file", model_file.name, "-name", "piper"]),
