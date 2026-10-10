@@ -102,6 +102,12 @@ for name, (kp, kd, fmax) in GAINS.items():
     drive.CreateDampingAttr().Set(float(kd))
     drive.CreateMaxForceAttr().Set(float(fmax))
 
+# The real arm's firmware and the MuJoCo model compensate gravity; a bare PhysX PD drive would sag (about 9 mm at the TCP)
+# and the sag would add to every tracking error. Link bodies of the robot do not feel gravity here.
+for p in stage.Traverse():
+    if p.GetPath().pathString.startswith("/World/piper") and p.HasAPI(UsdPhysics.RigidBodyAPI):
+        PhysxSchema.PhysxRigidBodyAPI.Apply(p).CreateDisableGravityAttr(True)
+
 roots = [p.GetPath().pathString for p in stage.Traverse() if p.HasAPI(UsdPhysics.ArticulationRootAPI)]
 assert len(roots) == 1, roots
 ROBOT = roots[0]
