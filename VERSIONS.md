@@ -36,6 +36,6 @@ The tested combination. Source revisions are authoritative in git (submodule pin
 | scripted demo (11 steps, every control level) | pass on mock, Gazebo, MuJoCo, Isaac | `scripts/run_demo.sh`; end states agree with mock within 0.035 rad / 4.3 mm |
 | MoveIt Servo (TCP twist / pose) | pass on mock, Gazebo, MuJoCo, Isaac | `test_8_servo_tcp_motion` |
 | simulated D435 wrist camera (colour, aligned depth, camera_info on the RealSense topics) | pass on Gazebo and MuJoCo (30 Hz), Isaac (see status page) | `test_9_wrist_camera`; Gazebo needs `gz sim --headless-rendering` and the sensor at the lens plane |
-| real arm | not run | needs the user present |
+| real arm | read-only baseline and enable-without-motion done 2026-10-12 on firmware S-V1.7-3 (not upgraded); no motion yet | `docs/real_arm/REAL_ARM.md`; values from this arm are provisional until the upgrade |
 | MuJoCo 3.12 + MoveIt + piper_py | pass (provisional actuator model) | `piper_py/test/test_bringup.py` [mujoco]; `piper_bringup/test/test_mujoco_model.py` (FK = official to 1e-6 m, finger coupling) |
 | Isaac Sim 6.1 + MoveIt + piper_py | pass (opt-in: uses the GPU) | `PIPER_TEST_BACKENDS=isaac`; fingers verified against Isaac ground truth (±0.5 × gripper) |

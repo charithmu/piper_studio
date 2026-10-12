@@ -1,0 +1,25 @@
+{
+  "gripper_status": null,
+  "gripper_ctrl_states": {
+    "value": -0.00133,
+    "force": 1.0,
+    "status_code": 1,
+    "set_zero": 0
+  },
+  "gripper_teaching_pendant_param": {
+    "teaching_range_per": 100,
+    "max_range_config": 0.07,
+    "teaching_friction": 1
+  },
+  "crash_protection_rating": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    1
+  ],
+  "joint_assistance_rating": null,
+  "sdk_joint_limits_enabled": false,
+  "sdk_auto_motion_mode_switching": true
+}

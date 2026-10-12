@@ -92,3 +92,8 @@
 - Consequences of S-V1.7-3 (below S-V1.8-5): no seamless mode switching, so avoid move_js/MIT here (leaving them needs reset = arm powers off); `move_home` (0x191) needs >= 1.7-4. The maintainer's advice for old-firmware bugs is to upgrade to S-V1.8-9 via support@agilex.ai.
 - Next: user runs `arm_probe.py --limits` (read requests only) to compare stored limits with the official URDF; then enable-without-motion.
 - 2026-10-12 limits read from the arm (S-V1.7-3): joints 1-5 angle limits equal the official URDF; joint 6 stores +-180 deg (URDF +-120 deg); speed 2.5 rad/s and acceleration 3.5 rad/s^2 per joint (URDF 5, our MoveIt 5/5: too high for the real arm); flange 0.75 m/s, 0.18 rad/s, 1.0 m/s^2, 0.25 rad/s^2. Not corrupted. Action: real-arm limit profile (<= 2.5 / 3.5).
+
+## 2026-10-12 UTC real arm: correction and record (Claude, branch `feature/architecture-comms`)
+- Correction to the entries above: values read from the real arm (limits, zero offsets, ratings) are **provisional**: firmware S-V1.7-3 is old and not yet upgraded or fully tested. Nothing in the simulators, MoveIt, controllers or `command_guard` was changed from them; the "real-arm limit profile" idea is parked until after the upgrade.
+- Recorded in `docs/real_arm/REAL_ARM.md` (vendor docs digest, firmware gates, control modes, safety semantics, API catalogue, first baseline, open items) with raw outputs in `docs/real_arm/baseline_S-V1.7-3/`. Tools: `tools/arm_probe.py`, `arm_probe_extra.py` (read-only), `arm_enable_test.py` (enable/disable, no motion).
+- Open: gripper status read returned None in one run; source of the 0x159 gripper frame; j2/j3/gripper zero offsets; firmware flash procedure (ask support@agilex.ai in writing); explicit speed_percent for backend:=real.

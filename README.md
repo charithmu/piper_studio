@@ -19,6 +19,7 @@ tools/                    demo page builder, MuJoCo replay renderer
 env/                      pinned Python environment (uv)
 scripts/                  bootstrap.sh (rebuild from clean clone), env.sh (source before anything)
 docs/description/         model audit and description decisions
+docs/real_arm/            real-arm knowledge: vendor docs digest, firmware gates, control modes, first baseline (REAL_ARM.md)
 ```
 
 Gazebo and MuJoCo run from `piper_bringup`; their models are generated from `piper_description`
