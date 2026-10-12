@@ -233,6 +233,46 @@ def _arrow(x1, y1, x2, y2):
     return f'<path class="arr" d="M{x1} {y1} L{x2} {y2}"/>'
 
 
+def comms_svg() -> str:
+    """Process view: which process hosts ros2_control and where the physics runs, per backend."""
+    rows = [
+        ("Mock", [("u", "ros2_control_node", "mock_components: ideal tracking", 16, 330)], []),
+        ("Gazebo", [("u", "gz sim server (one process)", "gz_ros2_control hosts controller_manager; DART physics, EGL cameras", 16, 470),
+                    ("u", "ros_gz_bridge", "camera · clock", 540, 200)],
+         [("u", "launch: state publisher, spawners", 760, 224)]),
+        ("MuJoCo", [("u", "ros2_control_node (one process)", "mujoco_ros2_control: MuJoCo runs inside the plugin, cameras too", 16, 470)], []),
+        ("Isaac", [("o", "ros2_control_node", "JointStateTopicSystem + same controllers", 16, 200),
+                   ("o", "isaac/run_piper.py in Isaac's own env", "OmniGraph ROS 2 nodes → PhysX articulation", 416, 330)],
+         [("u", "gpu-run, own instance per agent", 760, 224)]),
+        ("Real arm", [("o", "ros2_control_node", "JointStateTopicSystem", 16, 170),
+                      ("o", "command_guard", "NaN · limits · jump check", 286, 170),
+                      ("v", "agx_arm_ctrl", "vendor ROS node", 556, 150),
+                      ("v", "pyAgxArm → CAN", "move_j · Piper firmware", 766, 218)], []),
+    ]
+    h = 112
+    s = [f'<svg viewBox="0 0 1000 {len(rows) * h + 34}" role="img" aria-label="Processes and communication" style="width:100%;height:auto">']
+    links = {"Isaac": [(216, 416, "/isaac/joint_commands", "/isaac/joint_states · /clock")],
+             "Real arm": [(186, 286, "hw/joint_commands", ""), (456, 556, "control/joint_states", ""), (706, 766, "ROS 2 / SDK", "")],
+             "Gazebo": [], "MuJoCo": [], "Mock": []}
+    for i, (name, boxes, extra) in enumerate(rows):
+        y = 28 + i * h
+        s.append(f'<rect class="band" x="4" y="{y - 14}" width="992" height="{h - 8}" rx="10"/>'
+                 f'<text x="14" y="{y}" font-size="11" class="lab">{name}</text>')
+        for k, t, sub, x, w in boxes:
+            s.append(_box(x, y + 10, w, 62, k, t, sub, 12))
+        for k, t, x, w in extra:
+            s.append(_box(x, y + 10, w, 62, k, t, "", 12))
+        for x1, x2, a, b in links[name]:
+            s.append(_arrow(x1, y + 40, x2, y + 40))
+            if b:
+                s.append(_arrow(x2, y + 56, x1, y + 56))
+            s.append(f'<text x="{(x1 + x2) / 2}" y="{y + 30}" text-anchor="middle" font-size="10" class="lab">{a}</text>')
+            if b:
+                s.append(f'<text x="{(x1 + x2) / 2}" y="{y + 72}" text-anchor="middle" font-size="10" class="lab">{b}</text>')
+    s.append("</svg>")
+    return "".join(s)
+
+
 def architecture_svg() -> str:
     s = ['<svg viewBox="0 0 1000 760" role="img" aria-label="Piper Studio architecture" style="width:100%;height:auto">',
          '<defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">'
@@ -316,6 +356,11 @@ def architecture_page(meta: str) -> str:
 and what sits behind it.</p>
 <p><span class="sw v"></span>vendor (AgileX), unmodified &nbsp; <span class="sw u"></span>upstream open source &nbsp; <span class="sw o"></span>written here &nbsp; <span class="sw p"></span>planned, not built</p>
 <div class="card">{architecture_svg()}</div>
+
+<h2>Processes and communication, per backend</h2>
+<p>Clients (<code>piper_py</code>, MoveIt, RViz) are ordinary ROS 2 nodes talking to the controllers over DDS in every case. What differs is where <code>controller_manager</code>
+runs and how the physics is reached.</p>
+<div class="card">{comms_svg()}</div>
 
 <h2>Repositories and packages</h2>
 <div class="card"><table>
