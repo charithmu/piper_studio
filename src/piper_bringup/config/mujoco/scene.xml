@@ -5,6 +5,8 @@
   <visual>
     <headlight diffuse="0.6 0.6 0.6" ambient="0.1 0.1 0.1" specular="0 0 0"/>
     <global azimuth="120" elevation="-20"/>
+    <!-- Near clip: the D435 cannot see closer than ~7 cm, and the camera sits inside its own housing/bracket. -->
+    <map znear="0.05" zfar="6"/>
   </visual>
   <asset>
     <texture type="skybox" builtin="gradient" rgb1="0.3 0.5 0.7" rgb2="0 0 0" width="512" height="3072"/>

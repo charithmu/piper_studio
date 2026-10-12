@@ -25,7 +25,9 @@
       <position name="joint1" joint="joint1" kp="400" dampratio="1" forcerange="-100 100"/>
       <position name="joint2" joint="joint2" kp="400" dampratio="1" forcerange="-100 100"/>
       <position name="joint3" joint="joint3" kp="400" dampratio="1" forcerange="-100 100"/>
-      <position name="joint4" joint="joint4" kp="100" dampratio="1" forcerange="-100 100"/>
+      <!-- joint4: its effective inertia is small and varies with the pose; dampratio 1 (computed at the compile pose)
+           gave 31% overshoot at the working pose, dampratio 3 gives <2% (measured step responses, DECISIONS.md). -->
+      <position name="joint4" joint="joint4" kp="100" dampratio="3" forcerange="-100 100"/>
       <position name="joint5" joint="joint5" kp="100" dampratio="1" forcerange="-100 100"/>
       <position name="joint6" joint="joint6" kp="50" dampratio="1" forcerange="-100 100"/>
       <!-- Opening width; the fingers follow through the equality constraints below. -->

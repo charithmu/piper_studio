@@ -23,6 +23,7 @@ from sensor_msgs.msg import JointState
 from piper_py.robot import ARM_JOINTS, Piper, Result
 
 DOWN = [0.0, 1.0, 0.0, 0.0]  # tool z axis pointing down
+SETTLE = 0.5  # s of (simulated) time to dwell after each step before the next one starts
 
 
 class Recorder:
@@ -81,7 +82,12 @@ def run(arm: Piper, backend: str) -> dict:
         t0 = stamp_now(rec)
         w0 = time.monotonic()
         r = fn()
-        steps.append({"name": name, "level": level, "t_start": t0, "t_end": stamp_now(rec),
+        t_done = stamp_now(rec)
+        # Dwell so the arm settles: an action reports success when within tolerance (up to 0.02 rad from the goal),
+        # and comparing backends at that instant would mostly compare how far into settling each one was.
+        while stamp_now(rec) < t_done + SETTLE:
+            time.sleep(0.002)
+        steps.append({"name": name, "level": level, "t_start": t0, "t_end": t_done, "t_settled": stamp_now(rec),
                       "wall_s": round(time.monotonic() - w0, 3), "success": bool(r), "code": r.code,
                       "message": r.message})
         print(f"[demo:{backend}] {name:34s} {'OK ' if r else 'FAIL'} {r.code} ({time.monotonic() - w0:.1f}s wall)", flush=True)

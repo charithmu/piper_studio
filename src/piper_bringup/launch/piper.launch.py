@@ -6,6 +6,7 @@
     ros2 launch piper_bringup piper.launch.py backend:=mujoco [gui:=true]
     ros2 launch piper_bringup piper.launch.py backend:=isaac [gui:=true]   # runs Isaac Sim (GPU) via scripts/isaac.sh
     ros2 launch piper_bringup piper.launch.py backend:=real can_port:=can0
+    ... servo:=false                                              # without MoveIt Servo (TCP-frame jogging)
 
 backend:=real starts the official agx_arm_ctrl driver. Safety defaults:
   * the driver does NOT enable the motors unless auto_enable:=true; enable explicitly with
@@ -16,8 +17,11 @@ backend:=real starts the official agx_arm_ctrl driver. Safety defaults:
     feedback arrives would command the arm toward the URDF initial pose.
 """
 
+import json
 import os
 from pathlib import Path
+
+import yaml
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
@@ -32,6 +36,7 @@ from moveit_configs_utils import MoveItConfigsBuilder
 import tempfile
 
 from piper_description import SIMULATORS, mujoco_model, physics_model, robot_description, xacro_file
+from piper_description.scene import gazebo_world, load_objects, mujoco_scene
 
 BACKENDS = ["mock", "real", "gazebo", "mujoco", "isaac"]
 
@@ -40,13 +45,13 @@ def share(package: str) -> Path:
     return Path(get_package_share_directory(package))
 
 
-def moveit_config(backend: str, gripper: str, urdf: str):
+def moveit_config(backend: str, gripper: str, urdf: str, camera: str = "none"):
     config = (
         MoveItConfigsBuilder("piper", package_name="piper_bringup")
         .robot_description(file_path=str(xacro_file()), mappings={"hardware": "mock", "gripper": gripper})
         .robot_description_semantic(
             file_path="config/moveit/piper.srdf.xacro",
-            mappings={"effector_type": "agx_gripper" if gripper == "true" else "none"})
+            mappings={"effector_type": "agx_gripper" if gripper == "true" else "none", "camera": camera})
         .robot_description_kinematics(file_path="config/moveit/kinematics.yaml")
         .joint_limits(file_path="config/moveit/joint_limits.yaml")
         .trajectory_execution(file_path="config/moveit/moveit_controllers.yaml")
@@ -59,7 +64,7 @@ def moveit_config(backend: str, gripper: str, urdf: str):
     return config
 
 
-def gazebo(gui: bool, urdf: str):
+def gazebo(gui: bool, urdf: str, objects: list, camera: bool):
     """Gazebo Harmonic: empty world, controller manager in gz_ros2_control.
 
     The physics model (piper_description.physics_model) has no URDF mimic constraints, since
@@ -72,21 +77,32 @@ def gazebo(gui: bool, urdf: str):
     model_file.close()
     # gz-transport is not scoped by ROS_DOMAIN_ID; give each domain its own Gazebo partition so
     # parallel simulations (and tests) cannot cross-talk. Inspect with: GZ_PARTITION=<value> gz topic -l
+    world_file = tempfile.NamedTemporaryFile("w", prefix="piper_world_", suffix=".sdf", delete=False)
+    world_file.write(gazebo_world(objects, overview=bool(camera)))
+    world_file.close()
+    camera_bridge = [Node(package="ros_gz_bridge", executable="parameter_bridge", output="log",
+                          arguments=["/overview/image@sensor_msgs/msg/Image[gz.msgs.Image",
+                                     "/camera/image@sensor_msgs/msg/Image[gz.msgs.Image",
+                                     "/camera/depth_image@sensor_msgs/msg/Image[gz.msgs.Image",
+                                     "/camera/camera_info@sensor_msgs/msg/CameraInfo[gz.msgs.CameraInfo"],
+                          remappings=[("/overview/image", "/overview/image_raw"),
+                                      ("/camera/image", "/camera/color/image_raw"),
+                                      ("/camera/depth_image", "/camera/aligned_depth_to_color/image_raw"),
+                                      ("/camera/camera_info", "/camera/color/camera_info")])] if camera else []
     partition = os.environ.get("GZ_PARTITION") or f"piper_d{os.environ.get('ROS_DOMAIN_ID', '0')}"
     return [
         SetEnvironmentVariable("GZ_PARTITION", partition),
         # package:// mesh URIs resolve against GZ_SIM_RESOURCE_PATH entries that contain the package dir.
         AppendEnvironmentVariable("GZ_SIM_RESOURCE_PATH", str(share("agx_arm_description").parent)),
-        # Server inside a ROS node: launch shutdown (SIGINT or SIGTERM) reliably stops it.
-        # (gz_sim.launch.py runs `gz sim` through a shell that leaves the server orphaned on SIGTERM.)
-        IncludeLaunchDescription(
-            PythonLaunchDescriptionSource(str(share("ros_gz_sim") / "launch/gz_server.launch.py")),
-            launch_arguments={"world_sdf_file": "empty.sdf", "verbosity_level": "2"}.items()),
+        # Headless server with EGL rendering (camera sensors need it); the wrapper stops the whole process group.
+        ExecuteProcess(cmd=[str(share("piper_bringup").parent.parent / "lib/piper_bringup/gz_server.sh"), world_file.name],
+                       output="screen", sigterm_timeout="2", sigkill_timeout="15"),
         *([ExecuteProcess(cmd=["gz", "sim", "-g", "-v", "2"], output="log")] if gui else []),
         Node(package="ros_gz_sim", executable="create", output="screen",
              arguments=["-file", model_file.name, "-name", "piper"]),
         Node(package="ros_gz_bridge", executable="parameter_bridge", output="log",
              arguments=["/clock@rosgraph_msgs/msg/Clock[gz.msgs.Clock"]),
+        *camera_bridge,
     ]
 
 
@@ -102,13 +118,19 @@ def launch_setup(context):
     if backend not in BACKENDS:
         raise RuntimeError(f"backend:={backend} is not supported; choose one of {BACKENDS}")
     controllers = str(share("piper_bringup") / "config/controllers.yaml")
-    urdf = robot_description(backend, gripper=gripper, controllers_file=controllers)
+    camera = arg("camera")
+    cam_map = {"camera": camera, "camera_bracket_mesh": arg("camera_bracket_mesh")} if camera != "none" else {}
+    urdf = robot_description(backend, gripper=gripper, controllers_file=controllers, **cam_map)
+    objects = load_objects(share("piper_bringup") / "config/scene_objects.yaml") if arg("scene") == "true" else []
     if backend == "mujoco":
         cfg = share("piper_bringup") / "config/mujoco"
-        scene = mujoco_model(urdf, cfg / "inputs.xml", cfg / "scene.xml")
+        scene_text = Path(tempfile.gettempdir()) / f"piper_scene_{os.getpid()}.xml"
+        scene_text.write_text(mujoco_scene(cfg / "scene.xml", objects))
+        scene = mujoco_model(urdf, cfg / "inputs.xml", scene_text,
+                             camera={"width": 640, "height": 480, "hfov_deg": 69.4} if camera != "none" else None)
         urdf = robot_description(backend, gripper=gripper, controllers_file=controllers,
-                                 mujoco_model=scene, mujoco_headless=arg("gui") != "true")
-    config = moveit_config(backend, gripper, urdf)
+                                 mujoco_model=scene, mujoco_headless=arg("gui") != "true", **cam_map)
+    config = moveit_config(backend, gripper, urdf, camera)
     sim_time = {"use_sim_time": backend in SIMULATORS}
     commanders = ["arm_controller"] + (["gripper_controller"] if gripper == "true" else [])
     if backend == "real":
@@ -136,6 +158,16 @@ def launch_setup(context):
                          sim_time],
              condition=IfCondition(LaunchConfiguration("rviz"))),
     ]
+    if arg("servo") == "true":
+        servo_params = yaml.safe_load((share("piper_bringup") / "config/servo.yaml").read_text())
+        servo_params["is_primary_planning_scene_monitor"] = arg("moveit") != "true"  # move_group owns the scene if present
+        actions.append(Node(package="moveit_servo", executable="servo_node", name="servo_node", output="screen",
+                            parameters=[{"moveit_servo": servo_params},
+                                        {"update_period": servo_params["publish_period"],  # read by the acceleration-limit smoothing plugin
+                                         "planning_group_name": servo_params["move_group_name"]},
+                                        config.robot_description,
+                                        config.robot_description_semantic, config.robot_description_kinematics,
+                                        config.joint_limits, sim_time]))
     if backend in ("mock", "real", "isaac"):
         control = Node(package="controller_manager", executable="ros2_control_node",
                        parameters=[controllers, sim_time], output="screen",
@@ -151,12 +183,18 @@ def launch_setup(context):
             actions.append(control)
     if backend == "isaac" and arg("isaac_runner") == "true":
         # Isaac Sim is a separate process in its own environment; it must use this launch's ROS_DOMAIN_ID.
+        scene_json = []
+        if objects:
+            scene_file = Path(tempfile.gettempdir()) / f"piper_isaac_scene_{os.getpid()}.json"
+            scene_file.write_text(json.dumps(objects))
+            scene_json = ["--scene", str(scene_file)]
         actions.append(ExecuteProcess(
             cmd=[arg("isaac_script"), "run", *(["--gui"] if arg("gui") == "true" else []),
-                 *(["--video", arg("isaac_video")] if arg("isaac_video") else [])],
+                 *(["--video", arg("isaac_video")] if arg("isaac_video") else []),
+                 *(["--camera", camera] if camera != "none" else []), *scene_json],
             output="screen", sigterm_timeout="20", sigkill_timeout="30"))
     if backend == "gazebo":
-        actions += gazebo(arg("gui") == "true", urdf)
+        actions += gazebo(arg("gui") == "true", urdf, objects, camera != "none")
     if backend == "mujoco":
         actions += mujoco(controllers)
     if backend == "real":
@@ -182,6 +220,14 @@ def generate_launch_description():
         DeclareLaunchArgument("backend", default_value="mock", choices=BACKENDS),
         DeclareLaunchArgument("gripper", default_value="true", choices=["true", "false"]),
         DeclareLaunchArgument("moveit", default_value="true", choices=["true", "false"]),
+        DeclareLaunchArgument("scene", default_value="true", choices=["true", "false"],
+                              description="simulators: add the shared static objects (config/scene_objects.yaml)"),
+        DeclareLaunchArgument("camera", default_value="none", choices=["none", "d435"],
+                              description="wrist RealSense D435 (simulated image/depth topics under /camera)"),
+        DeclareLaunchArgument("camera_bracket_mesh", default_value="",
+                              description="optional path of a bracket mesh (e.g. AgileX's realsense_mid_stand.dae)"),
+        DeclareLaunchArgument("servo", default_value="true", choices=["true", "false"],
+                              description="start MoveIt Servo (TCP-frame jogging via the streaming controller)"),
         DeclareLaunchArgument("rviz", default_value="false", choices=["true", "false"]),
         DeclareLaunchArgument("gui", default_value="false", choices=["true", "false"],
                               description="simulators: show the simulator GUI"),

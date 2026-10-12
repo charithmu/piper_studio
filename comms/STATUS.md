@@ -77,3 +77,10 @@
 - Fixed on the way: ros2_control before /clock (gate), finger coupling (per-frame in runner), servo damping (MuJoCo-equivalent gains), recorder starvation (own node, deep queue).
 - Coordination: no shared Isaac session used; board lines on robosim/handoff/STATUS.md; ROS domains 70-161 only; GPU back to baseline after every run.
 - Exposure: tailnet-only route https://atlas.buri-fence.ts.net:8700/piper-studio/demo/ (static page, local :8780, user service web-piper-studio-demo).
+
+## 2026-10-10 13:10 UTC Servo, cameras in all three simulators, control-level audit (Claude, branch `feature/servo-camera`)
+- MoveIt Servo (TCP twist / pose) works on every backend; simulated D435 wrist camera works in Gazebo, MuJoCo (30 Hz) and Isaac, on the RealSense topics and frames, with shared scene objects.
+- Gazebo camera was blank because the sensor frame lies inside the D435 housing mesh (fixed: sensor at the lens plane) and the server needs `--headless-rendering` (now `gz_server.sh`, with a watchdog against orphans).
+- End-to-end test: Gazebo 10/10, MuJoCo 10/10, mock 9 + skip (the camera check). Isaac: see the status page.
+- Control levels of the vendor SDK / ROS node mapped against what we expose (page `control.html`): we use firmware-smoothed `move_j` only; MIT, JS, CPV, firmware Cartesian, limits/payload and `arm_status` are not exposed yet.
+- Vendor study copies: 26 AgileX repos in `for_reference/agilex/` (git-ignored, commits in clone.log). Real arm still not driven.

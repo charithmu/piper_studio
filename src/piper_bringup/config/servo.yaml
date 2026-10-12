@@ -1,0 +1,48 @@
+# MoveIt Servo for the Piper: Cartesian (TCP-frame) and joint jogging through the streaming controller.
+# Servo publishes joint position targets to arm_position_controller (so the one-command-owner rule holds:
+# piper_py.use_streaming() hands the arm to it; arm_controller is inactive meanwhile).
+publish_period: 0.01          # 100 Hz
+max_expected_latency: 0.1
+
+command_in_type: "speed_units"  # twist in m/s and rad/s, joint jog in rad/s
+scale:
+  linear: 0.2
+  rotational: 0.8
+  joint: 0.5
+
+command_out_type: std_msgs/Float64MultiArray
+publish_joint_positions: true
+publish_joint_velocities: false
+publish_joint_accelerations: false
+
+use_smoothing: true
+smoothing_filter_plugin_name: "online_signal_smoothing::AccelerationLimitedPlugin"
+
+is_primary_planning_scene_monitor: false   # launch sets true when move_group is not running
+check_octomap_collisions: false
+
+move_group_name: arm
+apply_twist_commands_about_ee_frame: true   # header frame_id picks the frame; this is the default for an empty one
+
+lower_singularity_threshold: 17.0
+hard_stop_singularity_threshold: 30.0
+leaving_singularity_threshold_multiplier: 2.0
+joint_limit_margins: [0.05]
+
+cartesian_command_in_topic: ~/delta_twist_cmds
+joint_command_in_topic: ~/delta_joint_cmds
+pose_command_in_topic: ~/pose_target_cmds
+monitored_planning_scene_topic: /planning_scene
+joint_topic: /joint_states
+status_topic: ~/status
+command_out_topic: /arm_position_controller/commands
+
+check_collisions: true
+collision_check_rate: 10.0
+self_collision_proximity_threshold: 0.01
+scene_collision_proximity_threshold: 0.02
+
+halt_all_joints_in_joint_mode: true
+halt_all_joints_in_cartesian_mode: true
+incoming_command_timeout: 0.25
+num_outgoing_halt_msgs_to_publish: 4

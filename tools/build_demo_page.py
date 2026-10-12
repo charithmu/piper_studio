@@ -27,6 +27,7 @@ from ament_index_python.packages import get_package_share_directory  # noqa: E40
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src/piper_description/tools"))
 import model_audit  # noqa: E402
+import site_pages  # noqa: E402
 
 BACKENDS = ["mock", "gazebo", "mujoco", "isaac"]
 LABEL = {"mock": "Mock (ideal)", "gazebo": "Gazebo Harmonic", "mujoco": "MuJoCo 3.12", "isaac": "Isaac Sim 6.1"}
@@ -155,11 +156,14 @@ def main(demo: Path, site: Path):
 
     # ---- media --------------------------------------------------------------------------------------------------
     import imageio_ffmpeg
-    for f in ("isaac.mp4", "mujoco.mp4"):
+    ffmpeg = imageio_ffmpeg.get_ffmpeg_exe()
+    for f in ("isaac.mp4", "mujoco.mp4", "gazebo_overview.mp4", "gazebo_wrist.mp4", "mujoco_wrist.mp4", "isaac_wrist.mp4"):
         if (demo / f).exists():  # faststart: moov atom first, so browsers can play and seek without Range support
-            subprocess.run([imageio_ffmpeg.get_ffmpeg_exe(), "-y", "-loglevel", "error", "-i", str(demo / f),
+            subprocess.run([ffmpeg, "-y", "-loglevel", "error", "-i", str(demo / f),
                             "-c", "copy", "-movflags", "+faststart", str(site / f)], check=True)
-    for f in ("isaac_frame.png", "mujoco_frame.png"):
+            subprocess.run([ffmpeg, "-y", "-loglevel", "error", "-ss", "4", "-i", str(demo / f), "-frames:v", "1",
+                            str(site / (f[:-4] + "_poster.png"))], check=True)
+    for f in ("gazebo_wrist.png", "mujoco_wrist.png", "isaac_wrist.png"):
         if (demo / f).exists():
             shutil.copy(demo / f, site / f)
 
@@ -192,26 +196,38 @@ def main(demo: Path, site: Path):
     except Exception:
         commit, branch = "?", "?"
     video = lambda f, title, cap: (  # noqa: E731
-        f'<figure><video controls preload="metadata" poster="{f[:-4]}_frame.png" src="{f}"></video>'
+        f'<figure><video controls preload="metadata" poster="{f[:-4]}_poster.png" src="{f}"></video>'
         f"<figcaption><b>{title}</b><br>{cap}</figcaption></figure>") if (site / f).exists() else ""
     n_ok = {b: sum(s["success"] for s in r["steps"]) for b, r in runs.items()}
     page = TEMPLATE.format(
         date=datetime.datetime.now().strftime("%Y-%m-%d %H:%M"), commit=commit, branch=branch,
         summary=" · ".join(f"{LABEL[b]} {n_ok[b]}/{len(runs[b]['steps'])}" for b in runs),
-        videos=video("isaac.mp4", "Isaac Sim 6.1, rendered live while the ROS side drives it",
-                     "MoveIt plans and ros2_control tracks, exactly like every other backend; Isaac runs as its own headless process.")
+        videos=video("gazebo_overview.mp4", "Gazebo Harmonic, observer camera inside the simulator",
+                     "A fixed camera sensor rendered by Gazebo itself (EGL, headless) while the demo runs.")
+        + video("isaac.mp4", "Isaac Sim 6.1, rendered live while the ROS side drives it",
+                "MoveIt plans and ros2_control tracks, exactly like every other backend; Isaac runs as its own headless process.")
         + video("mujoco.mp4", "MuJoCo, replay of the recorded run",
                 "The generated MJCF replayed from the recorded joint states (grey: collision meshes are used as visuals)."),
+        nav=site_pages.nav("index.html"), navcss=site_pages.CSS.split("nav {")[1].split("h1 {")[0],
         head=head, rows=rows, ahead=ahead, asub=asub, arows=arows, lagrows=lagrows,
         worst="; ".join(f"{LABEL[b]}: {w[0]:.3f} rad / {w[1]:.1f} mm" for b, w in worst.items()))
     (site / "index.html").write_text(page)
     print("wrote", site / "index.html")
+
+    meta = f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M')} · branch <code>{branch}</code> @ <code>{commit}</code> · simulation only, real arm not involved"
+    facts = json.loads((demo / "facts.json").read_text()) if (demo / "facts.json").exists() else {}
+    (site / "status.html").write_text(site_pages.status_page(facts, meta))
+    (site / "control.html").write_text(site_pages.control_page(meta))
+    (site / "architecture.html").write_text(site_pages.architecture_page(meta))
+    (site / "camera.html").write_text(site_pages.camera_page(site, meta))
+    print("wrote status, control, architecture, camera pages")
 
 
 TEMPLATE = """<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Piper Studio Demo</title>
 <style>
+nav {{{navcss}
 :root {{ --bg:#f7f7f5; --card:#fff; --ink:#1c1e21; --muted:#6b7280; --line:#e5e7eb; --ok:#15803d; --bad:#b91c1c; --accent:#2563eb; }}
 @media (prefers-color-scheme: dark) {{ :root {{ --bg:#0f1115; --card:#181b21; --ink:#e6e8eb; --muted:#9aa3af; --line:#2a2f38; --ok:#4ade80; --bad:#f87171; --accent:#60a5fa; }} }}
 * {{ box-sizing:border-box; }}
@@ -229,6 +245,7 @@ img {{ max-width:100%; background:#fff; border-radius:8px; }} .grid2 {{ display:
 code, pre {{ font:13px ui-monospace,SFMono-Regular,Menlo,monospace; }} pre {{ background:var(--bg); border:1px solid var(--line); border-radius:8px; padding:12px; overflow-x:auto; }}
 ul {{ padding-left:20px; }} li {{ margin:4px 0; }} .pill {{ display:inline-block; padding:2px 10px; border-radius:999px; background:var(--card); border:1px solid var(--line); font-size:13px; }}
 </style></head><body><main>
+{nav}
 <h1>Piper Studio: simulation demo</h1>
 <div class="muted">{date} · branch <code>{branch}</code> @ <code>{commit}</code> · real arm not involved</div>
 <p class="lead">One scripted sequence, run unchanged on four backends through the same controllers, MoveIt configuration and Python API:
@@ -263,7 +280,7 @@ servo models of MuJoCo and Isaac are provisional and equal; Gazebo's position co
 </ul>
 
 <h2>Reproduce</h2>
-<pre>git clone --recursive git@github.com:charithmu/piper_studio.git &amp;&amp; cd piper_studio &amp;&amp; git switch rewrite
+<pre>git clone --recursive git@github.com:charithmu/piper_studio.git &amp;&amp; cd piper_studio
 scripts/bootstrap.sh &amp;&amp; source scripts/env.sh
 scripts/isaac.sh build-usd                     # once, for Isaac (see isaac/README.md)
 scripts/run_demo.sh mujoco  out/               # also: mock | gazebo | isaac

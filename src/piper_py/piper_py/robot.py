@@ -18,21 +18,24 @@ import time
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
 
+import numpy as np
 import rclpy
 from builtin_interfaces.msg import Duration
 from control_msgs.action import FollowJointTrajectory, ParallelGripperCommand
 from controller_manager_msgs.srv import ListControllers, SwitchController
-from geometry_msgs.msg import PoseStamped
+from geometry_msgs.msg import PoseStamped, TwistStamped
 from moveit_msgs.action import MoveGroup
 from moveit_msgs.msg import (Constraints, JointConstraint, MotionPlanRequest, MoveItErrorCodes,
-                             OrientationConstraint, PositionConstraint)
+                             OrientationConstraint, PositionConstraint, ServoStatus)
+from moveit_msgs.srv import ServoCommandType
+from tf2_ros import Buffer, TransformException, TransformListener
 from rcl_interfaces.srv import GetParameters
 from rclpy.action import ActionClient
 from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
-from sensor_msgs.msg import JointState
+from sensor_msgs.msg import CameraInfo, Image, JointState
 from shape_msgs.msg import SolidPrimitive
 from std_msgs.msg import Float64MultiArray
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
@@ -96,6 +99,14 @@ class Piper:
                                       qos_profile_sensor_data, callback_group=state_group)
         self._stream = self.node.create_publisher(
             Float64MultiArray, f"{self._prefix}/arm_position_controller/commands", 10)
+        # MoveIt Servo (TCP-frame jogging through the streaming controller)
+        self._twist = self.node.create_publisher(TwistStamped, f"{self._prefix}/servo_node/delta_twist_cmds", 10)
+        self._servo_type = self.node.create_client(ServoCommandType, f"{self._prefix}/servo_node/switch_command_type")
+        self._servo_code = None
+        self.node.create_subscription(ServoStatus, f"{self._prefix}/servo_node/status", self._on_servo_status, 10,
+                                      callback_group=state_group)
+        self._tf = Buffer()
+        self._tf_listener = TransformListener(self._tf, self.node, spin_thread=False)
         self._list_controllers = self.node.create_client(
             ListControllers, f"{self._prefix}/controller_manager/list_controllers")
         self._switch_controllers = self.node.create_client(
@@ -161,6 +172,9 @@ class Piper:
         js = self.joint_state()
         return [js[j] for j in ARM_JOINTS]
 
+    def _on_servo_status(self, msg: ServoStatus):
+        self._servo_code = msg.code
+
     def _on_feedback(self, msg: JointState):
         with self._lock:
             self._feedback = (time.monotonic(), msg)
@@ -225,12 +239,18 @@ class Piper:
         return self.switch(deactivate=active) if active else Result(True, "SUCCESS", "nothing active")
 
     def use_streaming(self) -> Result:
-        """Hand the arm to arm_position_controller for stream_joints() (teleop, Servo, policies)."""
-        return self.switch(["arm_position_controller"], ["arm_controller"])
+        """Hand the arm to arm_position_controller for stream_joints() (teleop, Servo, policies). Idempotent."""
+        st = self.controllers()
+        if st.get("arm_position_controller") == "active" and st.get("arm_controller") != "active":
+            return Result(True, "SUCCESS", "already streaming")
+        return self.switch(["arm_position_controller"], [c for c in ["arm_controller"] if st.get(c) == "active"])
 
     def use_trajectories(self) -> Result:
-        """Hand the arm back to arm_controller (move_joints, MoveIt)."""
-        return self.switch(["arm_controller"], ["arm_position_controller"])
+        """Hand the arm back to arm_controller (move_joints, MoveIt). Idempotent."""
+        st = self.controllers()
+        if st.get("arm_controller") == "active" and st.get("arm_position_controller") != "active":
+            return Result(True, "SUCCESS", "already in trajectory mode")
+        return self.switch(["arm_controller"], [c for c in ["arm_position_controller"] if st.get(c) == "active"])
 
     def stream_joints(self, positions: list[float]) -> Result:
         """Publish one position target to arm_position_controller (call at a steady rate).
@@ -398,3 +418,147 @@ class Piper:
         if linear:
             return self._plan_and_execute(c, velocity_scaling, "pilz_industrial_motion_planner", "LIN")
         return self._plan_and_execute(c, velocity_scaling)
+
+    # ------------------------------------------------------------------ wrist camera
+    COLOR_TOPIC = "/camera/color/image_raw"
+    DEPTH_TOPIC = "/camera/aligned_depth_to_color/image_raw"
+    INFO_TOPIC = "/camera/color/camera_info"
+
+    def image(self, kind: str = "color", timeout: float = 5.0):
+        """Wait for the next camera frame. Returns (array, header): color -> HxWx3 uint8 (RGB), depth -> HxW float32
+        in metres (NaN where invalid). Same topics on every backend (and the RealSense driver)."""
+        topic, msg_type = (self.COLOR_TOPIC, Image) if kind == "color" else (self.DEPTH_TOPIC, Image)
+        box: list = []
+        done = threading.Event()
+        sub = self.node.create_subscription(msg_type, f"{self._prefix}{topic}",
+                                            lambda m: (box.append(m), done.set()), qos_profile_sensor_data)
+        try:
+            if not done.wait(timeout):
+                raise TimeoutError(f"no image on {topic} within {timeout} s")
+        finally:
+            self.node.destroy_subscription(sub)
+        return _image_to_array(box[0]), box[0].header
+
+    def camera_info(self, timeout: float = 5.0) -> CameraInfo:
+        box: list = []
+        done = threading.Event()
+        sub = self.node.create_subscription(CameraInfo, f"{self._prefix}{self.INFO_TOPIC}",
+                                            lambda m: (box.append(m), done.set()), qos_profile_sensor_data)
+        try:
+            if not done.wait(timeout):
+                raise TimeoutError(f"no camera_info within {timeout} s")
+        finally:
+            self.node.destroy_subscription(sub)
+        return box[0]
+
+    # ------------------------------------------------------------------ TCP pose and Servo (Cartesian jogging)
+    def tcp_pose(self, frame: str | None = None) -> tuple[list[float], list[float]]:
+        """Current tcp_link pose in `frame` (default base_link): ([x, y, z], [qx, qy, qz, qw])."""
+        try:
+            t = self._tf.lookup_transform(frame or self.base_frame, self.tcp_link, rclpy.time.Time()).transform
+        except TransformException as e:
+            raise RuntimeError(f"no TF {frame or self.base_frame} -> {self.tcp_link}: {e}") from e
+        return ([t.translation.x, t.translation.y, t.translation.z],
+                [t.rotation.x, t.rotation.y, t.rotation.z, t.rotation.w])
+
+    def servo_start(self) -> Result:
+        """Hand the arm to the streaming controller and put MoveIt Servo in Cartesian (twist) mode."""
+        r = self.use_streaming()
+        if not r:
+            return r
+        req = ServoCommandType.Request(command_type=ServoCommandType.Request.TWIST)
+        res = self._call(self._servo_type, req, 10.0)
+        return Result(bool(res.success), "SUCCESS" if res.success else "SERVO_REFUSED",
+                      "" if res.success else "servo_node refused TWIST mode")
+
+    def servo_twist(self, linear=(0.0, 0.0, 0.0), angular=(0.0, 0.0, 0.0), frame: str | None = None):
+        """Publish one velocity command (m/s, rad/s) expressed in `frame` (default tcp_link). Repeat at >= 20 Hz."""
+        m = TwistStamped()
+        m.header.frame_id = frame or self.tcp_link
+        m.header.stamp = self.node.get_clock().now().to_msg()
+        m.twist.linear.x, m.twist.linear.y, m.twist.linear.z = map(float, linear)
+        m.twist.angular.x, m.twist.angular.y, m.twist.angular.z = map(float, angular)
+        self._twist.publish(m)
+
+    def servo_to_pose(self, position, orientation_xyzw=None, tol_pos: float = 0.003, tol_rot: float = 0.03,
+                      max_linear: float = 0.10, max_angular: float = 0.5, gain: float = 3.0,
+                      timeout: float = 30.0, rate: float = 50.0) -> Result:
+        """Closed-loop move of tcp_link to a pose in base_link by Servo twists (collision/singularity aware).
+
+        Success only when the measured TCP is within tol_pos (m) and tol_rot (rad) of the target and has stopped
+        commanding; Servo halts (collision, singularity, joint limit) end it with the Servo status code.
+        """
+        started = self.servo_start()
+        if not started:
+            return started
+        target_p = np.asarray(position, float)
+        target_q = None if orientation_xyzw is None else np.asarray(orientation_xyzw, float) / np.linalg.norm(orientation_xyzw)
+        deadline = time.monotonic() + timeout
+        period = 1.0 / rate
+        result = Result(False, "TIMED_OUT", f"not within tolerance after {timeout} s")
+        while time.monotonic() < deadline:
+            cur_p, cur_q = self.tcp_pose()
+            ep = target_p - np.asarray(cur_p)
+            lin = gain * ep
+            if np.linalg.norm(lin) > max_linear:
+                lin *= max_linear / np.linalg.norm(lin)
+            ang, rot_err = np.zeros(3), 0.0
+            if target_q is not None:
+                qe = _quat_mul(target_q, _quat_conj(np.asarray(cur_q)))
+                if qe[3] < 0:
+                    qe = -qe
+                rot_err = 2 * math.atan2(np.linalg.norm(qe[:3]), qe[3])
+                axis = qe[:3] / (np.linalg.norm(qe[:3]) or 1.0)
+                ang = gain * rot_err * axis
+                if np.linalg.norm(ang) > max_angular:
+                    ang *= max_angular / np.linalg.norm(ang)
+            if np.linalg.norm(ep) <= tol_pos and rot_err <= tol_rot:
+                result = Result(True, "SUCCESS", details={"pos_err_mm": float(np.linalg.norm(ep) * 1000), "rot_err_rad": rot_err})
+                break
+            if self._servo_code in _SERVO_HALTS and np.linalg.norm(lin) > 0.02:
+                names = {v: k for k, v in vars(ServoStatus).items() if k.isupper() and isinstance(v, int)}
+                result = Result(False, names.get(self._servo_code, str(self._servo_code)),
+                                "Servo stopped the motion", {"pos_err_mm": float(np.linalg.norm(ep) * 1000)})
+                break
+            self.servo_twist(lin, ang, frame=self.base_frame)
+            time.sleep(period)
+        for _ in range(5):  # explicit zero command so Servo halts promptly
+            self.servo_twist()
+            time.sleep(period)
+        return result
+
+
+# Servo halts (not mere decelerations, which Servo handles itself): collision, singularity, joint limit.
+_SERVO_HALTS = (ServoStatus.HALT_FOR_COLLISION, ServoStatus.HALT_FOR_SINGULARITY, ServoStatus.JOINT_BOUND)
+
+
+def _image_to_array(msg: Image) -> np.ndarray:
+    """sensor_msgs/Image -> numpy without cv_bridge/OpenCV (rgb8, bgr8, rgba8, mono8, 16UC1 [mm], 32FC1 [m])."""
+    enc, h, w = msg.encoding, msg.height, msg.width
+    buf = np.frombuffer(bytes(msg.data), dtype=np.uint8)
+    if enc in ("rgb8", "bgr8"):
+        a = buf.reshape(h, msg.step)[:, : w * 3].reshape(h, w, 3)
+        return a if enc == "rgb8" else a[:, :, ::-1].copy()
+    if enc in ("rgba8", "bgra8"):
+        a = buf.reshape(h, msg.step)[:, : w * 4].reshape(h, w, 4)[:, :, :3]
+        return a if enc == "rgba8" else a[:, :, ::-1].copy()
+    if enc == "mono8":
+        return buf.reshape(h, msg.step)[:, :w].copy()
+    if enc == "16UC1":
+        a = np.frombuffer(bytes(msg.data), dtype=np.uint16).reshape(h, msg.step // 2)[:, :w].astype(np.float32) * 1e-3
+        a[a == 0] = np.nan
+        return a
+    if enc == "32FC1":
+        return np.frombuffer(bytes(msg.data), dtype=np.float32).reshape(h, msg.step // 4)[:, :w].copy()
+    raise ValueError(f"unsupported image encoding {enc!r}")
+
+
+def _quat_conj(q):
+    return np.array([-q[0], -q[1], -q[2], q[3]])
+
+
+def _quat_mul(a, b):
+    ax, ay, az, aw = a
+    bx, by, bz, bw = b
+    return np.array([aw * bx + ax * bw + ay * bz - az * by, aw * by - ax * bz + ay * bw + az * bx,
+                     aw * bz + ax * by - ay * bx + az * bw, aw * bw - ax * bx - ay * by - az * bz])

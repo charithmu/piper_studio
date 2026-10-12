@@ -47,7 +47,13 @@ def main(argv=None):
     d = sub.add_parser("demo", help="run the scripted demo sequence and record it")
     d.add_argument("--backend", default="unknown", help="label stored in the record")
     d.add_argument("--out", type=Path, required=True)
+    sr = sub.add_parser("stepresp", help="measure the joint position servo's step response (streaming controller)")
+    sr.add_argument("--backend", default="unknown")
+    sr.add_argument("--out", type=Path, required=True)
     a = p.parse_args(argv)
+    if a.cmd == "stepresp":
+        from piper_py import stepresp
+        return stepresp.main(a.namespace, a.backend, a.out)
     if a.cmd == "demo":
         from piper_py import demo
         return demo.main(a.namespace, a.backend, a.out)

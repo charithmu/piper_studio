@@ -328,7 +328,7 @@ forks.
 
 Each brief is self-contained: the agent will not see this conversation.
 Each brief assumes the workspace at
-`/home/atlasdev/projects/ros2_projects/piper_studio`.
+`/home/atlasdev/projects/ros/piper_studio`.
 
 ### Agent M — `agx_arm_motion` backend generalization
 

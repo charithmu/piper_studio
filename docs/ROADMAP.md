@@ -9,9 +9,9 @@ Each milestone ends with passing tests and an updated VERSIONS.md.
 | M3 | Gazebo Harmonic: same controllers via gz_ros2_control; gripper mimic handling; same piper_py tests pass | done 2026-10-08 (in piper_bringup; no separate package needed yet) |
 | M4 | MuJoCo: MJCF generated from the URDF (mujoco_ros2_control); FK parity check vs URDF; same tests pass | done 2026-10-08 |
 | M5 | Isaac Sim 6.1: USD generated from the URDF; topic-based ROS 2 control; same tests pass (see isaac/README.md) | done 2026-10-08 |
-| M6 | Streaming/servo: streaming controller + `piper_py.stream_joints` done and in the demo; MoveIt Servo (Cartesian) and teleop input still to do | partly done |
+| M6 | Streaming/servo: streaming controller, `piper_py.stream_joints`, MoveIt Servo (TCP twist/pose) done on all backends; teleop input still to do | done except teleop |
 | M7 | Recording and policy interface: synchronized episodes (state, commands, camera), LeRobot export, policy runner using streaming targets | |
-| M8 | `piper_perception`: actual wrist camera driver, calibration, mount frames | needs camera model and mount |
+| M8 | Wrist camera: simulated D435 in Gazebo, MuJoCo and Isaac done (2026-10-10); real driver launch, calibration, final mount still to do | partly done; needs camera model and mount |
 | M9 | Platform composition (Go2 + Piper): frame prefix/namespace, mount transform | |
 
 Cross-cutting references (not dependencies): IIT piper-ros2-dls (gain scaling, Piper-L), Renesas

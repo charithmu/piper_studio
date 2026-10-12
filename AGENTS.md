@@ -1,3 +1,5 @@
+> **Folder layout changed on 2026-10-09.** Read `~/projects/RULES.md` first (storage, GPU, exposure, installs; it wins over anything older in this repo) and the machine map in `~/projects/AGENTS.md`. Use the new paths (`~/projects/{platform,ml_tests,sim,ros,core}/...`); the old `~/projects/dev/...` symlinks disappear around 2026-10-16. Keep your `artifacts.yaml` current (`python3 ~/projects/platform/registry/registry.py check`).
+
 # Piper Studio agent guide
 
 Read README.md, docs/ROADMAP.md, VERSIONS.md and docs/description/DECISIONS.md before changing anything.

@@ -17,6 +17,14 @@
        fingertip centre: the finger meshes end at z = 0.138 m in gripper_base. -->
   <xacro:arg name="tcp_xyz" default="0 0 0.138" />
   <xacro:arg name="tcp_rpy" default="0 0 0" />
+  <!-- Wrist camera: none | d435 (RealSense D435 at AgileX's mount pose; see piper.camera.xacro). Simulated size/FOV
+       follow the D435 colour stream at 640x480 (69.4 deg horizontal). -->
+  <xacro:arg name="camera" default="none" />
+  <xacro:arg name="camera_bracket_mesh" default="" />
+  <xacro:arg name="camera_width" default="640" />
+  <xacro:arg name="camera_height" default="480" />
+  <xacro:arg name="camera_hfov_deg" default="69.4" />
+  <xacro:arg name="camera_rate" default="30" />
   <!-- Backend-specific inputs. -->
   <xacro:arg name="controllers_file" default="" />
   <xacro:arg name="mujoco_model" default="" />
@@ -45,6 +53,13 @@
     <origin xyz="$(arg tcp_xyz)" rpy="$(arg tcp_rpy)" />
   </joint>
 
+  <xacro:if value="${'$(arg camera)' == 'd435'}">
+    <xacro:include filename="$(find piper_description)/urdf/piper.camera.xacro" />
+    <xacro:piper_camera parent="link6" hardware="$(arg hardware)" bracket_mesh="$(arg camera_bracket_mesh)"
+                        width="$(arg camera_width)" height="$(arg camera_height)"
+                        hfov_deg="$(arg camera_hfov_deg)" update_rate="$(arg camera_rate)" />
+  </xacro:if>
+
   <xacro:include filename="$(find piper_description)/urdf/piper.ros2_control.xacro" />
   <xacro:piper_ros2_control
     hardware="$(arg hardware)"
@@ -52,5 +67,6 @@
     initial_positions_file="$(arg initial_positions_file)"
     controllers_file="$(arg controllers_file)"
     mujoco_model="$(arg mujoco_model)"
-    mujoco_headless="$(arg mujoco_headless)" />
+    mujoco_headless="$(arg mujoco_headless)"
+    camera="$(arg camera)" />
 </robot>
