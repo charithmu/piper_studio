@@ -84,3 +84,10 @@
 - End-to-end test: Gazebo 10/10, MuJoCo 10/10, mock 9 + skip (the camera check). Isaac: see the status page.
 - Control levels of the vendor SDK / ROS node mapped against what we expose (page `control.html`): we use firmware-smoothed `move_j` only; MIT, JS, CPV, firmware Cartesian, limits/payload and `arm_status` are not exposed yet.
 - Vendor study copies: 26 AgileX repos in `for_reference/agilex/` (git-ignored, commits in clone.log). Real arm still not driven.
+
+## 2026-10-12 UTC real arm, read-only baseline (Claude, branch `feature/architecture-comms`)
+- Merged `feature/servo-camera` to `main` (b5b72da) after fixing an intermittent Pilz LIN planning failure (Cartesian deceleration limit now symmetric, -2.25).
+- Real Piper connected via gs_usb adapter (`can0`, 1 Mbit/s). Listen-only capture, then `tools/arm_probe.py` (one firmware query frame, no enable/move): firmware **S-V1.7-3**, hardware H-V1.2-1, produced 2025-08-09, SDK profile `default`. Standby, status normal, no error code, all joints disabled, 24 V, driver 27-29 C, no fault bits.
+- Resting pose (deg) [3.06, -1.85, 2.32, -4.69, 16.11, 0.48]; j2 < 0 and j3 > 0 sit outside the nominal ranges, gripper reads -4.27 mm (outside 0-70): possible zero offsets after long idle. Not touched.
+- Consequences of S-V1.7-3 (below S-V1.8-5): no seamless mode switching, so avoid move_js/MIT here (leaving them needs reset = arm powers off); `move_home` (0x191) needs >= 1.7-4. The maintainer's advice for old-firmware bugs is to upgrade to S-V1.8-9 via support@agilex.ai.
+- Next: user runs `arm_probe.py --limits` (read requests only) to compare stored limits with the official URDF; then enable-without-motion.
