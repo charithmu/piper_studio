@@ -84,7 +84,7 @@ off and drops it if raised. From S-V1.8-5 the firmware switches by itself.
 The vendor ROS node `agx_arm_ctrl` (parameters `fast_mode`, `speed_percent`, `auto_enable`, `tcp_offset`, `gripper_default_effort`, `fw_version`):
 - `fast_mode` routes `control/joint_states` through `move_js`.
 - Its `emergency_stop` service, on firmware without seamless switching, calls `move_js(current angles)`, which leaves the arm in follower mode. Do not use it
-  on S-V1.7-3; the physical e-stop is the primary stop.
+  on S-V1.7-3. **This arm has no physical e-stop button**: the hard stop is cutting power (drops a raised arm, so keep motion tests near the folded rest pose); the protocol also has an electronic emergency stop (CAN 0x150, SDK `electronic_emergency_stop()`).
 - `speed_percent` default 0 means "do not set"; the SDK function default is 100. **Our launch does not set it.** Set it explicitly low before any motion.
 
 ## 6. Safety semantics from the docs
@@ -92,7 +92,7 @@ The vendor ROS node `agx_arm_ctrl` (parameters `fast_mode`, `speed_percent`, `au
 - `disable()` and `reset()` drop a raised arm immediately. `electronic_emergency_stop()` lowers it slowly with constant damping, then `reset()` is needed. Only enable/disable with the arm resting folded.
 - SDK software joint-limit clamping is **off** by default (`get_joint_limits_enabled()`); the `joint_limits` config argument is not applied to control. Our `command_guard` and the arm's stored limits are the protection for `move_j`.
 - Crash-protection rating 0-8 (0 = none), assistance rating 0-10.
-- MIT and `move_js` can cause impact and oscillation; keep the e-stop in reach.
+- MIT and `move_js` can cause impact and oscillation; there is no e-stop button on this arm, so these stay off.
 
 ## 7. API catalogue (reads are safe, writes are not)
 
@@ -116,3 +116,14 @@ The vendor ROS node `agx_arm_ctrl` (parameters `fast_mode`, `speed_percent`, `au
 5. Explicit `speed_percent` for `backend:=real` (10-20 for first motion): not applied.
 6. Whether the firmware flash needs the Windows tool or the SDK; request release notes and the flashing/recovery procedure from AgileX support in writing before flashing.
 7. After the upgrade: rerun `arm_probe.py --limits`, `arm_probe_extra.py`, `arm_enable_test.py`, diff against `baseline_S-V1.7-3/`, then plan supervised motion (smallest `move_j` first) through `piper activate` with the guard.
+
+## 10. Teach (drag) mode and its light (vendor quick-start manual, section 2.2)
+
+The button light between joints 5 and 6 shows the drag-teach state: **off** = stopped (normal); **solid green** = recording a trajectory
+(drag the arm by hand); **flashing green (500 ms)** = **playing back** the last recorded trajectory (the arm moves by itself; stay clear).
+Single click = start/stop recording; double click = play back the last recording. A new recording erases the previous one; max 3 minutes.
+Before using host/CAN control the light must be off; switch to standby from the host, then to CAN control mode, and when coming back from
+teach or link mode the arm must first sit at the zero pose. The protocol has teach controls on CAN 0x150 byte 2 (1 record, 2 end record,
+3 execute, 4 pause, 5 resume, 6 terminate, 7 move to the start point), plus an electronic emergency stop on byte 0 (1 activate, 2 resume).
+The manual does not say how to stop a playback with the button. Session note 2026-10-12: after the first sessions the arm showed flashing green
+lights and sent no CAN frames; the vendor GUI could still enable/disable but not reach the zero pose. Cause not established yet.
