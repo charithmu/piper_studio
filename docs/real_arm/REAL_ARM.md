@@ -85,6 +85,13 @@ Vendor ROS node `agx_arm_ctrl`: `fast_mode` routes `control/joint_states` throug
   leader/follower and teach calls, `clear_joint_error`.
 - CAN frames 0x481-0x486 are deprecated (all zeros).
 
+## 6b. Named poses and the routine
+
+`zero` = all joints 0 with joints 2/3 0.01 rad inside their stops (the simulators' startup pose); `rest` = zero with joint 5 lowered 0.2936 rad, the park pose just above the
+support brackets. Routine on the real arm: come to `zero`, then `rest` (`piper rest` or `tools/arm_zero.py --rest`), then disable the motors with someone at the arm.
+A Piper rests with joints 2 and 3 about 0.04 rad past their limits, so `command_guard` keeps arm joints 0.01 rad inside the limits and clamps (not rejects) values up to 0.1 rad outside;
+activating from the stops therefore lifts joints 2/3 by about 2.7 deg.
+
 ## 7. Teach (drag) mode
 
 The button light between joints 5 and 6: **off** = stopped (normal); **solid green** = recording (drag the arm by hand); **flashing green** = **playing back** the last recording

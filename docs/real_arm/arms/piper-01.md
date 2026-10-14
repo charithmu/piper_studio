@@ -30,10 +30,18 @@
 - CPV drive parameters (read 2026-10-14 with `arm_info.py -c`): acceleration 5.0 and deceleration 5.0 rad/s^2 on every joint, profile velocity 0, position gain 5.0, velocity-loop kp 0.7 (joints 1-3) / 0.8 (joints 4-6), ki 40 (joints 1-3) / 80 (joints 4-6). Reading them put the arm in MOVE_CPV motion mode
   (the first `-c` version did not restore it; the fixed tool sets MOVE_J on the next `-c`, and any `move_j` switches it back).
 
+## Park pose (recorded by hand 2026-10-14)
+
+Pose recorded with the motors off, wrist a few mm above the support brackets: joints (deg) 0.23, -2.19, 2.45, -0.42, 16.82, 0.0 (`arm_poses.log`). Against zero only joint 5 is lowered
+(16.82 deg); joints 2/3 are at the stops (-2.19 / +2.45), which are outside the stored limits (j2 >= 0, j3 <= 0), so the pose cannot be commanded as recorded.
+Flange height from the SDK's forward kinematics: resting on the stops (j5 22 deg) 167.0 mm, recorded pose 174.3 mm, the same pose with joints 2/3 clamped inside their limits 189.2 mm, all joints 0: 213.3 mm.
+The SRDF `rest` therefore is zero with joint 5 = 0.2936 rad (16.82 deg), about 22 mm above resting; disabling there drops the wrist a little more than the recorded pose would.
+To check on the arm: whether the firmware accepts a slightly negative joint 2 / positive joint 3 target (then `rest` could use the recorded values and the guard margin could shrink).
+
 ## Decisions pending (nothing applied to the code base)
 
 1. MoveIt/controller max joint speed is 5 rad/s, the arm's limit is 3.0; acceleration matches (5.0).
-2. Explicit `speed_percent` for `backend:=real` (10-20 % for the first moves).
+2. `speed_percent` for `backend:=real` is now a launch argument (default 20); the value used for real runs is yours to set.
 3. Crash-protection level (a write to the arm, user's decision).
 4. Whether the arm has a Revo2 hand or another device on the bus.
 

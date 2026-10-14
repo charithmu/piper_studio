@@ -17,13 +17,23 @@
     <xacro:never a="camera_bracket_link" b="flange_link" /> <xacro:never a="camera_bracket_link" b="gripper_base" />
   </xacro:if>
 
-  <!-- joint2/joint3 sit 0.01 rad inside their hard stops, matching config/initial_positions.yaml. -->
-  <group_state name="rest" group="arm">
+  <!-- zero: all joints 0, with joint2/joint3 0.01 rad inside their hard stops (matches config/initial_positions.yaml). Start and end pose of every simulation. -->
+  <group_state name="zero" group="arm">
     <joint name="joint1" value="0" />
     <joint name="joint2" value="0.01" />
     <joint name="joint3" value="-0.01" />
     <joint name="joint4" value="0" />
     <joint name="joint5" value="0" />
+    <joint name="joint6" value="0" />
+  </group_state>
+  <!-- rest: zero with joint5 lowered 16.82 deg (recorded on the real arm 2026-10-14): the wrist hangs just above the support brackets, so
+       disabling the motors there drops the arm only a few millimetres. Reach it from zero (piper rest does). -->
+  <group_state name="rest" group="arm">
+    <joint name="joint1" value="0" />
+    <joint name="joint2" value="0.01" />
+    <joint name="joint3" value="-0.01" />
+    <joint name="joint4" value="0" />
+    <joint name="joint5" value="0.2936" />
     <joint name="joint6" value="0" />
   </group_state>
   <!-- Elbow up, tool pointing down over the area in front of the base. -->

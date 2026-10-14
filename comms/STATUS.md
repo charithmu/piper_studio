@@ -138,3 +138,10 @@
 
 ## 2026-10-14 UTC arm_joints.py live joint readout (Claude, branch `feature/architecture-comms`)
 - `tools/arm_joints.py`: passive live table of the six joints and the gripper (degrees, `--rad`), updated in place; joints that moved in the last 0.4 s are highlighted; Enter prints/saves the pose (radians, copy-paste) to `~/data/ml/isaac/piper_studio/arm_poses.log`; `--once` for a snapshot. Sends nothing (reads 0x2A5-0x2A8). Tested live (snapshot) and in a pseudo-terminal (in-place redraw, save, quit). `arm_info.py` stays unchanged.
+
+## 2026-10-15 UTC ROS side for the real arm; zero/rest poses (Claude, branch `feature/real-arm-ros`)
+- Merged `feature/architecture-comms` to `main` (0f5a43f). New branch `feature/real-arm-ros`.
+- Poses: SRDF `zero` (old `rest`: all joints 0, j2/j3 0.01 rad inside) is the start/end pose of every simulation and the demo; new `rest` = zero with joint 5 = 0.2936 rad (16.82 deg, from the pose the user recorded on the arm). Details and the FK heights in `docs/real_arm/arms/piper-01.md`.
+- `command_guard`: arm joints are kept `limit_margin` (0.01 rad) inside the URDF limits; values up to `limit_slack` (0.1 rad) outside are clamped instead of rejected (a Piper rests ~0.04 rad past the j2/j3 limits). Launch: `canbus:=` (was `can_port:=`) and `speed_percent:=` (default 20, was unset). `piper_py`: `set_motors`, `move_rest`; CLI `piper enable | disable [--countdown] | zero | rest`; `fake_driver` has the `enable_agx_arm` service. Pilz LIN uses half the acceleration scaling (it failed now and then).
+- Tests: new `test_real_resting.py` (fake driver starting at the resting pose: activation, zero and rest through MoveIt, disable/enable) and `test_named_poses.py` (SRDF, startup positions, guard margin and `tools/arm_zero.py` agree). mock/MuJoCo/Gazebo/Isaac end-to-end pass.
+- `tools/arm_zero.py --rest` goes zero then rest. Not run on the real arm yet.

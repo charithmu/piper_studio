@@ -33,6 +33,7 @@ Read README.md, docs/ROADMAP.md, VERSIONS.md and docs/description/DECISIONS.md b
 - One controller configuration (`piper_bringup/config/controllers.yaml`) for every backend; backends
   differ only in the ros2_control hardware plugin.
 - One command owner per resource; switch controllers explicitly.
+- Every session, simulated or real, starts and ends at the named pose `zero`; the real arm is parked at `rest` (zero with joint 5 lowered) before its motors are disabled.
 - Success means executed (controller/MoveIt result), not planned.
 - Real arm: motors not auto-enabled, command controllers start inactive, `command_guard` filters
   commands. Do not weaken these defaults.
