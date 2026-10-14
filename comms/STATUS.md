@@ -84,3 +84,57 @@
 - End-to-end test: Gazebo 10/10, MuJoCo 10/10, mock 9 + skip (the camera check). Isaac: see the status page.
 - Control levels of the vendor SDK / ROS node mapped against what we expose (page `control.html`): we use firmware-smoothed `move_j` only; MIT, JS, CPV, firmware Cartesian, limits/payload and `arm_status` are not exposed yet.
 - Vendor study copies: 26 AgileX repos in `for_reference/agilex/` (git-ignored, commits in clone.log). Real arm still not driven.
+
+## 2026-10-12 UTC real arm, read-only baseline (Claude, branch `feature/architecture-comms`)
+- Merged `feature/servo-camera` to `main` (b5b72da) after fixing an intermittent Pilz LIN planning failure (Cartesian deceleration limit now symmetric, -2.25).
+- Real Piper connected via gs_usb adapter (`can0`, 1 Mbit/s). Listen-only capture, then `tools/arm_probe.py` (one firmware query frame, no enable/move): firmware **S-V1.7-3**, hardware H-V1.2-1, produced 2025-08-09, SDK profile `default`. Standby, status normal, no error code, all joints disabled, 24 V, driver 27-29 C, no fault bits.
+- Resting pose (deg) [3.06, -1.85, 2.32, -4.69, 16.11, 0.48]; j2 < 0 and j3 > 0 sit outside the nominal ranges, gripper reads -4.27 mm (outside 0-70): possible zero offsets after long idle. Not touched.
+- Consequences of S-V1.7-3 (below S-V1.8-5): no seamless mode switching, so avoid move_js/MIT here (leaving them needs reset = arm powers off); `move_home` (0x191) needs >= 1.7-4. The maintainer's advice for old-firmware bugs is to upgrade to S-V1.8-9 via support@agilex.ai.
+- Next: user runs `arm_probe.py --limits` (read requests only) to compare stored limits with the official URDF; then enable-without-motion.
+- 2026-10-12 limits read from the arm (S-V1.7-3): joints 1-5 angle limits equal the official URDF; joint 6 stores +-180 deg (URDF +-120 deg); speed 2.5 rad/s and acceleration 3.5 rad/s^2 per joint (URDF 5, our MoveIt 5/5: too high for the real arm); flange 0.75 m/s, 0.18 rad/s, 1.0 m/s^2, 0.25 rad/s^2. Not corrupted. Action: real-arm limit profile (<= 2.5 / 3.5).
+
+## 2026-10-12 UTC real arm: correction and record (Claude, branch `feature/architecture-comms`)
+- Correction to the entries above: values read from the real arm (limits, zero offsets, ratings) are **provisional**: firmware S-V1.7-3 is old and not yet upgraded or fully tested. Nothing in the simulators, MoveIt, controllers or `command_guard` was changed from them; the "real-arm limit profile" idea is parked until after the upgrade.
+- Recorded in `docs/real_arm/REAL_ARM.md` (vendor docs digest, firmware gates, control modes, safety semantics, API catalogue, first baseline, open items) with raw outputs in `docs/real_arm/baseline_S-V1.7-3/`. Tools: `tools/arm_probe.py`, `arm_probe_extra.py` (read-only), `arm_enable_test.py` (enable/disable, no motion).
+- Open: gripper status read returned None in one run; source of the 0x159 gripper frame; j2/j3/gripper zero offsets; firmware flash procedure (ask support@agilex.ai in writing); explicit speed_percent for backend:=real.
+
+## 2026-10-14 UTC real arm after the firmware upgrade (Claude, branch `feature/architecture-comms`)
+- User upgraded the arm to **S-V1.9-1** and calibrated it. New read-only tool `tools/arm_info.py` (census, firmware, status, joints, drivers, limits, ratings, gripper; saves JSON). First run: arm in slave/feedback role, CAN control, MOVE_J, no errors, all joints disabled, profile v189. Nothing moved.
+- Changes vs the old firmware (details in `docs/real_arm/REAL_ARM.md` section 11): speed limit 3.0 rad/s, accel 5.0, joint 6 +-170 deg, crash protection now 0 (off), gripper zero fixed (0.14 mm), bus rates halved for motor/driver frames, new frames 0x1C0-0x1C3 and 0x212 (Revo2 hand IDs?).
+- No simulator/MoveIt/guard parameters changed. Next: decide speed/crash-protection settings, then the first supervised move (`tools/arm_move_rest.py`, dry run first).
+
+## 2026-10-14 UTC docs cleanup, arm identity (Claude, branch `feature/architecture-comms`)
+- Supersedes the 2026-10-12 real-arm entries above (they describe the old firmware S-V1.7-3 and are kept only as history): `docs/real_arm/REAL_ARM.md` is now arm-independent vendor knowledge; facts about one unit live in `docs/real_arm/arms/<arm-id>.md` (`piper-01` is a placeholder label; template in `_template.md`). The old baseline files were removed from the repo (raw data stays in `~/data/ml/isaac/piper_studio/arm_baseline_20261012_S-V1.7-3/`).
+- Tools: `arm_probe.py` and `arm_probe_extra.py` are replaced by `arm_info.py`; shared `arm_common.py` picks the SDK profile from the firmware (`arm_enable_test.py` and `arm_move_rest.py` no longer hard-code the old profile). `arm_info.py --arm-id` stamps the JSON.
+- The arm reports no serial number over CAN (firmware block: hardware, software, date, motor ratio, node type/number and an unparsed field `30AH`); identify a unit by a label plus the number printed on its casing. The USB-CAN adapter serial identifies the adapter only.
+
+## 2026-10-14 UTC arm_info summary mode, CAN auto-detect, can_up.sh (Claude, branch `feature/architecture-comms`)
+- `tools/arm_info.py`: coloured summary by default, `-r/--raw` for the long form, `-c/--cpv-check` for CPV reads (switches the arm to CPV mode, so opt-in), `-i/--channel` for the CAN interface. The census is now a fixed 1.5 s precheck (no options); a silent arm stops the run before anything is sent.
+- CAN interface is auto-detected in all arm tools (`arm_common.resolve_channel`: the only CAN interface, else the only one that is up). `scripts/can_up.sh` brings it up (runs sudo itself, `--dry-run`, `--down`, optional bit rate).
+- Tested live read-only (summary and raw); `-c` and `can_up.sh` (sudo) not run. Follow-up: `-c` now restores the motion mode it read at the start (P/J/L/C) and verifies it; untested live.
+
+## 2026-10-14 UTC CAN bus naming, CPV restore fix (Claude, branch `feature/architecture-comms`)
+- "channel" renamed to "CAN bus" in our tools, scripts and docs: option `-b/--canbus` (was `-i/--channel`), `arm_common.resolve_canbus`, JSON key `canbus`, `scripts/can_up.sh` wording. The SDK's and python-can's own `channel=` keyword is kept at the two call sites.
+- `arm_info.py -c`: if the arm was already in MOVE_CPV (from an earlier `-c` run) the restore sets MOVE_J instead of refusing. The first live `-c` run left the arm in MOVE_CPV; the CPV parameters are recorded in `docs/real_arm/arms/piper-01.md`.
+
+## 2026-10-14 UTC arm_info summary: mode panel (Claude, branch `feature/architecture-comms`)
+- The summary now leads with: Role (SLAVE/MASTER, from the bus frames and ctrl_mode 6), Motion mode (MOVE_J/P/L/C normal, CPV warning, MIT red), Motors (enabled count), E-stop (software e-stop from status 0x01), Teach mode, Faults (error code and per-joint flags). A master or silent arm, or no firmware answer, shows what is known and stops. Checked live (slave, MOVE_J, disabled) and with synthetic states (e-stop, CPV, teach playback, master, fault).
+
+## 2026-10-14 UTC arm_info summary redesign (Claude, branch `feature/architecture-comms`)
+- Summary layout: header, a row of coloured state pills (SLAVE, MOVE_J, MOTORS OFF, E-STOP OFF, TEACH OFF, NO FAULTS; green ok, yellow caution, red problem), then sections State / Arm / Health / Settings stored in the arm / Notes. Joint positions are drawn as gauges inside their stored limits (red diamond when a joint rests outside), temperatures are coloured. Plain text (no colour) when piped or with --no-color.
+
+## 2026-10-14 UTC zero-pose tool, enable test on S-V1.9-1 (Claude, branch `feature/architecture-comms`)
+- User ran `arm_enable_test.py` on S-V1.9-1: all six enabled, drift <= 0.08 deg, currents <= 0.08 A, clean disable (recorded in `docs/real_arm/arms/piper-01.md`).
+- New `tools/arm_zero.py` (replaces `arm_move_rest.py`): vendor go-zero = `move_j` of all zeros (PyAgxArm_demo `piper_ctrl_go_zero.py`; `reset()` is only for recovery after an e-stop and does not move the arm). Ours adds a read-only preflight, a verified known state (speed set before the mode frame because the SDK's mode frame carries a default 50 % speed, then CAN control + MOVE_J read back), enable, latching the target at the current pose, one slow move watched at 10 Hz, abort-and-hold on any fault, and a prompt before disabling. Compiles, `--help` and the speed check tested; the dry run could not be repeated because the arm went silent (powered off); not run live.
+
+## 2026-10-14 UTC first live run of arm_zero.py: stopped early; fixed; arm_stop.py (Claude, branch `feature/architecture-comms`)
+- First live run configured the arm (CAN control, MOVE_J read back, 10 %) and enabled it, then aborted with "drift 0.78 deg" before the zero move. Cause (mine): the tool switched the SDK joint-limit clamp on, and the arm rests with joint 2 at about -2 deg and joint 3 at about +2 deg, outside their stored ranges, so the "hold the current pose" command was clamped to the range edge and itself moved the arm; the drift check then aborted and the arm stayed enabled, partly moved (only the small j2/j3 correction, not the 22 deg of joint 5).
+- Fix: no SDK clamp, no latch step, no rate/limit/timeout/size checks; only real faults (status, error code, driver bits) stop the move; default speed 50 % (1..100). The hold used on abort or Ctrl-C pulls joints resting past a stored limit to the range edge. New `tools/arm_stop.py` releases or stops the arm without prompts (disable, `--estop` slow damped lowering, `--reset`).
+- Not yet run again.
+
+## 2026-10-14 UTC first real-arm motion works (Claude, branch `feature/architecture-comms`)
+- `tools/arm_zero.py` (fixed version) run by the user: known state configured (CAN control + MOVE_J read back, speed 50 %), enabled, one `move_j` to the zero pose in 0.6 s from a 22 deg start, final error 0.06 deg, no fault, clean disable. First motion on the real arm; SDK path only.
+- Next: the same through the ROS stack (`backend:=real`, command_guard, `piper activate`), with an explicit `speed_percent` in the launch and the open parameter decisions in `docs/real_arm/arms/piper-01.md` (MoveIt speed 5 -> 3 rad/s, crash protection level, Revo2 frames).
+
+## 2026-10-14 UTC arm_joints.py live joint readout (Claude, branch `feature/architecture-comms`)
+- `tools/arm_joints.py`: passive live table of the six joints and the gripper (degrees, `--rad`), updated in place; joints that moved in the last 0.4 s are highlighted; Enter prints/saves the pose (radians, copy-paste) to `~/data/ml/isaac/piper_studio/arm_poses.log`; `--once` for a snapshot. Sends nothing (reads 0x2A5-0x2A8). Tested live (snapshot) and in a pseudo-terminal (in-place redraw, save, quit). `arm_info.py` stays unchanged.
