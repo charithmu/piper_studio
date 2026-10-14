@@ -6,6 +6,8 @@ read-only and enable-only sessions on our own arm.
 
 ## Rules for using this page
 
+- **Update 2026-10-14:** the arm was upgraded to S-V1.9-1 and calibrated; section 11 has the fresh read-out (`tools/arm_info.py`). Sections 2 and 3 describe the OLD firmware and are kept for comparison. Parameters are still not changed from any measured value; that is a separate decision.
+
 - **Every number measured on this arm is provisional.** The arm runs old firmware (S-V1.7-3) that has not been upgraded or fully tested.
   Do **not** change simulator, MoveIt, controller or guard parameters from the values below. Re-read everything after the firmware upgrade
   and decide then (section 9).
@@ -127,3 +129,29 @@ teach or link mode the arm must first sit at the zero pose. The protocol has tea
 3 execute, 4 pause, 5 resume, 6 terminate, 7 move to the start point), plus an electronic emergency stop on byte 0 (1 activate, 2 resume).
 The manual does not say how to stop a playback with the button. Session note 2026-10-12: after the first sessions the arm showed flashing green
 lights and sent no CAN frames; the vendor GUI could still enable/disable but not reach the zero pose. Cause not established yet.
+
+## 11. After the upgrade: read-out of 2026-10-14 (firmware S-V1.9-1, calibrated)
+
+Tool: `tools/arm_info.py` (passive census, firmware query, then enquiry frames only; nothing moved). Raw: `readout_S-V1.9-1/`.
+
+| Item | Before (S-V1.7-3) | After (S-V1.9-1) |
+|---|---|---|
+| Firmware / hardware | S-V1.7-3 / H-V1.2-1, date 250809 | **S-V1.9-1** / H-V1.2-1, date 261014 (the date field now reads the day of the upgrade) |
+| SDK profile | `default` | `v189` (resolved from the version by the script) |
+| Status | standby, MOVE_P | CAN control, MOVE_J, teach off, err 0, `motion_status` = REACH_TARGET_POS_FAILED (0x1, no error code: leftover flag) |
+| Rest pose (deg) | 3.06, -1.85, 2.32, -4.69, 16.11, 0.48 | 0.10, -2.25, 2.21, -0.43, 22.72, 0.00 |
+| Gripper width | -4.27 mm | 0.14 mm (zero now fine); control echo: none |
+| Joint limits | j1-5 = URDF, j6 +-180 | j1-5 = URDF, **j6 +-170** (URDF +-120) |
+| Joint speed / accel | 2.5 rad/s / 3.5 rad/s^2 | **3.0 rad/s / 5.0 rad/s^2** (our MoveIt limits: 5 / 5, so speed is still above the arm's) |
+| Flange limits | 0.75 m/s, 0.18 rad/s, 1.0, 0.25 | 1.0 m/s, 0.25 rad/s, 1.5 m/s^2, 0.3 rad/s^2 |
+| Crash protection | 1 on every joint | **0 on every joint (no collision detection)** |
+| Assistance rating | no answer | answers, 0 on every joint |
+| Drivers | 23-24 V, 27-29 C | 23-24 V, 31-34 C (warmer, just used), no fault bits, all joints disabled |
+| Bus | 200 Hz status/pose/joints/gripper, 200 Hz motor, 40 Hz driver | status/pose/joints/gripper 200 Hz, **motor 100 Hz, driver 20 Hz**; new frames 0x1C0-0x1C3 (20-40 Hz) and 0x212 (1 Hz) |
+
+Notes:
+- j2 about -2 deg and j3 about +2 deg at rest persist after calibration. The vendor `piper_ros` README says the DH parameters after S-V1.6-3 offset the j2 and j3 coordinate systems by 2 degrees, so this is plausibly by design rather than a zero error (not confirmed with AgileX).
+- Crash protection is now OFF (0). A collision will not be detected by the firmware; setting it is a write and the user's decision.
+- 0x1C0-0x1C3 are the IDs the SDK uses for the **Revo2 dexterous hand** feedback (hand status, finger position, speed, current). Something on this bus transmits them; whether a Revo2 hand is attached, or the new firmware emits them, is not established. 0x212 is not documented in the cloned vendor material.
+- The arm is in slave/feedback role (it sends 0x2A1... and no 0x155-0x157 control frames).
+- Parameters not changed from this read-out. Candidates to decide: MoveIt max joint speed 5 -> 3 rad/s (arm limit), explicit `speed_percent`, crash-protection level.

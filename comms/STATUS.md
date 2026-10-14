@@ -97,3 +97,8 @@
 - Correction to the entries above: values read from the real arm (limits, zero offsets, ratings) are **provisional**: firmware S-V1.7-3 is old and not yet upgraded or fully tested. Nothing in the simulators, MoveIt, controllers or `command_guard` was changed from them; the "real-arm limit profile" idea is parked until after the upgrade.
 - Recorded in `docs/real_arm/REAL_ARM.md` (vendor docs digest, firmware gates, control modes, safety semantics, API catalogue, first baseline, open items) with raw outputs in `docs/real_arm/baseline_S-V1.7-3/`. Tools: `tools/arm_probe.py`, `arm_probe_extra.py` (read-only), `arm_enable_test.py` (enable/disable, no motion).
 - Open: gripper status read returned None in one run; source of the 0x159 gripper frame; j2/j3/gripper zero offsets; firmware flash procedure (ask support@agilex.ai in writing); explicit speed_percent for backend:=real.
+
+## 2026-10-14 UTC real arm after the firmware upgrade (Claude, branch `feature/architecture-comms`)
+- User upgraded the arm to **S-V1.9-1** and calibrated it. New read-only tool `tools/arm_info.py` (census, firmware, status, joints, drivers, limits, ratings, gripper; saves JSON). First run: arm in slave/feedback role, CAN control, MOVE_J, no errors, all joints disabled, profile v189. Nothing moved.
+- Changes vs the old firmware (details in `docs/real_arm/REAL_ARM.md` section 11): speed limit 3.0 rad/s, accel 5.0, joint 6 +-170 deg, crash protection now 0 (off), gripper zero fixed (0.14 mm), bus rates halved for motor/driver frames, new frames 0x1C0-0x1C3 and 0x212 (Revo2 hand IDs?).
+- No simulator/MoveIt/guard parameters changed. Next: decide speed/crash-protection settings, then the first supervised move (`tools/arm_move_rest.py`, dry run first).
