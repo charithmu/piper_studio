@@ -104,6 +104,7 @@ with the arm at the zero pose. We do not use it.
 | `arm_enable_test.py` | enable, hold a few seconds, disable; no motion command; aborts on drift | enable/disable |
 | `arm_zero.py [--dry-run] [--speed 50] [--exact] [--stay]` | preflight (slave, status normal, teach off, limits readable), known state (speed first, CAN control + MOVE_J read back), enable, one `move_j` to the zero pose at the chosen speed (default 50 %, no time limit), stops only on a real fault (status, error code, driver bits) and then holds; asks before disabling. Replaces `arm_move_rest.py` | enable, mode frames, move_j, disable |
 | `arm_stop.py [--estop \| --reset]` | no prompts: motors off (default), electronic e-stop (slow damped lowering), or e-stop + reset (powers the arm off) | disable / e-stop / reset |
+| `arm_joints.py [--rad] [--once] [-b CANBUS]` | live joint table (j1-j6 and gripper) updated in place; passive (listens to 0x2A5-0x2A8, sends nothing, can run beside any other program); Enter saves the pose as a copy-paste line (radians) and appends it to `~/data/ml/isaac/piper_studio/arm_poses.log`; q quits | nothing |
 
 Run each after any firmware change; diff the saved `arm_info` JSON against the arm's file in `arms/`.
 

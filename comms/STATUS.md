@@ -135,3 +135,6 @@
 ## 2026-10-14 UTC first real-arm motion works (Claude, branch `feature/architecture-comms`)
 - `tools/arm_zero.py` (fixed version) run by the user: known state configured (CAN control + MOVE_J read back, speed 50 %), enabled, one `move_j` to the zero pose in 0.6 s from a 22 deg start, final error 0.06 deg, no fault, clean disable. First motion on the real arm; SDK path only.
 - Next: the same through the ROS stack (`backend:=real`, command_guard, `piper activate`), with an explicit `speed_percent` in the launch and the open parameter decisions in `docs/real_arm/arms/piper-01.md` (MoveIt speed 5 -> 3 rad/s, crash protection level, Revo2 frames).
+
+## 2026-10-14 UTC arm_joints.py live joint readout (Claude, branch `feature/architecture-comms`)
+- `tools/arm_joints.py`: passive live table of the six joints and the gripper (degrees, `--rad`), updated in place; joints that moved in the last 0.4 s are highlighted; Enter prints/saves the pose (radians, copy-paste) to `~/data/ml/isaac/piper_studio/arm_poses.log`; `--once` for a snapshot. Sends nothing (reads 0x2A5-0x2A8). Tested live (snapshot) and in a pseudo-terminal (in-place redraw, save, quit). `arm_info.py` stays unchanged.
