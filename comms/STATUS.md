@@ -116,3 +116,6 @@
 ## 2026-10-14 UTC CAN bus naming, CPV restore fix (Claude, branch `feature/architecture-comms`)
 - "channel" renamed to "CAN bus" in our tools, scripts and docs: option `-b/--canbus` (was `-i/--channel`), `arm_common.resolve_canbus`, JSON key `canbus`, `scripts/can_up.sh` wording. The SDK's and python-can's own `channel=` keyword is kept at the two call sites.
 - `arm_info.py -c`: if the arm was already in MOVE_CPV (from an earlier `-c` run) the restore sets MOVE_J instead of refusing. The first live `-c` run left the arm in MOVE_CPV; the CPV parameters are recorded in `docs/real_arm/arms/piper-01.md`.
+
+## 2026-10-14 UTC arm_info summary: mode panel (Claude, branch `feature/architecture-comms`)
+- The summary now leads with: Role (SLAVE/MASTER, from the bus frames and ctrl_mode 6), Motion mode (MOVE_J/P/L/C normal, CPV warning, MIT red), Motors (enabled count), E-stop (software e-stop from status 0x01), Teach mode, Faults (error code and per-joint flags). A master or silent arm, or no firmware answer, shows what is known and stops. Checked live (slave, MOVE_J, disabled) and with synthetic states (e-stop, CPV, teach playback, master, fault).

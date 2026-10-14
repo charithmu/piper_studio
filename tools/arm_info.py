@@ -98,7 +98,11 @@ def collect(args, canbus):
     out["role"] = roles or (["unknown frames"] if idset else ["silent"])
     if not idset:
         return out
-    arm, grip, fw, profile = open_arm(canbus, gripper=True)
+    try:
+        arm, grip, fw, profile = open_arm(canbus, gripper=True)
+    except RuntimeError as e:  # frames are on the bus but the arm does not answer (e.g. master mode, teach playback)
+        out["error"] = str(e)
+        return out
     out["firmware"], out["sdk_profile"] = fw, profile
     try:
         st = wait_for(arm.get_arm_status)
@@ -166,6 +170,10 @@ def _faults(foc, skip=("driver_enable_status",)):
     return [k for k, v in (foc or {}).items() if v and k not in skip]
 
 
+def idset_ok(out):
+    return bool(out["census"])
+
+
 def summarize(out):
     """Rows for the summary: [(label, level, text)] and the list of notes [(level, text)]."""
     rows, notes = [], []
@@ -175,29 +183,41 @@ def summarize(out):
     role = ", ".join(out["role"])
     if out["role"] == ["silent"]:
         return [("Link", "bad", "arm is NOT sending: nothing to read (power, plug, teach playback?)")], notes
-    link_lvl = "ok" if role.startswith("slave") else "warn"
-    rows.append(("Link", link_lvl, f"{len(cen)} CAN ids on {out['canbus']}" + (f", status {hz:.0f} Hz" if hz else "") + f" · role: {role}"))
+    rows.append(("Link", "ok" if idset_ok(out) else "warn", f"{len(cen)} CAN ids on {out['canbus']}" + (f", status {hz:.0f} Hz" if hz else "")))
+    st_ctrl = int(st["ctrl_mode"]) if st else None
+    is_master = role.startswith("master") or st_ctrl == 6
+    rows.append(("Role", "warn" if is_master else ("ok" if role.startswith("slave") else "warn"),
+                 "MASTER (leader): zero-force drag, sends control frames only, does not hold or take commands" if is_master else
+                 "SLAVE (follower): sends feedback and takes commands" if role.startswith("slave") else f"unclear ({role})"))
+    if out.get("error"):
+        rows.append(("Arm", "bad", out["error"]))
+        return rows, notes
     fw = out["firmware"]
     rows.append(("Identity", "info", f"{fw['software_version']} · hw {fw['hardware_version']} · build {fw['production_date']} · node {fw['node_number']} · "
                  f"batch {fw['motor_ratio_and_batch']} · SDK profile {out['sdk_profile']}"))
 
     if st:
-        ctrl, arm_s, teach = int(st["ctrl_mode"]), int(st["arm_status"]), int(st["teach_status"])
-        lvl = "ok"
-        if arm_s != 0 or int(st["err_code"]) != 0:
-            lvl = "bad"
-        elif ctrl not in (0, 1) or teach != 0:
-            lvl = "warn"
+        ctrl, arm_s, teach, mode = int(st["ctrl_mode"]), int(st["arm_status"]), int(st["teach_status"]), int(st["mode_feedback"])
+        mode_lvl = {0: "ok", 1: "ok", 2: "ok", 3: "ok", 5: "warn"}.get(mode, "bad")
+        mode_note = {5: "  (not the normal mode: any move_j switches back)", 4: "  (MIT: dangerous)", 6: "  (MIT: dangerous)"}.get(mode, "")
+        rows.append(("Motion mode", mode_lvl, f"{MODE_FB.get(mode, mode)}   ({CTRL_MODE.get(ctrl, ctrl)}){mode_note}"))
         en = out["enabled"]
-        en_txt = "all joints disabled" if not any(en) else ("all joints ENABLED" if all(en) else f"enabled: {[i + 1 for i, e in enumerate(en) if e]}")
-        rows.append(("State", lvl, f"{CTRL_MODE.get(ctrl, ctrl)} · {MODE_FB.get(int(st['mode_feedback']), st['mode_feedback'])} · teach {TEACH.get(teach, teach)} · "
-                     f"{ARM_STATUS.get(arm_s, arm_s) if arm_s else 'no error'} · {en_txt}"))
-        if int(st["motion_status"]) == 1 and lvl == "ok":
+        n = sum(en)
+        rows.append(("Motors", "ok" if n == 0 else "warn",
+                     "DISABLED (0/6 enabled): no holding torque" if n == 0 else
+                     f"ENABLED ({n}/6): holding position, will move on command" if n == 6 else f"PARTLY ENABLED: joints {[i + 1 for i, e in enumerate(en) if e]}"))
+        rows.append(("E-stop", "bad" if arm_s == 1 else "ok",
+                     "ACTIVE: the arm is in electronic emergency stop (reset needed)" if arm_s == 1 else "not active (software e-stop; this arm has no e-stop button)"))
+        rows.append(("Teach mode", "ok" if teach == 0 else "warn", "off" if teach == 0 else f"{TEACH.get(teach, teach)}: the arm may move by itself or ignore commands"))
+        flags = [k for k, v in ((st.get("err_status") or {}).items()) if v is True]
+        problem = (arm_s not in (0, 1)) or int(st["err_code"]) != 0 or flags
+        rows.append(("Faults", "bad" if problem else "ok",
+                     "none" if not problem else " · ".join(x for x in ((ARM_STATUS.get(arm_s, arm_s) if arm_s not in (0, 1) else ""), f"err_code {st['err_code']}" if int(st["err_code"]) else "",
+                                                              ", ".join(flags)) if x)))
+        if int(st["motion_status"]) == 1 and not problem:
             notes.append(("info", "last-motion flag reads 'reach target failed' (no error code): probably a leftover flag"))
-        if teach != 0:
-            notes.append(("warn", f"teach state is {TEACH.get(teach, teach)}: the arm may move by itself or ignore commands"))
     else:
-        rows.append(("State", "bad", "no status frame received"))
+        rows.append(("Motion mode", "bad", "no status frame received: mode, enable and e-stop state unknown"))
 
     ja = out.get("joint_angles_deg")
     if ja:
