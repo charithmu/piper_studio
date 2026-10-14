@@ -38,6 +38,10 @@ Flange height from the SDK's forward kinematics: resting on the stops (j5 22 deg
 The SRDF `rest` therefore is zero with joint 5 = 0.2936 rad (16.82 deg), about 22 mm above resting; disabling there drops the wrist a little more than the recorded pose would.
 To check on the arm: whether the firmware accepts a slightly negative joint 2 / positive joint 3 target (then `rest` could use the recorded values and the guard margin could shrink).
 
+Joint ranges and where each pose sits: ![joint ranges](piper-01.joint_ranges.svg). Limit sources: the arm's stored limits (`get_joint_angle_vel_limits`, saved in `piper-01.readout.json`),
+the official URDF `external/agx_arm_ros/.../piper/urdf/piper_description.urdf` (joints 1-5 identical, joint 6 ±120 vs stored ±170). Joint 5 has room to ±70°, so the park pose is not a limit: the wrist drops
+from 16.8° to its resting position at 22.7° when the motors go off.
+
 ## Decisions pending (nothing applied to the code base)
 
 1. MoveIt/controller max joint speed is 5 rad/s, the arm's limit is 3.0; acceleration matches (5.0).
