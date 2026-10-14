@@ -68,6 +68,7 @@ Vendor ROS node `agx_arm_ctrl`: `fast_mode` routes `control/joint_states` throug
 - `disable()` and `reset()` drop a raised arm immediately. `electronic_emergency_stop()` (CAN 0x150 byte 0) lowers it slowly with constant damping; `reset()` is needed afterwards.
 - A Piper has no emergency-stop button (the host software shows an on-screen one). The hard stop is cutting power, which drops a raised arm, so keep tests near the folded rest pose
   and keep a hand on the power switch or plug.
+- SDK joint-limit clamping (`set_joint_limits_enabled(True)`) clamps every command into the model limits. A Piper rests with joints 2 and 3 about 2 deg outside their stored range, so a "hold" command built from the current pose is clamped and moves the arm; do not turn it on for commands derived from the current pose.
 - SDK software joint-limit clamping is **off** by default (`get_joint_limits_enabled()`), and the `joint_limits` config argument is not applied to control. Only our `command_guard`
   and the arm's stored limits protect `move_j`.
 - Crash protection rating 0-8 (0 = no detection), assistance rating 0-10; both are stored in the arm and can change with firmware.
@@ -101,7 +102,8 @@ with the arm at the zero pose. We do not use it.
 |---|---|---|
 | `arm_info.py [-r] [-c] [-b CANBUS] [--arm-id ID]` | coloured summary (default; top rows: role master/slave, motion mode, motors enabled/disabled, software e-stop, teach mode, faults) or the long raw form (`-r`); fixed 1.5 s passive listen first (stops if the arm is silent), then firmware, status, joints, drivers, limits, ratings, gripper; always saves JSON; `-c` also reads CPV parameters (switches the arm to CPV mode, then restores the previous mode and checks it) | the firmware query and enquiry frames |
 | `arm_enable_test.py` | enable, hold a few seconds, disable; no motion command; aborts on drift | enable/disable |
-| `arm_zero.py [--dry-run] [--speed N] [--exact] [--stay]` | preflight (slave, status normal, teach off, limits readable, move <= 35 deg), then known state (speed first, CAN control + MOVE_J read back, SDK limit clamp), enable, latch target at the current pose, one slow `move_j` to the zero pose, abort-and-hold on any fault, ask before disabling. Replaces `arm_move_rest.py` | enable, mode frames, move_j, disable |
+| `arm_zero.py [--dry-run] [--speed 50] [--exact] [--stay]` | preflight (slave, status normal, teach off, limits readable), known state (speed first, CAN control + MOVE_J read back), enable, one `move_j` to the zero pose at the chosen speed (default 50 %, no time limit), stops only on a real fault (status, error code, driver bits) and then holds; asks before disabling. Replaces `arm_move_rest.py` | enable, mode frames, move_j, disable |
+| `arm_stop.py [--estop \| --reset]` | no prompts: motors off (default), electronic e-stop (slow damped lowering), or e-stop + reset (powers the arm off) | disable / e-stop / reset |
 
 Run each after any firmware change; diff the saved `arm_info` JSON against the arm's file in `arms/`.
 
