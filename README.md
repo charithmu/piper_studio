@@ -91,17 +91,23 @@ Exactly one controller owns the arm at a time (`arm_controller` or `arm_position
 ### Real arm
 
 ```bash
-ros2 launch piper_bringup piper.launch.py backend:=real can_port:=can0
+ros2 launch piper_bringup piper.launch.py backend:=real canbus:=can0 speed_percent:=20   # CAN up first: scripts/can_up.sh
 ```
 
-Safety defaults: motors are not enabled at start, command controllers start inactive, and
-`command_guard` drops NaN, out-of-limit and jump commands before they reach the driver. Enable and
+Safety defaults: motors are not enabled at start, the arm speed is set explicitly (`speed_percent`, default 20 %), command controllers start inactive, and
+`command_guard` drops NaN, jump and far-out-of-limit commands and keeps arm joints 0.01 rad inside their limits (a Piper rests slightly past them). Enable and
 activate deliberately, with someone at the arm:
 
 ```bash
-ros2 service call /enable_agx_arm std_srvs/srv/SetBool "{data: true}"
+ros2 run piper_py piper enable       # motors on
 ros2 run piper_py piper activate     # refuses unless driver feedback is fresh and consistent
+ros2 run piper_py piper zero         # all joints 0: the start and end pose of every simulation and of every real session
+ros2 run piper_py piper rest         # zero, then joint 5 lowered 16.8 deg: park pose, disabling the motors here drops the arm only a few mm
+ros2 run piper_py piper disable      # controllers off, 5 s countdown to get a hand on the arm, motors off
 ```
+
+Without ROS, `tools/arm_info.py` (summary), `arm_zero.py`, `arm_joints.py` (live joints) and `arm_stop.py` talk to the arm directly; see
+[docs/real_arm/REAL_ARM.md](docs/real_arm/REAL_ARM.md) and the per-arm file in `docs/real_arm/arms/`.
 
 ## Test
 

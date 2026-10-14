@@ -4,7 +4,9 @@
 ros2_control publishes NaN commands while no controller claims the interfaces, and agx_arm_ctrl
 turns NaN into 0.0 (the folded rest pose). This node forwards a command to the driver only if:
   * every value is finite,
-  * every value is within the URDF position limits,
+  * every value is within the URDF position limits (arm joints: kept `limit_margin` inside them; a value up to `limit_slack`
+    outside is clamped to that range instead of rejected, because a real Piper rests with joints 2 and 3 about 0.04 rad past
+    their limits, so "hold the measured pose" and "go to zero" would otherwise be refused or sit exactly on the arm's stored limit),
   * driver feedback is fresh, and
   * every arm joint target is within `max_step` rad of the measured position.
 Rejected commands are dropped (the driver keeps its last valid target) and logged.
@@ -26,6 +28,8 @@ class CommandGuard(Node):
         super().__init__("command_guard")
         self.max_step = self.declare_parameter("max_step", 0.15).value  # rad per command
         self.max_feedback_age = self.declare_parameter("max_feedback_age", 0.1).value  # s
+        self.limit_margin = self.declare_parameter("limit_margin", 0.01).value  # rad kept inside the URDF limits (arm joints)
+        self.limit_slack = self.declare_parameter("limit_slack", 0.1).value  # rad outside the limits that is clamped, not rejected
         self.arm_joints = list(self.declare_parameter(
             "arm_joints", [f"joint{i}" for i in range(1, 7)]).value)
         self.limits: dict[str, tuple[float, float]] = {}
@@ -58,18 +62,24 @@ class CommandGuard(Node):
         if self.feedback is None or time.monotonic() - self.feedback[0] > self.max_feedback_age:
             return self.reject("driver feedback missing or stale")
         measured = self.feedback[1]
-        for name, pos in zip(msg.name, msg.position):
+        out = list(msg.position)
+        for k, (name, pos) in enumerate(zip(msg.name, msg.position)):
             if not math.isfinite(pos):
                 return self.reject(f"{name} is not finite (no active controller?)")
             lo, hi = self.limits.get(name, (-math.inf, math.inf))
-            if not lo - 1e-6 <= pos <= hi + 1e-6:
-                return self.reject(f"{name}={pos:.4f} outside [{lo:.4f}, {hi:.4f}]")
             if name in self.arm_joints:
+                lo, hi = lo + self.limit_margin, hi - self.limit_margin
+                if not lo - self.limit_slack <= pos <= hi + self.limit_slack:
+                    return self.reject(f"{name}={pos:.4f} outside [{lo:.4f}, {hi:.4f}] by more than {self.limit_slack}")
+                out[k] = pos = min(max(pos, lo), hi)
                 if name not in measured or not math.isfinite(measured[name]):
                     return self.reject(f"no measured state for {name}")
                 if abs(pos - measured[name]) > self.max_step:
                     return self.reject(
                         f"{name} step {pos - measured[name]:+.3f} rad exceeds max_step {self.max_step}")
+            elif not lo - 1e-6 <= pos <= hi + 1e-6:
+                return self.reject(f"{name}={pos:.4f} outside [{lo:.4f}, {hi:.4f}]")
+        msg.position = out
         self.pub.publish(msg)
 
 

@@ -5,10 +5,11 @@
     ros2 launch piper_bringup piper.launch.py backend:=gazebo [gui:=true]
     ros2 launch piper_bringup piper.launch.py backend:=mujoco [gui:=true]
     ros2 launch piper_bringup piper.launch.py backend:=isaac [gui:=true]   # runs Isaac Sim (GPU) via scripts/isaac.sh
-    ros2 launch piper_bringup piper.launch.py backend:=real can_port:=can0
+    ros2 launch piper_bringup piper.launch.py backend:=real canbus:=can0 speed_percent:=20
     ... servo:=false                                              # without MoveIt Servo (TCP-frame jogging)
 
 backend:=real starts the official agx_arm_ctrl driver. Safety defaults:
+  * the arm speed is set explicitly (speed_percent, default 20 %) instead of whatever the arm powered up with;
   * the driver does NOT enable the motors unless auto_enable:=true; enable explicitly with
     `ros2 service call /enable_agx_arm std_srvs/srv/SetBool "{data: true}"` while someone is at the arm;
   * arm_controller and gripper_controller start INACTIVE. Activate them with `piper activate`
@@ -205,7 +206,8 @@ def launch_setup(context):
             package="agx_arm_ctrl", executable="agx_arm_ctrl_single", name="agx_arm_ctrl",
             output="screen",
             parameters=[{
-                "can_port": arg("can_port"),
+                "can_port": arg("canbus"),                      # the vendor node calls the CAN bus "can_port"
+                "speed_percent": int(arg("speed_percent")),
                 "arm_type": "piper",
                 "effector_type": "agx_gripper" if gripper == "true" else "none",
                 "auto_enable": arg("auto_enable") == "true",
@@ -237,7 +239,9 @@ def generate_launch_description():
                               description="isaac only: path of scripts/isaac.sh"),
         DeclareLaunchArgument("isaac_video", default_value="",
                               description="isaac only: record the Isaac camera view to this mp4"),
-        DeclareLaunchArgument("can_port", default_value="can0"),
+        DeclareLaunchArgument("canbus", default_value="can0", description="real only: CAN bus (network interface of the USB-CAN adapter)"),
+        DeclareLaunchArgument("speed_percent", default_value="20",
+                              description="real only: arm speed in percent (1-100) set when the driver starts; 0 leaves the arm's own setting"),
         DeclareLaunchArgument("auto_enable", default_value="false", choices=["true", "false"],
                               description="real only: enable motors at driver start"),
         DeclareLaunchArgument("driver", default_value="true", choices=["true", "false"],

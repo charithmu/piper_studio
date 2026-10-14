@@ -4,6 +4,10 @@
     piper controllers
     piper activate        # backend:=real: start commanding (checks driver feedback first)
     piper deactivate
+    piper enable          # backend:=real: motors on (someone at the arm)
+    piper disable         # backend:=real: controllers off, 5 s countdown to get a hand on the arm, motors off
+    piper zero            # all joints 0: start and end pose of every simulation
+    piper rest            # backend:=real: zero, then joint 5 lowered to the park pose
     piper joints 0 1.0 -1.0 0 1.0 0 [--duration 3] [--plan]
     piper named ready
     piper pose 0.25 0 0.10 [--quat 0 1 0 0] [--linear]   # tool-down reach is limited to z < ~0.12 m
@@ -14,6 +18,7 @@
 import argparse
 import json
 import sys
+import time
 from pathlib import Path
 
 from piper_py.robot import Piper
@@ -29,6 +34,11 @@ def main(argv=None):
     sub.add_parser("controllers", help="list controllers and their states")
     sub.add_parser("activate", help="activate arm/gripper controllers after checking feedback")
     sub.add_parser("deactivate", help="deactivate all command controllers")
+    sub.add_parser("enable", help="real arm: enable the motors (someone at the arm)")
+    dis = sub.add_parser("disable", help="real arm: deactivate controllers, count down, then disable the motors (hold the arm!)")
+    dis.add_argument("--countdown", type=int, default=5, help="seconds to get a hand on the arm (default 5)")
+    sub.add_parser("zero", help="move to the 'zero' pose (all joints 0): the start and end pose of every simulation")
+    sub.add_parser("rest", help="real arm: go to 'zero', then to 'rest' (joint 5 lowered), where disabling the motors drops the arm a few mm")
     j = sub.add_parser("joints", help="move to six joint values (rad)")
     j.add_argument("q", type=float, nargs=6)
     j.add_argument("--duration", type=float, default=3.0, help="direct trajectory duration")
@@ -68,6 +78,17 @@ def main(argv=None):
             return 0
         if a.cmd in ("activate", "deactivate"):
             r = arm.activate() if a.cmd == "activate" else arm.deactivate()
+        elif a.cmd == "enable":
+            r = arm.set_motors(True)
+        elif a.cmd == "disable":
+            for left in range(a.countdown, 0, -1):
+                print(f"HOLD THE ARM: motors off in {left} s (Ctrl-C cancels)", flush=True)
+                time.sleep(1.0)
+            r = arm.set_motors(False)
+        elif a.cmd == "zero":
+            r = arm.move_named("zero", a.speed)
+        elif a.cmd == "rest":
+            r = arm.move_rest(a.speed)
         elif a.cmd == "joints":
             r = arm.move_to_joints(a.q, a.speed) if a.plan else arm.move_joints(a.q, a.duration)
         elif a.cmd == "named":

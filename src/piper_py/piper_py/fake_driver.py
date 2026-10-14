@@ -10,7 +10,9 @@ import math
 
 import rclpy
 from rclpy.node import Node
+from rclpy.parameter import Parameter
 from sensor_msgs.msg import JointState
+from std_srvs.srv import SetBool
 
 JOINTS = [f"joint{i}" for i in range(1, 7)] + ["gripper"]
 
@@ -28,7 +30,13 @@ class FakeDriver(Node):
         self.alpha = min(1.0, self.dt / self.get_parameter("time_constant").value)
         self.pub = self.create_publisher(JointState, "feedback/joint_states", 1)
         self.create_subscription(JointState, "control/joint_states", self.on_command, 1)
+        self.create_service(SetBool, "enable_agx_arm", self.on_enable)  # like the vendor driver
         self.create_timer(self.dt, self.step)
+
+    def on_enable(self, request, response):
+        self.set_parameters([Parameter("enabled", Parameter.Type.BOOL, bool(request.data))])
+        response.success, response.message = True, "enabled" if request.data else "disabled"
+        return response
 
     def on_command(self, msg: JointState):
         if not self.get_parameter("enabled").value:

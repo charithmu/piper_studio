@@ -93,7 +93,7 @@ def run(arm: Piper, backend: str) -> dict:
         print(f"[demo:{backend}] {name:34s} {'OK ' if r else 'FAIL'} {r.code} ({time.monotonic() - w0:.1f}s wall)", flush=True)
         return r
 
-    step("move to named pose 'rest'", "planning", lambda: arm.move_named("rest", 1.0))
+    step("move to named pose 'zero'", "planning", lambda: arm.move_named("zero", 1.0))
     step("move to named pose 'ready'", "planning", lambda: arm.move_named("ready", 1.0))
     step("open gripper to 80 mm", "gripper", lambda: arm.gripper(0.08))
     step("pose goal above target (z=0.10)", "planning", lambda: arm.move_pose([0.25, 0.0, 0.10], DOWN, velocity_scaling=1.0))
@@ -130,7 +130,7 @@ def run(arm: Piper, backend: str) -> dict:
         return Result(bool(back), "SUCCESS" if back else back.code, "streamed 6 s then handed back")
 
     step("stream joint targets at 50 Hz (6 s)", "streaming", streaming)
-    step("return to 'rest'", "planning", lambda: arm.move_named("rest", 1.0))
+    step("return to 'zero'", "planning", lambda: arm.move_named("zero", 1.0))
 
     samples = rec.snapshot()
     rec.close()

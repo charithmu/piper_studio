@@ -38,6 +38,7 @@ from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import CameraInfo, Image, JointState
 from shape_msgs.msg import SolidPrimitive
 from std_msgs.msg import Float64MultiArray
+from std_srvs.srv import SetBool
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 
 ARM_JOINTS = [f"joint{i}" for i in range(1, 7)]
@@ -111,6 +112,7 @@ class Piper:
             ListControllers, f"{self._prefix}/controller_manager/list_controllers")
         self._switch_controllers = self.node.create_client(
             SwitchController, f"{self._prefix}/controller_manager/switch_controller")
+        self._enable_motors = self.node.create_client(SetBool, f"{self._prefix}/enable_agx_arm")  # vendor driver (backend:=real)
         self._trajectory = ActionClient(self.node, FollowJointTrajectory,
                                         f"{self._prefix}/arm_controller/follow_joint_trajectory")
         self._gripper = ActionClient(self.node, ParallelGripperCommand,
@@ -238,6 +240,20 @@ class Piper:
                   if states.get(c) == "active"]
         return self.switch(deactivate=active) if active else Result(True, "SUCCESS", "nothing active")
 
+    def set_motors(self, on: bool, timeout: float = 15.0) -> Result:
+        """Enable or disable the real arm's motors (vendor driver service enable_agx_arm; backend:=real only).
+
+        Disabling releases the joints: a raised arm falls, so hold it or park it first (move_rest). The command controllers are
+        deactivated first so nothing keeps commanding a limp arm.
+        """
+        if not on:
+            self.deactivate()
+        try:
+            res = self._call(self._enable_motors, SetBool.Request(data=on), timeout)
+        except RuntimeError as e:
+            return Result(False, "NO_SERVICE", f"{e} (only the real backend has motors to enable)")
+        return Result(res.success, "SUCCESS" if res.success else "FAILED", res.message)
+
     def use_streaming(self) -> Result:
         """Hand the arm to arm_position_controller for stream_joints() (teleop, Servo, policies). Idempotent."""
         st = self.controllers()
@@ -339,7 +355,9 @@ class Piper:
                           pipeline: str = "ompl", planner: str = "", timeout: float = 60.0) -> Result:
         req = MotionPlanRequest(group_name=self.group, num_planning_attempts=5, allowed_planning_time=5.0,
                                 max_velocity_scaling_factor=velocity_scaling,
-                                max_acceleration_scaling_factor=velocity_scaling,
+                                # Pilz checks the joint accelerations of the IK solution it follows; half the acceleration leaves it
+                                # margin, otherwise a straight line fails now and then (joint deceleration limit violated).
+                                max_acceleration_scaling_factor=velocity_scaling * (0.5 if pipeline.startswith("pilz") else 1.0),
                                 pipeline_id=pipeline, planner_id=planner,
                                 goal_constraints=[constraints])
         req.start_state.is_diff = True
@@ -396,6 +414,11 @@ class Piper:
         if name not in poses:
             return Result(False, "UNKNOWN_NAME", f"{name!r} not in {sorted(poses)}")
         return self.move_to_joints([poses[name][j] for j in ARM_JOINTS], velocity_scaling)
+
+    def move_rest(self, velocity_scaling: float = 0.2) -> Result:
+        """Park the real arm: go to 'zero', then lower joint 5 to 'rest' (disabling the motors there drops the arm only a few mm)."""
+        r = self.move_named("zero", velocity_scaling)
+        return r if not r else self.move_named("rest", velocity_scaling)
 
     def move_pose(self, position, orientation_xyzw, frame: str | None = None, linear: bool = False,
                   velocity_scaling: float = 0.2, position_tolerance: float = 0.001,
