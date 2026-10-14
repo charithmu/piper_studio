@@ -1,157 +1,120 @@
-# Real Piper: what we know, what we measured, what is still open
+# Real Piper: vendor knowledge and how we work with it
 
-Status date: 2026-10-12. Source: the vendor documentation read in full (pyAgxArm `piper_api.md`, `firmware_reference.md`,
-AgxGripper API, `agx_arm_ros` README and node code, `Piper_sdk_ui`, `piper_sdk` changelog, the quick-start manual) plus the first
-read-only and enable-only sessions on our own arm.
+Arm-independent knowledge. Facts about one physical arm (firmware, limits, quirks, history) live in `arms/<arm-id>.md`; nothing in the code base is tied to
+one arm. Source: the vendor documentation read in full (pyAgxArm `piper_api.md`, `firmware_reference.md`, AgxGripper API, `agx_arm_ros` README and node code,
+`piper_sdk` changelog, the quick-start manual, `Piper_sdk_ui`), checked against sessions on a real arm.
 
-## Rules for using this page
+Rules: anything that can move or write to a real arm needs the user present and approving that step (`AGENTS.md`). Read first, write only on request.
+Never change simulator, MoveIt, controller or guard parameters from one arm's read-out without a decision recorded in the arm file.
 
-- **Update 2026-10-14:** the arm was upgraded to S-V1.9-1 and calibrated; section 11 has the fresh read-out (`tools/arm_info.py`). Sections 2 and 3 describe the OLD firmware and are kept for comparison. Parameters are still not changed from any measured value; that is a separate decision.
+## 1. Bring-up
 
-- **Every number measured on this arm is provisional.** The arm runs old firmware (S-V1.7-3) that has not been upgraded or fully tested.
-  Do **not** change simulator, MoveIt, controller or guard parameters from the values below. Re-read everything after the firmware upgrade
-  and decide then (section 9).
-- The documentation knowledge (sections 4-7) is independent of this arm and can be relied on, with the firmware gates noted.
-- Real-arm motion still needs the user present and approving each step (see `AGENTS.md`). Nothing here moved the arm.
+- USB-CAN adapter: gs_usb ("candleLight / Geschwister Schneider", `1d50:606f`) shows up as `can0`. Bring-up needs sudo (user):
+  `sudo ip link set can0 up type can bitrate 1000000`. Listening (`candump can0`) sends nothing.
+- SDK: pyAgxArm (in `.venv`). Only one program may use the bus at a time (a second SDK process or the vendor GUI both transmit).
+- No CAN interface means the adapter is not seen (check `lsusb`); an interface with a flat RX counter means the arm is silent (power, plug, teach playback).
+- Windows: `python-can-agx-cando` plugin (`interface="agx_cando"`); macOS: `slcan`.
 
-## 1. Setup used
+## 2. Bus map (arm to host)
 
-- USB-CAN adapter: gs_usb (`1d50:606f`, "Geschwister Schneider CAN adapter"), appears as `can0` once the kernel driver loads.
-- Bring-up (needs sudo, done by the user): `sudo ip link set can0 up type can bitrate 1000000` (1 Mbit/s).
-- Listen only: `candump can0` (nothing is transmitted).
-- SDK: pyAgxArm 1.0.0 (in `.venv`), profile `PiperFW.DEFAULT` for firmware <= S-V1.8-2.
-- Only one program may talk to the bus at a time (a second SDK process, or the vendor GUI, both transmit and both read).
-
-## 2. Arm identity and first baseline (provisional, see rule above)
-
-| Item | Value |
-|---|---|
-| Firmware (software) | **S-V1.7-3** |
-| Hardware | H-V1.2-1, motor ratio/batch 10, node ARM_MC, node number 15 |
-| Production date | 2025-08-09 |
-| Gripper | AgileX gripper, stored max range 0.07 m (70 mm stroke), teaching range 100, teaching friction 1 |
-| State at rest | standby, status normal, error 0, mode MOVE_P, teach off, all joints disabled |
-| Drivers | 23-24 V, driver 27-29 C, motor 23-24 C, no fault bits, no bus current |
-| Rest pose (deg) | 3.06, -1.85, 2.32, -4.69, 16.11, 0.48 (j2 and j3 sit about 2 deg outside their stored ranges: possible zero offsets) |
-| Gripper reading | -4.27 mm on frame 0x2A8, outside 0-70 mm: zero offset suspected |
-| Stored limits | joints 1-5 angle limits equal the official URDF; joint 6 stores +-180 deg (URDF +-120); speed 2.5 rad/s and acceleration 3.5 rad/s^2 per joint; flange 0.75 m/s, 0.18 rad/s, 1.0 m/s^2, 0.25 rad/s^2 |
-| Crash protection | rating 1 on every joint (scale 0 = off ... 8 = most sensitive) |
-| Assistance rating | no answer (needs firmware >= S-V1.8-1) |
-| Enable test | all six joints enable, hold 2.5 s, max drift 0.08 deg, currents < 0.15 A, disable clean |
-
-Raw outputs: `baseline_S-V1.7-3/` (probe, limits, extra reads, enable test).
-
-## 3. What we saw on the bus (arm to host, listen only, 4 s)
-
-| CAN id | Content | Rate seen |
+| CAN id | Content | Rate |
 |---|---|---|
-| 0x2A1 | arm status: ctrl mode, arm status, mode feedback, teach state, motion status, trajectory number, error code | 200 Hz |
+| 0x2A1 | status: ctrl mode, arm status, mode feedback, teach state, motion status, trajectory no., error code (+ per-joint limit/comm flags) | 200 Hz |
 | 0x2A2-0x2A4 | flange pose | 200 Hz |
-| 0x2A5-0x2A7 | joint angles, 0.001 deg units, two joints per frame | 200 Hz |
-| 0x2A8 | gripper: width int32 (x1e-6 m), force int16 (x1e-3 N), status byte, mode byte | 200 Hz |
-| 0x251-0x256 | per-motor speed (0.001 rad/s), current (0.001 A), position | 200 Hz |
-| 0x261-0x266 | per-driver voltage (0.1 V), driver temp, motor temp, status bits, bus current | 40 Hz |
+| 0x2A5-0x2A7 | joint angles, 0.001 deg, two joints per frame | 200 Hz |
+| 0x2A8 | gripper: width int32 (1e-6 m), force int16 (1e-3 N), status, mode | 200 Hz |
+| 0x251-0x256 | per-motor speed (0.001 rad/s), current (0.001 A), position | 100-200 Hz (firmware dependent) |
+| 0x261-0x266 | per-driver voltage (0.1 V), temperatures, status bits, bus current | 20-40 Hz (firmware dependent) |
+| 0x4AF | firmware info (11 frames, answer to our query) | on request |
+| 0x155-0x157, 0x159, 0x151 | control frames: sent by an arm in **master/leader** mode (and by whatever commands the arm); a leader sends only these | |
+| 0x1C0-0x1C3 | Revo2 dexterous-hand feedback ids in the SDK | seen on one arm, source unknown |
 
-Push feedback is already on (no web/GUI toggle needed). No host-to-arm frames were present during the capture. A gripper control frame
-(0x159, 1.0 N, status code 1) appeared later, during a session where the vendor GUI may still have been connected; its source is not confirmed.
+Slave (follower) is the normal role for us: it sends all feedback and accepts commands.
 
-## 4. Firmware gates (from the vendor firmware reference)
+## 3. Firmware gates (vendor firmware reference)
 
 | Firmware | SDK profile | What changes |
 |---|---|---|
-| <= S-V1.8-2 | `default` | baseline; **our arm (S-V1.7-3)** |
+| <= S-V1.8-2 | `default` | baseline |
 | S-V1.8-3 .. 1.8-7 | `v183` | MIT torque encoding |
-| >= S-V1.8-5 | (any) | seamless mode switching (see 5) |
-| S-V1.8-8 | `v188` | `get_ik_joint_angles` (after `move_p` only), MIT 12-bit torque without CRC, MIT mode code 0x06, status message types change |
-| >= S-V1.8-9 | `v189` | only `piper_x` MIT joint 4/5 sign fix |
+| >= S-V1.8-5 | (any) | seamless mode switching (section 4) |
+| S-V1.8-8 | `v188` | `get_ik_joint_angles` (after `move_p`), MIT 12-bit torque without CRC, MIT mode code 0x06, status message types change |
+| >= S-V1.8-9 | `v189` | `piper_x` only: MIT joint 4/5 sign fix |
 | >= S-V1.8-1 | - | joint assistance rating query |
 | >= S-V1.7-4 | - | firmware return-to-zero (0x191, the vendor node's `move_home`) |
-| < S-V1.6-3 | - | older DH parameters (use the old URDF); we are past this |
+| < S-V1.6-3 | - | older DH parameters (use the old URDF) |
 
-The SDK profile must match the arm: a wrong profile mis-decodes MIT and status frames. `get_firmware()` plus `resolve_firmware_profile()` picks it.
+The SDK profile must match the arm or status/MIT frames mis-decode. `tools/arm_common.open_arm()` reads the version and picks it (`resolve_firmware_profile`).
 
-## 5. Control modes and what they imply
+## 4. Control modes
 
 | Mode | Behaviour | Our stance |
 |---|---|---|
-| `move_j` (+ `set_speed_percent`) | position-velocity mode, the firmware smooths and interpolates; each command overwrites the previous target, so it can stream | the path we use; safe default |
-| `move_p` / `move_l` / `move_c` | firmware Cartesian point / line / arc to a flange pose; `move_l` re-plans on every point, so it cannot stream | not used (MoveIt does Cartesian) |
-| `move_js` | follower / MIT pass-through, no smoothing or planning, lower stiffness, "extremely high risk" | not used on this firmware |
-| `move_mit` | single-joint MIT: T = kp(p_des-p) + kd(v_des-v) + t_ff; start with small gains; torque encoding depends on firmware | not used |
-| CPV | per-joint position/velocity commands and drive gains; `set_cpv_*` writes motor flash (limited write life); the SDK flips signs on some joints | not used |
+| `move_j` (+ `set_speed_percent`) | position-velocity mode, firmware smooths and interpolates; each command overwrites the target, so it can stream | the path we use |
+| `move_p` / `move_l` / `move_c` | firmware Cartesian point / line / arc; `move_l` re-plans on every point, so it cannot stream | not used (MoveIt does Cartesian) |
+| `move_js` | follower / MIT pass-through, no smoothing, lower stiffness, "extremely high risk" | not used |
+| `move_mit` | single-joint MIT: T = kp(p_des-p) + kd(v_des-v) + t_ff; small gains first; torque encoding depends on firmware | not used |
+| CPV | per-joint position/velocity commands and drive gains; `set_cpv_*` writes motor flash (limited life); the SDK flips signs on some joints. The SDK's `get_cpv_*` reads first switch the motion mode to CPV | not used |
 
-Mode switching: below S-V1.8-5 there is no seamless switching. After `move_js` / MIT, going back to `move_j` needs `reset()`, which powers the arm
-off and drops it if raised. From S-V1.8-5 the firmware switches by itself.
+Mode switching: below S-V1.8-5 there is no seamless switching. After `move_js` / MIT, returning to `move_j` needs `reset()` (powers the arm off, drops it if raised).
 
-The vendor ROS node `agx_arm_ctrl` (parameters `fast_mode`, `speed_percent`, `auto_enable`, `tcp_offset`, `gripper_default_effort`, `fw_version`):
-- `fast_mode` routes `control/joint_states` through `move_js`.
-- Its `emergency_stop` service, on firmware without seamless switching, calls `move_js(current angles)`, which leaves the arm in follower mode. Do not use it
-  on S-V1.7-3. **This arm has no physical e-stop button**: the hard stop is cutting power (drops a raised arm, so keep motion tests near the folded rest pose); the protocol also has an electronic emergency stop (CAN 0x150, SDK `electronic_emergency_stop()`).
-- `speed_percent` default 0 means "do not set"; the SDK function default is 100. **Our launch does not set it.** Set it explicitly low before any motion.
+Vendor ROS node `agx_arm_ctrl`: `fast_mode` routes `control/joint_states` through `move_js`; `speed_percent` default 0 means "do not set" (the SDK function default is
+100; **our launch does not set it**, so set it explicitly low before motion); on firmware without seamless switching its `emergency_stop` service calls
+`move_js(current angles)` and leaves the arm in follower mode (do not use it there); `fw_version` auto-detects.
 
-## 6. Safety semantics from the docs
+## 5. Safety semantics
 
-- `disable()` and `reset()` drop a raised arm immediately. `electronic_emergency_stop()` lowers it slowly with constant damping, then `reset()` is needed. Only enable/disable with the arm resting folded.
-- SDK software joint-limit clamping is **off** by default (`get_joint_limits_enabled()`); the `joint_limits` config argument is not applied to control. Our `command_guard` and the arm's stored limits are the protection for `move_j`.
-- Crash-protection rating 0-8 (0 = none), assistance rating 0-10.
-- MIT and `move_js` can cause impact and oscillation; there is no e-stop button on this arm, so these stay off.
+- `disable()` and `reset()` drop a raised arm immediately. `electronic_emergency_stop()` (CAN 0x150 byte 0) lowers it slowly with constant damping; `reset()` is needed afterwards.
+- A Piper has no emergency-stop button (the host software shows an on-screen one). The hard stop is cutting power, which drops a raised arm, so keep tests near the folded rest pose
+  and keep a hand on the power switch or plug.
+- SDK software joint-limit clamping is **off** by default (`get_joint_limits_enabled()`), and the `joint_limits` config argument is not applied to control. Only our `command_guard`
+  and the arm's stored limits protect `move_j`.
+- Crash protection rating 0-8 (0 = no detection), assistance rating 0-10; both are stored in the arm and can change with firmware.
+- MIT and `move_js` can cause impact and oscillation.
 
-## 7. API catalogue (reads are safe, writes are not)
+## 6. API catalogue
 
-- **Reads used so far** (queries only, no state change): `get_firmware`, `get_arm_status`, `get_joint_angles`, motor/driver states, enable flags, `get_tcp_pose`, `get_joint_angle_vel_limits`, `get_joint_acc_limits`, `get_flange_vel_acc_limits`, `get_crash_protection_rating`, gripper status / control echo / range parameters, `get_joint_assistance_rating`. The enquiry frame is CAN 0x477 with every setting field 0, which cannot write.
-- **Writes that exist, none used on the real arm yet**: `enable`/`disable`, `reset`, all `move_*`, `set_speed_percent`, `set_motion_mode`, `set_payload`, `set_installation_pos` (no read-back for the last two), `set_*_limits`, `set_joint_angle_vel_acc_limits_to_default` (the GUI's "Config Init"), `set_crash_protection_rating`, `set_joint_assistance_rating`, `calibrate_joint` (disable the joint, move it to zero by hand), `calibrate_gripper`, `set_gripper_teaching_pendant_param`, leader/follower and teach-mode calls, `clear_joint_error`.
-- Windows needs the `python-can-agx-cando` plugin (`interface="agx_cando"`); macOS uses `slcan`. CAN frames 0x481-0x486 are deprecated (all zeros).
+- **Reads (queries only):** `get_firmware`, `get_arm_status`, `get_joint_angles`, motor/driver states, enable flags, flange/TCP pose, `get_joint_angle_vel_limits`,
+  `get_joint_acc_limits`, `get_flange_vel_acc_limits`, crash/assistance ratings, gripper status / control echo / range parameters. The enquiry frame is CAN 0x477 with every
+  setting field 0, which cannot write.
+- **Writes, none used by our tools except enable/disable/move_j:** `enable`/`disable`, `reset`, all `move_*`, `set_speed_percent`, `set_motion_mode`, `set_payload` and
+  `set_installation_pos` (no read-back), `set_*_limits`, `set_joint_angle_vel_acc_limits_to_default` (the GUI's "Config Init"), `set_crash_protection_rating`,
+  `set_joint_assistance_rating`, `calibrate_joint` (disable the joint, move it to zero by hand), `calibrate_gripper`, `set_gripper_teaching_pendant_param`,
+  leader/follower and teach calls, `clear_joint_error`.
+- CAN frames 0x481-0x486 are deprecated (all zeros).
 
-## 8. Tools and where firmware/software come from
+## 7. Teach (drag) mode
 
-- **Our tools** (all in `tools/`, read-only unless stated): `arm_probe.py` (firmware, status, joints, drivers, TCP; `--limits` adds stored limits), `arm_probe_extra.py` (gripper, crash/assistance ratings), `arm_enable_test.py` (**enables and disables the motors, sends no motion**; user present, arm folded).
-- **Vendor GUI** `Piper_sdk_ui` (Linux, PyQt5; last commit 2025-07-10, older than the SDK): asks for the sudo password and pipes it through `sudo -S` for its CAN buttons. Its Reset, Go Zero, Joint Ctrl (Center/Random/Set Zero), Config Init, Gripper Zero, Master/Slave, Installation Position and Gripper Stroke buttons move the arm or write parameters. No firmware upgrade function is listed.
-- **Windows host software** ArmRobotUA (Windows 7+): Google Drive link in the quick-start manual (an older manual copy has a Baidu link); the text we could extract lists no firmware flashing.
-- **Firmware**: there is no public download. The maintainer says to request it through the pyAgxArm README or `support@agilex.ai` (the README lists that address for "firmware, host software, tool packages, after-sales"; Discord is also listed). The thread says S-V1.8-9 is the fix for old-firmware bugs (S-V1.8-2: corrupted limits after standalone use, flash data corruption). pyAgxArm issue #70 asks for an official recovery procedure and was unanswered when read.
+The button light between joints 5 and 6: **off** = stopped (normal); **solid green** = recording (drag the arm by hand); **flashing green** = **playing back** the last recording
+(the arm moves by itself, stay clear). Single click starts/stops recording, double click plays back; a new recording erases the previous one; max 3 minutes.
+Before host/CAN control the light must be off; switch to standby from the host, then to CAN control, and when coming back from teach or link mode the arm must first sit at
+the zero pose. Protocol: teach controls on CAN 0x150 byte 2 (1 record, 2 end, 3 execute, 4 pause, 5 resume, 6 terminate, 7 move to start). The manual does not say how to
+stop a playback with the button.
 
-## 9. Open items (decide after the firmware upgrade, not before)
+Master/leader mode (`set_leader_mode` / GUI "Master"): zero-force drag, the motors do not hold, only control frames are sent, and returning to position control needs a `reset()`
+with the arm at the zero pose. We do not use it.
 
-1. Gripper status read returned `None` in one run although frame 0x2A8 is on the bus; the arm status line also did not print in that run. Likely a read-too-early timing issue in `arm_probe_extra.py` (now waits up to 3 s); rerun to confirm.
-2. Source of the 0x159 gripper control frame (vendor GUI left open?). Confirm with a listen-only capture with every other program closed.
-3. j2/j3 and gripper zero offsets: understand before any calibration write; `calibrate_*` are user decisions.
-4. Real-arm limit profile for MoveIt / guard (speed <= the arm's stored speed, acceleration <= its stored acceleration): **not applied**, the stored values may change with firmware.
-5. Explicit `speed_percent` for `backend:=real` (10-20 for first motion): not applied.
-6. Whether the firmware flash needs the Windows tool or the SDK; request release notes and the flashing/recovery procedure from AgileX support in writing before flashing.
-7. After the upgrade: rerun `arm_probe.py --limits`, `arm_probe_extra.py`, `arm_enable_test.py`, diff against `baseline_S-V1.7-3/`, then plan supervised motion (smallest `move_j` first) through `piper activate` with the guard.
+## 8. Our tools (`tools/`, all use `arm_common.py`)
 
-## 10. Teach (drag) mode and its light (vendor quick-start manual, section 2.2)
-
-The button light between joints 5 and 6 shows the drag-teach state: **off** = stopped (normal); **solid green** = recording a trajectory
-(drag the arm by hand); **flashing green (500 ms)** = **playing back** the last recorded trajectory (the arm moves by itself; stay clear).
-Single click = start/stop recording; double click = play back the last recording. A new recording erases the previous one; max 3 minutes.
-Before using host/CAN control the light must be off; switch to standby from the host, then to CAN control mode, and when coming back from
-teach or link mode the arm must first sit at the zero pose. The protocol has teach controls on CAN 0x150 byte 2 (1 record, 2 end record,
-3 execute, 4 pause, 5 resume, 6 terminate, 7 move to the start point), plus an electronic emergency stop on byte 0 (1 activate, 2 resume).
-The manual does not say how to stop a playback with the button. Session note 2026-10-12: after the first sessions the arm showed flashing green
-lights and sent no CAN frames; the vendor GUI could still enable/disable but not reach the zero pose. Cause not established yet.
-
-## 11. After the upgrade: read-out of 2026-10-14 (firmware S-V1.9-1, calibrated)
-
-Tool: `tools/arm_info.py` (passive census, firmware query, then enquiry frames only; nothing moved). Raw: `readout_S-V1.9-1/`.
-
-| Item | Before (S-V1.7-3) | After (S-V1.9-1) |
+| Tool | What it does | Sends |
 |---|---|---|
-| Firmware / hardware | S-V1.7-3 / H-V1.2-1, date 250809 | **S-V1.9-1** / H-V1.2-1, date 261014 (the date field now reads the day of the upgrade) |
-| SDK profile | `default` | `v189` (resolved from the version by the script) |
-| Status | standby, MOVE_P | CAN control, MOVE_J, teach off, err 0, `motion_status` = REACH_TARGET_POS_FAILED (0x1, no error code: leftover flag) |
-| Rest pose (deg) | 3.06, -1.85, 2.32, -4.69, 16.11, 0.48 | 0.10, -2.25, 2.21, -0.43, 22.72, 0.00 |
-| Gripper width | -4.27 mm | 0.14 mm (zero now fine); control echo: none |
-| Joint limits | j1-5 = URDF, j6 +-180 | j1-5 = URDF, **j6 +-170** (URDF +-120) |
-| Joint speed / accel | 2.5 rad/s / 3.5 rad/s^2 | **3.0 rad/s / 5.0 rad/s^2** (our MoveIt limits: 5 / 5, so speed is still above the arm's) |
-| Flange limits | 0.75 m/s, 0.18 rad/s, 1.0, 0.25 | 1.0 m/s, 0.25 rad/s, 1.5 m/s^2, 0.3 rad/s^2 |
-| Crash protection | 1 on every joint | **0 on every joint (no collision detection)** |
-| Assistance rating | no answer | answers, 0 on every joint |
-| Drivers | 23-24 V, 27-29 C | 23-24 V, 31-34 C (warmer, just used), no fault bits, all joints disabled |
-| Bus | 200 Hz status/pose/joints/gripper, 200 Hz motor, 40 Hz driver | status/pose/joints/gripper 200 Hz, **motor 100 Hz, driver 20 Hz**; new frames 0x1C0-0x1C3 (20-40 Hz) and 0x212 (1 Hz) |
+| `arm_info.py [--arm-id ID]` | census, firmware, status, joints, drivers, limits, ratings, gripper; saves JSON; `--census-only`, `--basic`, `--cpv` | stage 1 nothing; then the firmware query and enquiry frames |
+| `arm_enable_test.py` | enable, hold a few seconds, disable; no motion command; aborts on drift | enable/disable |
+| `arm_move_rest.py [--dry-run]` | one slow `move_j` to the folded `rest` pose, explicit speed (<= 30 %), aborts and holds on any fault | enable, move_j, disable |
 
-Notes:
-- j2 about -2 deg and j3 about +2 deg at rest persist after calibration. The vendor `piper_ros` README says the DH parameters after S-V1.6-3 offset the j2 and j3 coordinate systems by 2 degrees, so this is plausibly by design rather than a zero error (not confirmed with AgileX).
-- Crash protection is now OFF (0). A collision will not be detected by the firmware; setting it is a write and the user's decision.
-- 0x1C0-0x1C3 are the IDs the SDK uses for the **Revo2 dexterous hand** feedback (hand status, finger position, speed, current). Something on this bus transmits them; whether a Revo2 hand is attached, or the new firmware emits them, is not established. 0x212 is not documented in the cloned vendor material.
-- The arm is in slave/feedback role (it sends 0x2A1... and no 0x155-0x157 control frames).
-- Parameters not changed from this read-out. Candidates to decide: MoveIt max joint speed 5 -> 3 rad/s (arm limit), explicit `speed_percent`, crash-protection level.
+Run each after any firmware change; diff the `arm_info` JSON against the arm's file in `arms/`.
+
+## 9. Vendor GUI, host software and firmware
+
+- `Piper_sdk_ui` (Linux, PyQt5; last commit 2025-07-10, older than the SDK) asks for the sudo password and pipes it through `sudo -S` for its CAN buttons. Its Reset, Go Zero,
+  Joint Ctrl, Config Init, Gripper Zero, Master/Slave, Installation Position and Gripper Stroke buttons move the arm or write parameters. Its CAN port rename can change `can0`.
+- Windows host software ArmRobotUA: Google Drive link in the quick-start manual (an older copy has a Baidu link).
+- Firmware has no public download: request it through the pyAgxArm README / `support@agilex.ai` (also listed: Discord). Ask for release notes, the flashing procedure and the
+  recovery path in writing; pyAgxArm issue #70 asks for an official recovery procedure.
+
+## 10. Identifying a physical arm
+
+The arm does not report a serial number over CAN. `get_firmware()` returns hardware version, software version, production date, motor ratio/batch, node type and node number,
+which describe the model and batch, not one unit (the raw 88-byte block also holds an unparsed 4-character field). So identify an arm by a label you choose (e.g. `piper-01`),
+the serial printed on the arm's label (record it by hand), and the read-out fingerprint. The USB-CAN adapter has its own serial (`lsusb -v`), which identifies the adapter, not the arm.
+To register an arm: copy `arms/_template.md` to `arms/<arm-id>.md`, run `tools/arm_info.py --arm-id <arm-id>` and fill the table from the JSON.

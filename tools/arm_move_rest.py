@@ -6,7 +6,7 @@
     python tools/arm_move_rest.py [--speed 10]         # asks for Enter, then enables, moves, holds
 
 Target = the 'rest' pose of piper.srdf (joint2 +0.01, joint3 -0.01 rad, others 0), clamped to the limits stored in the arm.
-Uses move_j only (firmware-smoothed; the only mode that is safe on S-V1.7-3). Speed is set explicitly (default 10 %).
+Uses move_j only (firmware-smoothed position-velocity mode). Speed is set explicitly (default 10 %).
 Aborts, and holds the current position with move_j (never disables a raised arm), when: arm status != normal, an error code appears,
 a joint leaves its stored limits by more than 2 deg, the distance to the target grows, or the move takes longer than the timeout.
 Ctrl-C does the same. At the end it asks before disabling; disable only when the arm rests folded (disable drops a raised arm).
@@ -15,21 +15,12 @@ import argparse
 import math
 import time
 
-from pyAgxArm import AgxArmFactory, ArmModel, PiperFW, create_agx_arm_config
+from arm_common import angles, deg, open_arm
 
 REST = [0.0, 0.01, -0.01, 0.0, 0.0, 0.0]
 TOL_DEG = 0.5
 MAX_START_DISTANCE_DEG = 30.0
 LIMIT_SLACK_DEG = 2.0
-
-
-def deg(x):
-    return math.degrees(x)
-
-
-def angles(arm):
-    ja = arm.get_joint_angles()
-    return list(ja.msg) if ja is not None else None
 
 
 def check_status(arm):
@@ -51,9 +42,7 @@ def main():
     if not 1 <= args.speed <= 30:
         raise SystemExit("--speed must be 1..30 for this test")
 
-    cfg = create_agx_arm_config(robot=ArmModel.PIPER, firmeware_version=PiperFW.DEFAULT, channel=args.channel)
-    arm = AgxArmFactory.create_arm(cfg)
-    arm.connect()
+    arm, _, fw, profile = open_arm(args.channel)
     enabled = False
     try:
         for _ in range(30):
@@ -63,8 +52,7 @@ def main():
         start = angles(arm)
         if start is None:
             raise SystemExit("no joint feedback")
-        fw = arm.get_firmware(timeout=2.0) or {}
-        print("firmware:", fw.get("software_version"), "  hardware:", fw.get("hardware_version"))
+        print("firmware:", fw["software_version"], " hardware:", fw["hardware_version"], " SDK profile:", profile)
         bad = check_status(arm)
         if bad:
             raise SystemExit(f"not starting: {bad}")

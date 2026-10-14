@@ -12,12 +12,7 @@ import argparse
 import math
 import time
 
-from pyAgxArm import AgxArmFactory, ArmModel, PiperFW, create_agx_arm_config
-
-
-def angles(arm):
-    ja = arm.get_joint_angles()
-    return list(ja.msg) if ja is not None else None
+from arm_common import angles, open_arm
 
 
 def main():
@@ -29,9 +24,8 @@ def main():
     if not args.yes:
         input("Arm folded at rest, clear of obstacles, hand on the power switch? Press Enter to enable (Ctrl-C to cancel)... ")
 
-    cfg = create_agx_arm_config(robot=ArmModel.PIPER, firmeware_version=PiperFW.DEFAULT, channel=args.channel)
-    arm = AgxArmFactory.create_arm(cfg)
-    arm.connect()
+    arm, _, fw, profile = open_arm(args.channel)
+    print("firmware:", fw["software_version"], " SDK profile:", profile)
     try:
         for _ in range(30):
             if arm.get_fps() > 0 and angles(arm) is not None:

@@ -22,6 +22,8 @@ import sys
 import time
 from pathlib import Path
 
+from arm_common import deg, fields, open_arm, wait_for
+
 CTRL_MODE = {0: "standby", 1: "CAN control", 2: "teaching", 3: "ethernet", 4: "wifi", 5: "remote", 6: "linkage teaching input (master)", 7: "offline trajectory"}
 ARM_STATUS = {0: "normal", 1: "EMERGENCY STOP", 2: "no solution", 3: "singularity", 4: "target exceeds limit", 5: "joint communication error",
               6: "joint brake not released", 7: "collision", 8: "overspeed in teaching", 9: "joint status error", 10: "other error",
@@ -31,20 +33,6 @@ MODE_FB = {0: "MOVE_P", 1: "MOVE_J", 2: "MOVE_L", 3: "MOVE_C", 4: "MOVE_MIT (old
 TEACH = {0: "off", 1: "recording", 2: "stop recording", 3: "playing back", 4: "paused", 5: "resumed", 6: "terminated", 7: "moving to start"}
 URDF_LIMITS_DEG = {1: (-150.0, 150.0), 2: (0.0, 180.0), 3: (-170.0, 0.0), 4: (-100.0, 100.0), 5: (-70.0, 70.0), 6: (-120.0, 120.0)}  # official URDF, gripper arm
 ROLE_IDS = {"slave/feedback (normal)": {0x2A1, 0x2A5, 0x2A8, 0x251, 0x261}, "master/leader control frames": {0x155, 0x156, 0x157, 0x159, 0x151}}
-
-
-def fields(m):
-    msg = getattr(m, "msg", m)
-    if isinstance(msg, (list, tuple)):
-        return list(msg)
-    if hasattr(msg, "__dict__"):
-        return {k: (fields(v) if hasattr(v, "__dict__") and not isinstance(v, (int, float, str)) else v)
-                for k, v in vars(msg).items() if not k.startswith("_")}
-    return str(msg)
-
-
-def deg(x):
-    return round(math.degrees(x), 3)
 
 
 def census(channel, seconds):
@@ -69,9 +57,10 @@ def main():
     ap.add_argument("--basic", action="store_true", help="stop after the basic info (stages 1-2)")
     ap.add_argument("--cpv", action="store_true", help="also read CPV parameters (switches the arm to CPV mode!)")
     ap.add_argument("--seconds", type=float, default=2.0, help="census duration")
+    ap.add_argument("--arm-id", help="your label for this physical arm (e.g. piper-01); stored in the JSON and the file name")
     ap.add_argument("--out", help="JSON output path (default: ~/data/ml/isaac/piper_studio/arm_info/arm_info_<fw>_<time>.json)")
     args = ap.parse_args()
-    out = {"time": datetime.datetime.now().isoformat(timespec="seconds"), "channel": args.channel}
+    out = {"time": datetime.datetime.now().isoformat(timespec="seconds"), "channel": args.channel, "arm_id": args.arm_id}
 
     # ---- stage 1: can the host see the arm? (passive)
     print("== 1. census (passive) ==")
@@ -97,38 +86,16 @@ def main():
         return
 
     # ---- stage 2: basic info. Open with the oldest profile, read the firmware, reopen with the right profile.
-    from pyAgxArm import AgxArmFactory, ArmModel, PiperFW, create_agx_arm_config, resolve_firmware_profile
     print("== 2. basic info ==")
-    arm = AgxArmFactory.create_arm(create_agx_arm_config(robot=ArmModel.PIPER, firmeware_version=PiperFW.DEFAULT, channel=args.channel))
-    arm.connect()
     try:
-        for _ in range(30):
-            if arm.get_fps() > 0:
-                break
-            time.sleep(0.1)
-        fw = arm.get_firmware(timeout=3.0)
-    finally:
-        arm.disconnect()
-    out["firmware"] = fw
-    print("  firmware:", fw)
-    if not fw:
+        arm, grip, fw, profile = open_arm(args.channel, gripper=True)
+    except RuntimeError as e:
         _save(out, args, None)
-        sys.exit("no firmware answer: stopping (is another program on the bus, or is the arm in master mode / teach playback?)")
-    profile = resolve_firmware_profile(ArmModel.PIPER, fw["software_version"])
-    out["sdk_profile"] = profile
-    print("  SDK profile:", profile)
-    arm = AgxArmFactory.create_arm(create_agx_arm_config(robot=ArmModel.PIPER, firmeware_version=profile, channel=args.channel))
-    grip = arm.init_effector(arm.OPTIONS.EFFECTOR.AGX_GRIPPER)
-    arm.connect()
+        sys.exit(str(e))
+    out["firmware"], out["sdk_profile"] = fw, profile
+    print("  firmware:", fw, "\n  SDK profile:", profile)
     try:
-        def wait(fn, secs=3.0):
-            t0 = time.monotonic()
-            while time.monotonic() - t0 < secs:
-                v = fn()
-                if v is not None:
-                    return v
-                time.sleep(0.05)
-            return None
+        wait = wait_for
 
         st = wait(arm.get_arm_status)
         if st is not None:
@@ -213,7 +180,8 @@ def main():
 def _save(out, args, fw):
     stamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     ver = (fw or {}).get("software_version", "nofw")
-    path = Path(args.out) if args.out else Path.home() / "data/ml/isaac/piper_studio/arm_info" / f"arm_info_{ver}_{stamp}.json"
+    ident = f"{args.arm_id}_" if args.arm_id else ""
+    path = Path(args.out) if args.out else Path.home() / "data/ml/isaac/piper_studio/arm_info" / f"arm_info_{ident}{ver}_{stamp}.json"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(out, indent=2, default=str))
     print("saved", path)

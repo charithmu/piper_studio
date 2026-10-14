@@ -5,7 +5,7 @@ Each milestone ends with passing tests and an updated VERSIONS.md.
 | # | Milestone | Status |
 |---|---|---|
 | M1 | Official stack pinned; `piper_description`, `piper_bringup`, `piper_py`; mock + MoveIt end to end; real-arm plumbing with command guard (tested without arm) | done 2026-10-08 |
-| M2 | Real arm, read-only: driver connects, firmware version, enforced joint limits, gripper stroke; then supervised low-speed motion through `activate` | read-only baseline + enable test done 2026-10-12 (firmware S-V1.7-3); firmware upgrade and re-check next, then supervised motion; see `docs/real_arm/REAL_ARM.md` |
+| M2 | Real arm, read-only: driver connects, firmware version, enforced joint limits, gripper stroke; then supervised low-speed motion through `activate` | read-only read-out done 2026-10-14 (firmware S-V1.9-1, calibrated); next: dry run and first supervised move (`tools/arm_move_rest.py`), see `docs/real_arm/` |
 | M3 | Gazebo Harmonic: same controllers via gz_ros2_control; gripper mimic handling; same piper_py tests pass | done 2026-10-08 (in piper_bringup; no separate package needed yet) |
 | M4 | MuJoCo: MJCF generated from the URDF (mujoco_ros2_control); FK parity check vs URDF; same tests pass | done 2026-10-08 |
 | M5 | Isaac Sim 6.1: USD generated from the URDF; topic-based ROS 2 control; same tests pass (see isaac/README.md) | done 2026-10-08 |
