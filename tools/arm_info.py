@@ -23,6 +23,7 @@ import collections
 import datetime
 import json
 import os
+import shutil
 import sys
 import time
 from pathlib import Path
@@ -44,6 +45,7 @@ ROLE_IDS = {"slave (normal feedback)": {0x2A1, 0x2A5, 0x2A8, 0x251, 0x261}, "mas
 # --------------------------------------------------------------------------------------------------------------- colour
 class Style:
     def __init__(self, on):
+        self.on = on
         c = (lambda n: f"\033[{n}m") if on else (lambda n: "")
         self.reset, self.bold, self.dim = c(0), c(1), c(2)
         self.red, self.green, self.yellow, self.cyan = c(31), c(32), c(33), c(36)
@@ -52,6 +54,16 @@ class Style:
 
     def paint(self, level, text):
         return {"ok": self.green, "warn": self.yellow, "bad": self.red, "info": self.dim}[level] + text + self.reset
+
+    def pill(self, level, text):
+        """Coloured block like  SLAVE  (plain text when colour is off: [SLAVE])."""
+        if not self.on:
+            return f"[{text}]"
+        bg = {"ok": "42;30", "warn": "43;30", "bad": "41;97", "info": "100;97"}[level]
+        return f"\033[{bg};1m {text} \033[0m"
+
+    def rule(self, title, width):
+        return f"{self.dim}──{self.reset} {self.bold}{title}{self.reset} {self.dim}{'─' * max(width - len(title) - 5, 4)}{self.reset}"
 
 
 # -------------------------------------------------------------------------------------------------------------- reading
@@ -275,24 +287,106 @@ def summarize(out):
     return rows, notes
 
 
+def pills_of(out):
+    """The state at a glance: [(level, text)]."""
+    if out["role"] == ["silent"]:
+        return [("bad", "NO DATA")]
+    st = out.get("arm_status") or {}
+    role = ", ".join(out["role"])
+    master = role.startswith("master") or (bool(st) and int(st["ctrl_mode"]) == 6)
+    pills = [("warn", "MASTER") if master else ("ok", "SLAVE") if role.startswith("slave") else ("warn", "ROLE ?")]
+    if out.get("error"):
+        return pills + [("bad", "NO REPLY")]
+    if not st:
+        return pills + [("bad", "STATUS ?")]
+    mode, arm_s, teach = int(st["mode_feedback"]), int(st["arm_status"]), int(st["teach_status"])
+    pills.append(({0: "ok", 1: "ok", 2: "ok", 3: "ok", 5: "warn"}.get(mode, "bad"), MODE_FB.get(mode, str(mode)).replace(" (old)", "")))
+    n = sum(out["enabled"])
+    pills.append(("ok", "MOTORS OFF") if n == 0 else ("warn", f"MOTORS ON {n}/6"))
+    pills.append(("bad", "E-STOP ON") if arm_s == 1 else ("ok", "E-STOP OFF"))
+    pills.append(("ok", "TEACH OFF") if teach == 0 else ("warn", "TEACH " + TEACH.get(teach, str(teach)).upper()))
+    flags = [k for k, v in (st.get("err_status") or {}).items() if v is True]
+    pills.append(("bad", "FAULT") if (arm_s not in (0, 1) or int(st["err_code"]) or flags) else ("ok", "NO FAULTS"))
+    return pills
+
+
+def gauge(S, v, lo, hi, width=28, slack=0.5):
+    """├──────●──────┤ : where v sits between lo and hi; a red diamond on the edge when it is outside (more than slack)."""
+    pos = (v - lo) / (hi - lo) if hi > lo else 0.0
+    outside = v < lo - slack or v > hi + slack
+    i = min(max(round(pos * (width - 1)), 0), width - 1)
+    mark = f"{S.red}◆{S.reset}" if outside else f"{S.green}●{S.reset}"
+    return f"{S.dim}├{'─' * i}{S.reset}{mark}{S.dim}{'─' * (width - 1 - i)}┤{S.reset}", outside
+
+
+def _temp(S, t):
+    c = S.green if t < 45 else S.yellow if t < 60 else S.red
+    return f"{c}{t:.0f}{S.reset}"
+
+
 def render_summary(out, S, saved):
+    width = min(shutil.get_terminal_size((100, 20)).columns, 100)
     rows, notes = summarize(out)
-    print(f"\n{S.bold}{S.cyan}Piper{S.reset}  {S.dim}{out.get('arm_id') or 'unlabelled'} · {out['canbus']} · {out['time']}{S.reset}\n")
-    for label, lvl, text in rows:
-        print(f"  {S.mark[lvl]} {S.bold}{label:<11}{S.reset} {S.paint(lvl, text) if lvl in ('bad', 'warn') else text}")
+    R = {label: (lvl, text) for label, lvl, text in rows}
+    fw = out.get("firmware") or {}
+    left = f"{S.bold}{S.cyan}PIPER{S.reset}  {out.get('arm_id') or 'unlabelled'} {S.dim}· {out['canbus']} · {out['time'].replace('T', ' ')[:16]}{S.reset}"
+    right = f"{fw.get('software_version', '')} · {out.get('sdk_profile', '')}".strip(" ·")
+    print(f"\n  {left}   {S.dim}{right}{S.reset}\n")
+    print("  " + " ".join(S.pill(l, t) for l, t in pills_of(out)) + "\n")
+
+    def line(label, key=None):
+        lvl, text = R[key or label]
+        print(f"  {S.mark[lvl]} {S.dim}{label:<13}{S.reset}{S.paint(lvl, text) if lvl in ('bad', 'warn') else text}")
+
+    print("  " + S.rule("State", width - 2))
+    for key in ("Link", "Role", "Arm", "Motion mode", "Motors", "E-stop", "Teach mode", "Faults"):
+        if key in R:
+            line(key)
+    if "Identity" in R:
+        print("\n  " + S.rule("Arm", width - 2))
+        line("Identity")
+        ja, lim = out.get("joint_angles_deg"), out.get("limits") or {}
+        for i, a in enumerate(ja or [], 1):
+            lo, hi = (lim.get(i, {}).get("deg") or URDF_LIMITS_DEG[i])
+            g, outside = gauge(S, a, lo, hi)
+            col = S.yellow if outside else ""
+            print(f"    {S.dim}j{i}{S.reset}  {col}{a:8.2f}°{S.reset}  {g}  {S.dim}[{lo:.0f}, {hi:.0f}]{S.reset}")
+        if "TCP" in R:
+            line("TCP")
+        gs, gp = out.get("gripper_status"), out.get("gripper_params") or {}
+        if gs and (gp.get("max_range_config") or 0) > 0:
+            w, stroke = gs["value"] * 1000, gp["max_range_config"] * 1000
+            g, _ = gauge(S, w, 0, stroke, 28, slack=1.0)
+            print(f"  {S.mark[R['Gripper'][0]]} {S.dim}{'Gripper':<13}{S.reset}{w:6.1f} mm  {g}  {S.dim}[0, {stroke:.0f}] · driver {'ok' if R['Gripper'][0] == 'ok' else 'check'}{S.reset}")
+        else:
+            line("Gripper")
+        print("\n  " + S.rule("Health", width - 2))
+        drv = [d for d in out["drivers"].values() if d]
+        if drv:
+            lvl = R["Power"][0]
+            v = [d["vol"] for d in drv]
+            td, tm = [d["foc_temp"] for d in drv], [d["motor_temp"] for d in drv]
+            body = (f"{min(v):.0f}–{max(v):.0f} V · driver {_temp(S, min(td))}–{_temp(S, max(td))} °C · motor {_temp(S, min(tm))}–{_temp(S, max(tm))} °C · "
+                    + ("no fault bits" if lvl == "ok" else "TOO HOT or low voltage" if lvl == "warn" else R["Power"][1].split("·")[-1].strip()))
+            print(f"  {S.mark[lvl]} {S.dim}{'Power':<13}{S.reset}{body}")
+        print("\n  " + S.rule("Settings stored in the arm", width - 2))
+        for key in ("Limits", "Protection"):
+            if key in R:
+                line(key)
     if notes:
-        print(f"\n  {S.bold}Notes{S.reset}")
+        print("\n  " + S.rule("Notes", width - 2))
         for lvl, text in notes:
-            print(f"    {S.mark[lvl]} {text}")
+            print(f"  {S.mark[lvl]} {text}")
     if out.get("cpv"):
         rs = out.get("cpv_restore") or {}
         note = (f"{S.green}motion mode restored to {rs['to']}{S.reset}{(' (' + rs['note'] + ')') if rs.get('note') else ''}" if rs.get("restored") else f"{S.yellow}mode NOT restored: {rs.get('note')}{S.reset}")
-        print(f"\n  {S.bold}CPV drive parameters{S.reset} (the SDK switched the arm to CPV mode to read these; {note})")
+        print("\n  " + S.rule("CPV drive parameters", width - 2))
+        print(f"  {S.dim}the SDK switched the arm to CPV mode to read these;{S.reset} {note}")
         keys = ("pos", "vel", "acc", "dcc", "cv", "pp", "kp", "ki")
-        print("    joint " + " ".join(f"{k:>9}" for k in keys))
+        print(f"  {S.dim}joint " + " ".join(f"{k:>9}" for k in keys) + S.reset)
         for i, row in out["cpv"].items():
-            print(f"      {i}   " + " ".join(f"{row[k]:9.3f}" if isinstance(row[k], (int, float)) else f"{str(row[k])[:9]:>9}" for k in keys))
-    print(f"\n  {S.dim}full read-out: {saved}   (-r for the raw form){S.reset}\n")
+            print(f"    {i}   " + " ".join(f"{row[k]:9.3f}" if isinstance(row[k], (int, float)) else f"{str(row[k])[:9]:>9}" for k in keys))
+    print(f"\n  {S.dim}saved {saved}  ·  -r raw form{S.reset}\n")
 
 
 # ----------------------------------------------------------------------------------------------------------------- raw

@@ -119,3 +119,6 @@
 
 ## 2026-10-14 UTC arm_info summary: mode panel (Claude, branch `feature/architecture-comms`)
 - The summary now leads with: Role (SLAVE/MASTER, from the bus frames and ctrl_mode 6), Motion mode (MOVE_J/P/L/C normal, CPV warning, MIT red), Motors (enabled count), E-stop (software e-stop from status 0x01), Teach mode, Faults (error code and per-joint flags). A master or silent arm, or no firmware answer, shows what is known and stops. Checked live (slave, MOVE_J, disabled) and with synthetic states (e-stop, CPV, teach playback, master, fault).
+
+## 2026-10-14 UTC arm_info summary redesign (Claude, branch `feature/architecture-comms`)
+- Summary layout: header, a row of coloured state pills (SLAVE, MOVE_J, MOTORS OFF, E-STOP OFF, TEACH OFF, NO FAULTS; green ok, yellow caution, red problem), then sections State / Arm / Health / Settings stored in the arm / Notes. Joint positions are drawn as gauges inside their stored limits (red diamond when a joint rests outside), temperatures are coloured. Plain text (no colour) when piped or with --no-color.
