@@ -5,11 +5,11 @@
     python tools/arm_info.py                  # summary (colour in a terminal)
     python tools/arm_info.py -r               # the long raw form: bus table and every value
     python tools/arm_info.py -c               # also read the CPV drive parameters (SEE WARNING)
-    python tools/arm_info.py -i can1          # use this CAN interface (default: auto-detect)
+    python tools/arm_info.py -b can1          # use this CAN bus (default: auto-detect)
     python tools/arm_info.py --arm-id piper-01   # label for the saved JSON
 
-The CAN interface ("channel") is the Linux network interface of the USB-CAN adapter (can0, can1, ...), not something the arm reports. It is
-auto-detected: the only CAN interface, else the only one that is up; name it with -i/--channel when there are several. If it is down:
+The CAN bus is the Linux network interface of the USB-CAN adapter (can0, can1, ...), not something the arm reports. It is
+auto-detected: the only CAN bus, else the only one that is up; name it with -b/--canbus when there are several. If it is down:
 scripts/can_up.sh (asks for your sudo password).
 
 What it does: listens for a fixed 1.5 s to see whether the arm is sending (and in which role); stops there if the bus is silent, nothing sent.
@@ -27,7 +27,7 @@ import sys
 import time
 from pathlib import Path
 
-from arm_common import deg, fields, open_arm, resolve_channel, wait_for
+from arm_common import deg, fields, open_arm, resolve_canbus, wait_for
 
 CENSUS_SECONDS = 1.5  # fixed: just long enough to see 200 Hz and 20 Hz frames
 CTRL_MODE = {0: "standby", 1: "CAN control", 2: "teaching", 3: "ethernet", 4: "wifi", 5: "remote", 6: "linkage teaching input (master)", 7: "offline trajectory"}
@@ -55,10 +55,10 @@ class Style:
 
 
 # -------------------------------------------------------------------------------------------------------------- reading
-def census(channel):
+def census(canbus):
     """Passive listen for a fixed period. Returns ({hex id: {frames, hz}}, set of ids)."""
     import can
-    bus = can.Bus(channel=channel, interface="socketcan")
+    bus = can.Bus(channel=canbus, interface="socketcan")  # python-can's own keyword
     counts, t0 = collections.Counter(), time.monotonic()
     try:
         while time.monotonic() - t0 < CENSUS_SECONDS:
@@ -72,28 +72,33 @@ def census(channel):
 
 
 def _restore_mode(arm, prev):
-    """Put the motion mode back after the CPV reads (the SDK switched it to CPV). Only for P/J/L/C; verifies on the next status frames."""
-    names = {0: "P", 1: "J", 2: "L", 3: "C"}
+    """Put the motion mode back after the CPV reads (the SDK switched it to CPV); verifies on the next status frames.
+
+    prev = the mode read before the CPV reads: P/J/L/C are restored as they were. If the arm was already in CPV (an earlier -c run, or CPV use),
+    the normal resting mode MOVE_J is set. MIT modes are never restored automatically.
+    """
+    names = {0: "P", 1: "J", 2: "L", 3: "C", 5: "J"}
     if prev not in names:
         return {"restored": False, "note": f"previous mode {prev} is not restored automatically"}
+    target = {"P": 0, "J": 1, "L": 2, "C": 3}[names[prev]]
     arm.set_motion_mode(getattr(arm.OPTIONS.MOTION_MODE, names[prev]))
     t0 = time.monotonic()
     while time.monotonic() - t0 < 2.5:
         st = arm.get_arm_status()
-        if st is not None and int(st.msg.mode_feedback) == prev:
-            return {"restored": True, "to": MODE_FB[prev]}
+        if st is not None and int(st.msg.mode_feedback) == target:
+            return {"restored": True, "to": MODE_FB[target], "note": "it was already in CPV before; set to MOVE_J" if prev == 5 else ""}
         time.sleep(0.05)
-    return {"restored": False, "note": "mode did not read back as " + MODE_FB[prev]}
+    return {"restored": False, "note": "mode did not read back as " + MODE_FB[target]}
 
 
-def collect(args, channel):
-    out = {"time": datetime.datetime.now().isoformat(timespec="seconds"), "channel": channel, "arm_id": args.arm_id}
-    out["census"], idset = census(channel)
+def collect(args, canbus):
+    out = {"time": datetime.datetime.now().isoformat(timespec="seconds"), "canbus": canbus, "arm_id": args.arm_id}
+    out["census"], idset = census(canbus)
     roles = [r for r, s in ROLE_IDS.items() if s & idset]
     out["role"] = roles or (["unknown frames"] if idset else ["silent"])
     if not idset:
         return out
-    arm, grip, fw, profile = open_arm(channel, gripper=True)
+    arm, grip, fw, profile = open_arm(canbus, gripper=True)
     out["firmware"], out["sdk_profile"] = fw, profile
     try:
         st = wait_for(arm.get_arm_status)
@@ -171,7 +176,7 @@ def summarize(out):
     if out["role"] == ["silent"]:
         return [("Link", "bad", "arm is NOT sending: nothing to read (power, plug, teach playback?)")], notes
     link_lvl = "ok" if role.startswith("slave") else "warn"
-    rows.append(("Link", link_lvl, f"{len(cen)} CAN ids on {out['channel']}" + (f", status {hz:.0f} Hz" if hz else "") + f" · role: {role}"))
+    rows.append(("Link", link_lvl, f"{len(cen)} CAN ids on {out['canbus']}" + (f", status {hz:.0f} Hz" if hz else "") + f" · role: {role}"))
     fw = out["firmware"]
     rows.append(("Identity", "info", f"{fw['software_version']} · hw {fw['hardware_version']} · build {fw['production_date']} · node {fw['node_number']} · "
                  f"batch {fw['motor_ratio_and_batch']} · SDK profile {out['sdk_profile']}"))
@@ -252,7 +257,7 @@ def summarize(out):
 
 def render_summary(out, S, saved):
     rows, notes = summarize(out)
-    print(f"\n{S.bold}{S.cyan}Piper{S.reset}  {S.dim}{out.get('arm_id') or 'unlabelled'} · {out['channel']} · {out['time']}{S.reset}\n")
+    print(f"\n{S.bold}{S.cyan}Piper{S.reset}  {S.dim}{out.get('arm_id') or 'unlabelled'} · {out['canbus']} · {out['time']}{S.reset}\n")
     for label, lvl, text in rows:
         print(f"  {S.mark[lvl]} {S.bold}{label:<11}{S.reset} {S.paint(lvl, text) if lvl in ('bad', 'warn') else text}")
     if notes:
@@ -261,7 +266,7 @@ def render_summary(out, S, saved):
             print(f"    {S.mark[lvl]} {text}")
     if out.get("cpv"):
         rs = out.get("cpv_restore") or {}
-        note = (f"{S.green}motion mode restored to {rs['to']}{S.reset}" if rs.get("restored") else f"{S.yellow}mode NOT restored: {rs.get('note')}{S.reset}")
+        note = (f"{S.green}motion mode restored to {rs['to']}{S.reset}{(' (' + rs['note'] + ')') if rs.get('note') else ''}" if rs.get("restored") else f"{S.yellow}mode NOT restored: {rs.get('note')}{S.reset}")
         print(f"\n  {S.bold}CPV drive parameters{S.reset} (the SDK switched the arm to CPV mode to read these; {note})")
         keys = ("pos", "vel", "acc", "dcc", "cv", "pp", "kp", "ki")
         print("    joint " + " ".join(f"{k:>9}" for k in keys))
@@ -314,7 +319,7 @@ def render_raw(out, S, saved):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--channel", "-i", help="CAN interface name (default: auto-detect)")
+    ap.add_argument("--canbus", "-b", help="CAN bus name, e.g. can0 (default: auto-detect)")
     ap.add_argument("--raw", "-r", action="store_true", help="long raw form instead of the summary")
     ap.add_argument("--cpv-check", "-c", action="store_true", help="also read CPV parameters (switches the arm to CPV mode!)")
     ap.add_argument("--arm-id", help="your label for this physical arm (e.g. piper-01); stored in the JSON and its file name")
@@ -323,9 +328,9 @@ def main():
     args = ap.parse_args()
     S = Style(sys.stdout.isatty() and not args.no_color and "NO_COLOR" not in os.environ or bool(os.environ.get("FORCE_COLOR")))
 
-    channel = resolve_channel(args.channel)
+    canbus = resolve_canbus(args.canbus)
     try:
-        out = collect(args, channel)
+        out = collect(args, canbus)
     except RuntimeError as e:  # e.g. no firmware answer
         sys.exit(f"{S.red}{e}{S.reset}")
     ver = (out.get("firmware") or {}).get("software_version", "nofw")

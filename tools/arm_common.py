@@ -34,7 +34,7 @@ def wait_for(fn, secs=3.0):
 
 
 def can_interfaces():
-    """SocketCAN interfaces on this machine as [(name, operstate)] (network type 280 = CAN). Reads sysfs only."""
+    """SocketCAN buses (network interfaces) on this machine as [(name, operstate)] (network type 280 = CAN). Reads sysfs only."""
     found = []
     for d in sorted(Path("/sys/class/net").iterdir()):
         try:
@@ -45,38 +45,39 @@ def can_interfaces():
     return found
 
 
-def resolve_channel(requested=None):
-    """Pick the CAN interface: the requested one, else the only one, else the only one that is up. Exits with a clear message otherwise.
+def resolve_canbus(requested=None):
+    """Pick the CAN bus: the requested one, else the only one, else the only one that is up. Exits with a clear message otherwise.
 
-    The "channel" is the name of the Linux CAN network interface the USB-CAN adapter creates (can0, can1, a renamed one...), not something the arm reports.
+    The "CAN bus" is the name of the Linux CAN network interface the USB-CAN adapter creates (can0, can1, a renamed one...), not something the arm reports.
     """
     ifs = dict(can_interfaces())
     if requested:
         if requested not in ifs:
-            sys.exit(f"CAN interface '{requested}' does not exist. Present: {sorted(ifs) or 'none'}. (Adapter plugged in? lsusb shows 1d50:606f.)")
+            sys.exit(f"CAN bus '{requested}' does not exist. Present: {sorted(ifs) or 'none'}. (Adapter plugged in? lsusb shows 1d50:606f.)")
         name = requested
     elif not ifs:
-        sys.exit("No CAN interface found: the USB-CAN adapter is not seen. Check the USB plug (lsusb shows 1d50:606f when present).")
+        sys.exit("No CAN bus found: the USB-CAN adapter is not seen. Check the USB plug (lsusb shows 1d50:606f when present).")
     elif len(ifs) == 1:
         name = next(iter(ifs))
     else:
         up = [n for n, st in ifs.items() if st == "up"]
         if len(up) != 1:
-            sys.exit(f"Several CAN interfaces ({', '.join(f'{n} {st}' for n, st in ifs.items())}): choose one with --channel.")
+            sys.exit(f"Several CAN buses ({', '.join(f'{n} {st}' for n, st in ifs.items())}): choose one with --canbus.")
         name = up[0]
     if ifs[name] != "up":
         sys.exit(f"{name} is {ifs[name]}: bring it up first (asks for your sudo password):  scripts/can_up.sh {name}")
     return name
 
 
-def open_arm(channel="can0", gripper=False):
+# Note: pyAgxArm and python-can both call the CAN bus name `channel` in their own APIs; everywhere in our tools it is `canbus`.
+def open_arm(canbus="can0", gripper=False):
     """Connect with the right SDK profile for the arm's firmware. Sends ONE frame (the firmware query).
 
     Opens with the oldest profile (the firmware query is identical on all of them), reads the firmware, closes, and reopens with the
     profile that matches the version, because status/MIT frames decode differently per profile.
     Returns (arm, gripper_driver_or_None, firmware_dict, profile). Caller must arm.disconnect().
     """
-    probe = AgxArmFactory.create_arm(create_agx_arm_config(robot=ArmModel.PIPER, firmeware_version=PiperFW.DEFAULT, channel=channel))
+    probe = AgxArmFactory.create_arm(create_agx_arm_config(robot=ArmModel.PIPER, firmeware_version=PiperFW.DEFAULT, channel=canbus))
     probe.connect()
     try:
         wait_for(lambda: probe.get_fps() or None, 3.0)
@@ -86,7 +87,7 @@ def open_arm(channel="can0", gripper=False):
     if not fw:
         raise RuntimeError("no firmware answer (arm silent, another program on the bus, master mode or teach playback?)")
     profile = resolve_firmware_profile(ArmModel.PIPER, fw["software_version"])
-    arm = AgxArmFactory.create_arm(create_agx_arm_config(robot=ArmModel.PIPER, firmeware_version=profile, channel=channel))
+    arm = AgxArmFactory.create_arm(create_agx_arm_config(robot=ArmModel.PIPER, firmeware_version=profile, channel=canbus))
     grip = arm.init_effector(arm.OPTIONS.EFFECTOR.AGX_GRIPPER) if gripper else None   # before connect(); sends nothing
     arm.connect()
     wait_for(lambda: arm.get_fps() or None, 3.0)

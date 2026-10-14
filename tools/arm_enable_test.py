@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Real Piper: enable the motors, hold still for a few seconds, disable. NO motion command is sent.
 
-    source scripts/env.sh && python tools/arm_enable_test.py [--channel can0] [--hold 3]
+    source scripts/env.sh && python tools/arm_enable_test.py [--canbus can0] [--hold 3]
 
 Needs the user at the arm with a hand on the power switch (this arm has no e-stop button), the arm in its folded rest pose and clear of obstacles.
 What it sends: motor enable frames, then (at the end, or on any error / Ctrl-C) motor disable frames. The arm should
@@ -12,19 +12,19 @@ import argparse
 import math
 import time
 
-from arm_common import angles, open_arm, resolve_channel
+from arm_common import angles, open_arm, resolve_canbus
 
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--channel", "-i", help="CAN interface name (default: auto-detect)")
+    ap.add_argument("--canbus", "-b", help="CAN bus name, e.g. can0 (default: auto-detect)")
     ap.add_argument("--hold", type=float, default=3.0, help="seconds to stay enabled")
     ap.add_argument("--yes", action="store_true", help="skip the confirmation prompt")
     args = ap.parse_args()
     if not args.yes:
         input("Arm folded at rest, clear of obstacles, hand on the power switch? Press Enter to enable (Ctrl-C to cancel)... ")
 
-    arm, _, fw, profile = open_arm(resolve_channel(args.channel))
+    arm, _, fw, profile = open_arm(resolve_canbus(args.canbus))
     print("firmware:", fw["software_version"], " SDK profile:", profile)
     try:
         for _ in range(30):

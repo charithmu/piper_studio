@@ -112,3 +112,7 @@
 - `tools/arm_info.py`: coloured summary by default, `-r/--raw` for the long form, `-c/--cpv-check` for CPV reads (switches the arm to CPV mode, so opt-in), `-i/--channel` for the CAN interface. The census is now a fixed 1.5 s precheck (no options); a silent arm stops the run before anything is sent.
 - CAN interface is auto-detected in all arm tools (`arm_common.resolve_channel`: the only CAN interface, else the only one that is up). `scripts/can_up.sh` brings it up (runs sudo itself, `--dry-run`, `--down`, optional bit rate).
 - Tested live read-only (summary and raw); `-c` and `can_up.sh` (sudo) not run. Follow-up: `-c` now restores the motion mode it read at the start (P/J/L/C) and verifies it; untested live.
+
+## 2026-10-14 UTC CAN bus naming, CPV restore fix (Claude, branch `feature/architecture-comms`)
+- "channel" renamed to "CAN bus" in our tools, scripts and docs: option `-b/--canbus` (was `-i/--channel`), `arm_common.resolve_canbus`, JSON key `canbus`, `scripts/can_up.sh` wording. The SDK's and python-can's own `channel=` keyword is kept at the two call sites.
+- `arm_info.py -c`: if the arm was already in MOVE_CPV (from an earlier `-c` run) the restore sets MOVE_J instead of refusing. The first live `-c` run left the arm in MOVE_CPV; the CPV parameters are recorded in `docs/real_arm/arms/piper-01.md`.

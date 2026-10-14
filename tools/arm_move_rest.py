@@ -15,7 +15,7 @@ import argparse
 import math
 import time
 
-from arm_common import angles, deg, open_arm, resolve_channel
+from arm_common import angles, deg, open_arm, resolve_canbus
 
 REST = [0.0, 0.01, -0.01, 0.0, 0.0, 0.0]
 TOL_DEG = 0.5
@@ -34,7 +34,7 @@ def check_status(arm):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--channel", "-i", help="CAN interface name (default: auto-detect)")
+    ap.add_argument("--canbus", "-b", help="CAN bus name, e.g. can0 (default: auto-detect)")
     ap.add_argument("--speed", type=int, default=10, help="speed percent, 1..30 (default 10)")
     ap.add_argument("--timeout", type=float, default=20.0)
     ap.add_argument("--dry-run", action="store_true", help="only read and print the plan")
@@ -42,7 +42,7 @@ def main():
     if not 1 <= args.speed <= 30:
         raise SystemExit("--speed must be 1..30 for this test")
 
-    arm, _, fw, profile = open_arm(resolve_channel(args.channel))
+    arm, _, fw, profile = open_arm(resolve_canbus(args.canbus))
     enabled = False
     try:
         for _ in range(30):

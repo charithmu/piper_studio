@@ -1,6 +1,6 @@
 {
   "time": "2026-10-14T20:38:50",
-  "channel": "can0",
+  "canbus": "can0",
   "arm_id": "piper-01",
   "census": {
     "0x1c0": {

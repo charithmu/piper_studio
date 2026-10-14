@@ -24,6 +24,9 @@
   two joint frames by 2 degrees, so this is plausibly by design (not confirmed with AgileX).
 - Enable test (old firmware, same arm): all six joints enabled and held within 0.08 deg. Not repeated on S-V1.9-1 yet. No motion has been commanded on the real arm.
 
+- CPV drive parameters (read 2026-10-14 with `arm_info.py -c`): acceleration 5.0 and deceleration 5.0 rad/s^2 on every joint, profile velocity 0, position gain 5.0, velocity-loop kp 0.7 (joints 1-3) / 0.8 (joints 4-6), ki 40 (joints 1-3) / 80 (joints 4-6). Reading them put the arm in MOVE_CPV motion mode
+  (the first `-c` version did not restore it; the fixed tool sets MOVE_J on the next `-c`, and any `move_j` switches it back).
+
 ## Decisions pending (nothing applied to the code base)
 
 1. MoveIt/controller max joint speed is 5 rad/s, the arm's limit is 3.0; acceleration matches (5.0).
