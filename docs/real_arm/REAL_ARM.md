@@ -92,6 +92,17 @@ support brackets. Routine on the real arm: come to `zero`, then `rest` (`piper r
 A Piper rests with joints 2 and 3 about 0.04 rad past their limits, so `command_guard` keeps arm joints 0.01 rad inside the limits and clamps (not rejects) values up to 0.1 rad outside;
 activating from the stops therefore lifts joints 2/3 by about 2.7 deg.
 
+## 6c. Joint limits and the zero point
+
+Limits come from four places that must agree: the arm's stored limits (`get_joint_angle_vel_limits`), the official URDF (`piper_description.urdf`, used by MoveIt and all simulators), the SDK's model preset
+(`pyAgxArm/api/constants.py`, used only if `set_joint_limits_enabled(True)`) and our `command_guard` (URDF minus 0.01 rad). Piper values (deg): j1 ±150, j2 0..180, j3 -170..0, j4 ±100, j5 ±70 in all three;
+j6 is ±120 in the URDF and SDK preset and ±170 stored on the arm of firmware S-V1.9-1 (S-V1.7-3 stored ±180). Speed: URDF/MoveIt 5 rad/s, arm 3.0.
+
+The zero point lives in the joint motors, not on the host. `calibrate_joint(n)` (CAN 0x475 byte 1 = 0xAE) stores the joint's present angle as its zero; for one joint the joint must be disabled and moved by hand to its
+hardware zero mark first (index 255 = all joints "with offset", the SDK docstring refers to an official tutorial for the pre-calibration poses, not found in the sources we hold). The GUI `Piper_sdk_ui` has Set Zero /
+All Set Zero buttons (commented out in its code), the Windows app ArmRobotUA does the same. Since S-V1.6-3 the zero of joints 2 and 3 is offset 2 deg from the stops, which is why they rest 2 deg past their stored range.
+Calibration is a write that changes where every pose is: do it only deliberately, then re-read `arm_info.py` and the arm's park pose.
+
 ## 7. Teach (drag) mode
 
 The button light between joints 5 and 6: **off** = stopped (normal); **solid green** = recording (drag the arm by hand); **flashing green** = **playing back** the last recording
