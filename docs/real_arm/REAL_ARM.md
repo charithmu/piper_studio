@@ -99,7 +99,7 @@ with the arm at the zero pose. We do not use it.
 
 | Tool | What it does | Sends |
 |---|---|---|
-| `arm_info.py [-r] [-c] [-i IF] [--arm-id ID]` | coloured summary (default) or the long raw form (`-r`); fixed 1.5 s passive listen first (stops if the arm is silent), then firmware, status, joints, drivers, limits, ratings, gripper; always saves JSON; `-c` also reads CPV parameters (switches the arm to CPV mode) | the firmware query and enquiry frames |
+| `arm_info.py [-r] [-c] [-i IF] [--arm-id ID]` | coloured summary (default) or the long raw form (`-r`); fixed 1.5 s passive listen first (stops if the arm is silent), then firmware, status, joints, drivers, limits, ratings, gripper; always saves JSON; `-c` also reads CPV parameters (switches the arm to CPV mode, then restores the previous mode and checks it) | the firmware query and enquiry frames |
 | `arm_enable_test.py` | enable, hold a few seconds, disable; no motion command; aborts on drift | enable/disable |
 | `arm_move_rest.py [--dry-run]` | one slow `move_j` to the folded `rest` pose, explicit speed (<= 30 %), aborts and holds on any fault | enable, move_j, disable |
 

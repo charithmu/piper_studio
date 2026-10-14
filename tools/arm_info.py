@@ -15,7 +15,8 @@ scripts/can_up.sh (asks for your sudo password).
 What it does: listens for a fixed 1.5 s to see whether the arm is sending (and in which role); stops there if the bus is silent, nothing sent.
 Then one firmware query (the SDK profile is chosen from the version) and enquiry frames. It never calls enable/disable/reset/calibrate/set_*/move_*.
 The full result is always saved as JSON (~/data/ml/isaac/piper_studio/arm_info/, or --out).
-WARNING: the SDK's get_cpv_* reads first switch the arm's motion mode to CPV, a state change: that is why -c/--cpv-check is opt-in.
+WARNING: the SDK's get_cpv_* reads first switch the arm's motion mode to CPV (a state change; the SDK's mode frame also carries its default speed of 50 %).
+That is why -c/--cpv-check is opt-in. Afterwards the tool puts the mode back (MOVE_P/J/L/C, as read at the start) and says whether it read back.
 """
 import argparse
 import collections
@@ -68,6 +69,21 @@ def census(channel):
         bus.shutdown()
     span = max(time.monotonic() - t0, 1e-6)
     return {hex(i): {"frames": n, "hz": round(n / span, 1)} for i, n in sorted(counts.items())}, set(counts)
+
+
+def _restore_mode(arm, prev):
+    """Put the motion mode back after the CPV reads (the SDK switched it to CPV). Only for P/J/L/C; verifies on the next status frames."""
+    names = {0: "P", 1: "J", 2: "L", 3: "C"}
+    if prev not in names:
+        return {"restored": False, "note": f"previous mode {prev} is not restored automatically"}
+    arm.set_motion_mode(getattr(arm.OPTIONS.MOTION_MODE, names[prev]))
+    t0 = time.monotonic()
+    while time.monotonic() - t0 < 2.5:
+        st = arm.get_arm_status()
+        if st is not None and int(st.msg.mode_feedback) == prev:
+            return {"restored": True, "to": MODE_FB[prev]}
+        time.sleep(0.05)
+    return {"restored": False, "note": "mode did not read back as " + MODE_FB[prev]}
 
 
 def collect(args, channel):
@@ -134,6 +150,7 @@ def collect(args, channel):
                     except Exception as e:  # noqa: BLE001 - report, keep going
                         row[k] = f"error: {e}"
                 out["cpv"][i] = row
+            out["cpv_restore"] = _restore_mode(arm, (out.get("arm_status") or {}).get("mode_feedback"))
     finally:
         arm.disconnect()
     return out
@@ -243,7 +260,9 @@ def render_summary(out, S, saved):
         for lvl, text in notes:
             print(f"    {S.mark[lvl]} {text}")
     if out.get("cpv"):
-        print(f"\n  {S.bold}CPV drive parameters{S.reset} {S.yellow}(the SDK switched the arm to CPV mode to read these){S.reset}")
+        rs = out.get("cpv_restore") or {}
+        note = (f"{S.green}motion mode restored to {rs['to']}{S.reset}" if rs.get("restored") else f"{S.yellow}mode NOT restored: {rs.get('note')}{S.reset}")
+        print(f"\n  {S.bold}CPV drive parameters{S.reset} (the SDK switched the arm to CPV mode to read these; {note})")
         keys = ("pos", "vel", "acc", "dcc", "cv", "pp", "kp", "ki")
         print("    joint " + " ".join(f"{k:>9}" for k in keys))
         for i, row in out["cpv"].items():
@@ -287,7 +306,7 @@ def render_raw(out, S, saved):
     print("  gripper status:", out.get("gripper_status"), "\n  gripper ctrl echo:", out.get("gripper_ctrl_states"), "\n  gripper params:", out.get("gripper_params"))
     print("  sdk:", out["sdk"])
     if out.get("cpv"):
-        print("  CPV parameters (the arm was switched to CPV mode to read them):")
+        print("  CPV parameters (the arm was switched to CPV mode to read them); mode restore:", out.get("cpv_restore"))
         for i, row in out["cpv"].items():
             print(f"    joint {i}:", row)
     print("saved", saved)
