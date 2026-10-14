@@ -122,3 +122,7 @@
 
 ## 2026-10-14 UTC arm_info summary redesign (Claude, branch `feature/architecture-comms`)
 - Summary layout: header, a row of coloured state pills (SLAVE, MOVE_J, MOTORS OFF, E-STOP OFF, TEACH OFF, NO FAULTS; green ok, yellow caution, red problem), then sections State / Arm / Health / Settings stored in the arm / Notes. Joint positions are drawn as gauges inside their stored limits (red diamond when a joint rests outside), temperatures are coloured. Plain text (no colour) when piped or with --no-color.
+
+## 2026-10-14 UTC zero-pose tool, enable test on S-V1.9-1 (Claude, branch `feature/architecture-comms`)
+- User ran `arm_enable_test.py` on S-V1.9-1: all six enabled, drift <= 0.08 deg, currents <= 0.08 A, clean disable (recorded in `docs/real_arm/arms/piper-01.md`).
+- New `tools/arm_zero.py` (replaces `arm_move_rest.py`): vendor go-zero = `move_j` of all zeros (PyAgxArm_demo `piper_ctrl_go_zero.py`; `reset()` is only for recovery after an e-stop and does not move the arm). Ours adds a read-only preflight, a verified known state (speed set before the mode frame because the SDK's mode frame carries a default 50 % speed, then CAN control + MOVE_J read back), enable, latching the target at the current pose, one slow move watched at 10 Hz, abort-and-hold on any fault, and a prompt before disabling. Compiles, `--help` and the speed check tested; the dry run could not be repeated because the arm went silent (powered off); not run live.

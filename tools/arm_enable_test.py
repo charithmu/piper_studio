@@ -24,7 +24,10 @@ def main():
     if not args.yes:
         input("Arm folded at rest, clear of obstacles, hand on the power switch? Press Enter to enable (Ctrl-C to cancel)... ")
 
-    arm, _, fw, profile = open_arm(resolve_canbus(args.canbus))
+    try:
+        arm, _, fw, profile = open_arm(resolve_canbus(args.canbus))
+    except RuntimeError as e:
+        raise SystemExit(f"{e}\nNothing was changed.")
     print("firmware:", fw["software_version"], " SDK profile:", profile)
     try:
         for _ in range(30):

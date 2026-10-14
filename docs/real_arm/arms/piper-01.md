@@ -22,7 +22,8 @@
   Whether a Revo2 hand is attached or the firmware emits them is not established.
 - Joints 2 and 3 rest about -2 deg and +2 deg, outside their stored ranges, also after calibration. The vendor `piper_ros` README says the DH parameters after S-V1.6-3 offset those
   two joint frames by 2 degrees, so this is plausibly by design (not confirmed with AgileX).
-- Enable test (old firmware, same arm): all six joints enabled and held within 0.08 deg. Not repeated on S-V1.9-1 yet. No motion has been commanded on the real arm.
+- Enable test on S-V1.9-1 (2026-10-14): all six joints enabled, max drift 0.08 deg over 2.5 s, currents <= 0.08 A, status normal, clean disable. No motion has been commanded on the real arm yet.
+- Zero-pose plan (dry run of the earlier tool): largest move is joint 5, 22.7 deg (rest 22.72 -> 0), the others <= 2.8 deg.
 
 - CPV drive parameters (read 2026-10-14 with `arm_info.py -c`): acceleration 5.0 and deceleration 5.0 rad/s^2 on every joint, profile velocity 0, position gain 5.0, velocity-loop kp 0.7 (joints 1-3) / 0.8 (joints 4-6), ki 40 (joints 1-3) / 80 (joints 4-6). Reading them put the arm in MOVE_CPV motion mode
   (the first `-c` version did not restore it; the fixed tool sets MOVE_J on the next `-c`, and any `move_j` switches it back).
