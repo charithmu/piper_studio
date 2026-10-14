@@ -9,8 +9,9 @@ Never change simulator, MoveIt, controller or guard parameters from one arm's re
 
 ## 1. Bring-up
 
-- USB-CAN adapter: gs_usb ("candleLight / Geschwister Schneider", `1d50:606f`) shows up as `can0`. Bring-up needs sudo (user):
-  `sudo ip link set can0 up type can bitrate 1000000`. Listening (`candump can0`) sends nothing.
+- USB-CAN adapter: gs_usb ("candleLight / Geschwister Schneider", `1d50:606f`) shows up as `can0`. Bring-up needs sudo (the user runs it):
+  `scripts/can_up.sh` (auto-detects the interface, 1 Mbit/s, `--dry-run` shows the commands; plain form: `sudo ip link set can0 up type can bitrate 1000000`). Listening (`candump can0`) sends nothing.
+- The "channel" of our tools is the name of that Linux CAN interface, not something the arm reports. The tools auto-detect it (the only CAN interface, else the only one that is up); `-i/--channel` names one.
 - SDK: pyAgxArm (in `.venv`). Only one program may use the bus at a time (a second SDK process or the vendor GUI both transmit).
 - No CAN interface means the adapter is not seen (check `lsusb`); an interface with a flat RX counter means the arm is silent (power, plug, teach playback).
 - Windows: `python-can-agx-cando` plugin (`interface="agx_cando"`); macOS: `slcan`.
@@ -98,11 +99,11 @@ with the arm at the zero pose. We do not use it.
 
 | Tool | What it does | Sends |
 |---|---|---|
-| `arm_info.py [--arm-id ID]` | census, firmware, status, joints, drivers, limits, ratings, gripper; saves JSON; `--census-only`, `--basic`, `--cpv` | stage 1 nothing; then the firmware query and enquiry frames |
+| `arm_info.py [-r] [-c] [-i IF] [--arm-id ID]` | coloured summary (default) or the long raw form (`-r`); fixed 1.5 s passive listen first (stops if the arm is silent), then firmware, status, joints, drivers, limits, ratings, gripper; always saves JSON; `-c` also reads CPV parameters (switches the arm to CPV mode) | the firmware query and enquiry frames |
 | `arm_enable_test.py` | enable, hold a few seconds, disable; no motion command; aborts on drift | enable/disable |
 | `arm_move_rest.py [--dry-run]` | one slow `move_j` to the folded `rest` pose, explicit speed (<= 30 %), aborts and holds on any fault | enable, move_j, disable |
 
-Run each after any firmware change; diff the `arm_info` JSON against the arm's file in `arms/`.
+Run each after any firmware change; diff the saved `arm_info` JSON against the arm's file in `arms/`.
 
 ## 9. Vendor GUI, host software and firmware
 

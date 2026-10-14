@@ -107,3 +107,8 @@
 - Supersedes the 2026-10-12 real-arm entries above (they describe the old firmware S-V1.7-3 and are kept only as history): `docs/real_arm/REAL_ARM.md` is now arm-independent vendor knowledge; facts about one unit live in `docs/real_arm/arms/<arm-id>.md` (`piper-01` is a placeholder label; template in `_template.md`). The old baseline files were removed from the repo (raw data stays in `~/data/ml/isaac/piper_studio/arm_baseline_20261012_S-V1.7-3/`).
 - Tools: `arm_probe.py` and `arm_probe_extra.py` are replaced by `arm_info.py`; shared `arm_common.py` picks the SDK profile from the firmware (`arm_enable_test.py` and `arm_move_rest.py` no longer hard-code the old profile). `arm_info.py --arm-id` stamps the JSON.
 - The arm reports no serial number over CAN (firmware block: hardware, software, date, motor ratio, node type/number and an unparsed field `30AH`); identify a unit by a label plus the number printed on its casing. The USB-CAN adapter serial identifies the adapter only.
+
+## 2026-10-14 UTC arm_info summary mode, CAN auto-detect, can_up.sh (Claude, branch `feature/architecture-comms`)
+- `tools/arm_info.py`: coloured summary by default, `-r/--raw` for the long form, `-c/--cpv-check` for CPV reads (switches the arm to CPV mode, so opt-in), `-i/--channel` for the CAN interface. The census is now a fixed 1.5 s precheck (no options); a silent arm stops the run before anything is sent.
+- CAN interface is auto-detected in all arm tools (`arm_common.resolve_channel`: the only CAN interface, else the only one that is up). `scripts/can_up.sh` brings it up (runs sudo itself, `--dry-run`, `--down`, optional bit rate).
+- Tested live read-only (summary and raw); `-c` and `can_up.sh` (sudo) not run.

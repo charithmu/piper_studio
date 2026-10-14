@@ -12,19 +12,19 @@ import argparse
 import math
 import time
 
-from arm_common import angles, open_arm
+from arm_common import angles, open_arm, resolve_channel
 
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--channel", default="can0")
+    ap.add_argument("--channel", "-i", help="CAN interface name (default: auto-detect)")
     ap.add_argument("--hold", type=float, default=3.0, help="seconds to stay enabled")
     ap.add_argument("--yes", action="store_true", help="skip the confirmation prompt")
     args = ap.parse_args()
     if not args.yes:
         input("Arm folded at rest, clear of obstacles, hand on the power switch? Press Enter to enable (Ctrl-C to cancel)... ")
 
-    arm, _, fw, profile = open_arm(args.channel)
+    arm, _, fw, profile = open_arm(resolve_channel(args.channel))
     print("firmware:", fw["software_version"], " SDK profile:", profile)
     try:
         for _ in range(30):
