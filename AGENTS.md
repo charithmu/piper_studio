@@ -13,7 +13,8 @@ Read README.md, docs/ROADMAP.md, VERSIONS.md and docs/description/DECISIONS.md b
   `uv pip compile env/requirements.in -o env/requirements.txt --python .venv/bin/python` and
   `uv pip sync env/requirements.txt --python .venv/bin/python`. NumPy stays at the ROS ABI (1.26.x),
   pytest at 7.x (launch_testing), MuJoCo equal to the `mujoco_vendor` libmujoco version.
-- No passwordless sudo: give the user exact `apt`/`rosdep` commands; never install system-wide yourself.
+- Machine rules: `~/projects/RULES.md` (they win). No passwordless sudo and no system-wide installs by agents: put root steps
+  (`apt`, `rosdep install`) into this project's `sudo-steps.sh` for the user to run, and ask before installing anything (RULES.md section 6).
 - Use a unique `ROS_DOMAIN_ID` for launches and tests so parallel sessions do not cross-talk.
 
 ## Ownership
