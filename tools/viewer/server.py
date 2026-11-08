@@ -37,7 +37,7 @@ def mesh_url(filename: str) -> str:
         from ament_index_python.packages import get_package_share_directory
         pkg, rest = path[len("package://"):].split("/", 1)
         path = str(Path(get_package_share_directory(pkg)) / rest)
-    return "/mesh?p=" + path
+    return "mesh?p=" + path   # relative: the page is also served under a gateway prefix (/piper-studio/viewer/)
 
 
 def geometry(g) -> dict | None:
