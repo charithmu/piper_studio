@@ -107,10 +107,13 @@ const grid = new THREE.GridHelper(1, 20, 0x667085, 0x39414d); grid.rotation.x = 
 scene.add(new THREE.AxesHelper(0.15));
 const robotRoot = new THREE.Group(); scene.add(robotRoot);
 
-function resize() { const w = view.clientWidth, h = view.clientHeight; renderer.setSize(w, h); camera.aspect = w / h; camera.updateProjectionMatrix(); }
+let dirty = true; const invalidate = () => { dirty = true; };
+function resize() { const w = view.clientWidth, h = view.clientHeight; renderer.setSize(w, h); camera.aspect = w / h; camera.updateProjectionMatrix(); invalidate(); }
 addEventListener('resize', resize); resize();
 setViewPreset('iso');
-(function loop() { requestAnimationFrame(loop); controls.update(); renderer.render(scene, camera); })();
+// render only when something changed (camera moved, pose, toggles, a mesh arrived): an always-on render loop keeps a software-GL browser or a phone at full load
+controls.addEventListener('change', invalidate);
+(function loop() { requestAnimationFrame(loop); if (controls.update()) dirty = true; if (dirty) { dirty = false; renderer.render(scene, camera); } })();
 
 function setViewPreset(v) {
   const t = controls.target;
@@ -234,6 +237,7 @@ function applyPose() {
     else child.quaternion.setFromAxisAngle(new THREE.Vector3(...j.axis).normalize(), v);
   }
   robotRoot.updateMatrixWorld(true);
+  invalidate();
   updateReadouts();
 }
 function relPose(from, to) {
@@ -282,6 +286,7 @@ function buildPanel() {
 // ---------------------------------------------------------------- toggles, link list, details
 function applyShow() {
   if (!S) return;
+  invalidate();
   loadCollisions();
   for (const l of model.links) {
     const g = S.links[l.name];
@@ -310,6 +315,7 @@ function buildLinks() {
   $('summary').innerHTML = `${model.links.length} links, total mass <b>${mass.toFixed(3)} kg</b> (URDF values). Collision: <span class="tag t-mesh">${nm} mesh</span> <span class="tag t-box">${nb} box</span> <span class="tag t-none">${model.links.filter(l => kindOf(l) === 'none').length} none</span>`;
 }
 function highlight() {
+  invalidate();
   document.querySelectorAll('tr.link').forEach(r => r.classList.toggle('sel', r.dataset.l === selected));
   if (!S) return;
   for (const l of model.links) {

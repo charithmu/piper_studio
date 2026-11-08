@@ -2,7 +2,7 @@
 # Isaac Sim helpers for Piper Studio. Isaac runs in its own environment (never installed into .venv).
 #   scripts/isaac.sh build-usd [d435]  export the description (ROS side) and convert it to USD (Isaac side); d435 adds the wrist camera
 #   scripts/isaac.sh run [args]    run the Isaac runner (isaac/run_piper.py); args: --seconds N --video f.mp4 --gui
-#   scripts/isaac.sh check         compare Isaac's USD with the URDF (fingertip pose over random configs, mass)
+#   scripts/isaac.sh check         compare Isaac's USDs with the URDF (fingertip pose over random configs, mass; with the camera USD also the stand/camera frames and collision meshes)
 #   scripts/isaac.sh stop          stop this workspace's runner (by PID file; never touches other Isaac processes)
 # Configuration (environment variables):
 #   ISAAC_ENV_SH   script that activates an Isaac Sim 6.x python env   (default ~/projects/sim/robosim/env.sh)
@@ -59,7 +59,12 @@ case "$cmd" in
     while kill -0 "$child" 2>/dev/null; do wait "$child" || true; done ;;
   check)
     ( set +u; source "$ws/scripts/env.sh"; python "$ws/isaac/make_fk_reference.py" "$DATA/fk_reference.json" )
-    in_isaac python "$ws/isaac/check_model.py" "$USD" "$DATA/fk_reference.json" 2>&1 | grep "check_model" ;;
+    in_isaac python "$ws/isaac/check_model.py" "$USD" "$DATA/fk_reference.json" 2>&1 | grep "check_model"
+    if [ -f "$USD_CAM" ]; then   # the wrist-camera USD: also the stand and camera frames and their collision meshes
+      ( set +u; source "$ws/scripts/env.sh"; python "$ws/isaac/make_fk_reference.py" "$DATA/fk_reference_cam.json" 10 --camera )
+      echo "[check_model] --- wrist camera USD ---"
+      in_isaac python "$ws/isaac/check_model.py" "$USD_CAM" "$DATA/fk_reference_cam.json" 2>&1 | grep "check_model"
+    fi ;;
   stop)
     [ -f "$PIDFILE" ] || { echo "not running"; exit 0; }
     pid="$(cat "$PIDFILE")"

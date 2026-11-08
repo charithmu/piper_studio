@@ -42,3 +42,80 @@ def test_generated_mujoco_model_matches_official(tmp_path):
     assert q[P + "gripper"] == pytest.approx(0.06, abs=1e-3)
     assert q[P + "gripper_joint1"] == pytest.approx(0.5 * q[P + "gripper"], abs=1e-4)
     assert q[P + "gripper_joint2"] == pytest.approx(-0.5 * q[P + "gripper"], abs=1e-4)
+
+
+def _urdf_collision_boxes(urdf_text, q):
+    """World-frame bounding boxes (min, max) of every collision mesh in the description at joint values q, from the URDF alone."""
+    import xml.etree.ElementTree as ET
+    import trimesh
+
+    path = Path(urdf_text)
+    ref = model_audit.load_urdf("desc", path)
+    out = []
+    for link in ET.parse(path).getroot().findall("link"):
+        for col in link.findall("collision"):
+            mesh = col.find("geometry/mesh")
+            if mesh is None:
+                continue
+            f = mesh.get("filename")
+            if f.startswith("package://"):
+                pkg, rest = f[len("package://"):].split("/", 1)
+                f = str(Path(get_package_share_directory(pkg)) / rest)
+            m = trimesh.load(f.replace("file://", ""), force="mesh")
+            o = col.find("origin")
+            xyz = [float(v) for v in (o.get("xyz", "0 0 0") if o is not None else "0 0 0").split()]
+            rpy = [float(v) for v in (o.get("rpy", "0 0 0") if o is not None else "0 0 0").split()]
+            T = ref.fk(q, link.get("name")) @ _pose(xyz, rpy)
+            v = (T[:3, :3] @ m.vertices.T).T + T[:3, 3]
+            out.append((link.get("name"), v.min(0), v.max(0)))
+    return out
+
+
+def _pose(xyz, rpy):
+    r, p, y = rpy
+    cr, sr, cp, sp, cy, sy = np.cos(r), np.sin(r), np.cos(p), np.sin(p), np.cos(y), np.sin(y)
+    T = np.eye(4)
+    T[:3, :3] = [[cy * cp, cy * sp * sr - sy * cr, cy * sp * cr + sy * sr],
+                 [sy * cp, sy * sp * sr + cy * cr, sy * sp * cr - cy * sr], [-sp, cp * sr, cp * cr]]
+    T[:3, 3] = xyz
+    return T
+
+
+def test_mujoco_collision_meshes_sit_where_the_description_puts_them(tmp_path):
+    """With the wrist camera: every collision mesh of the description (arm, gripper, stand, D435) appears in the MuJoCo model at the same place.
+
+    The converter fuses fixed links into link6, so this compares the world bounding box of each collision mesh geom with the box the URDF
+    predicts, at the zero pose and at random arm poses: a wrong stand or camera pose, a missing mesh or a rotated one fails here.
+    """
+    mujoco = pytest.importorskip("mujoco")
+    pytest.importorskip("trimesh")
+    from piper_description import robot_description as plain
+
+    urdf_file = tmp_path / "desc.urdf"
+    urdf_file.write_text(plain("mujoco", camera="d435"))
+    cfg = Path(get_package_share_directory("piper_sim")) / "config" / "mujoco"
+    scene = piper_sim.mujoco_model(robot_description("mujoco", camera="d435"), cfg / "inputs.xml", cfg / "scene.xml", cache_dir=tmp_path)
+    m = mujoco.MjModel.from_xml_path(str(scene))
+    d = mujoco.MjData(m)
+    ref = model_audit.load_urdf("desc", urdf_file)
+    rng = np.random.default_rng(3)
+    lo = np.array([ref.joints[P + j].lower for j in ARM]); hi = np.array([ref.joints[P + j].upper for j in ARM])
+    for q in [np.zeros(6), rng.uniform(lo, hi), rng.uniform(lo, hi)]:
+        for name, v in zip(ARM, q):
+            d.qpos[m.jnt_qposadr[m.joint(P + name).id]] = v
+        d.qpos[m.jnt_qposadr[m.joint(P + "gripper").id]] = 0.0
+        mujoco.mj_forward(m, d)
+        qd = dict(zip([P + j for j in ARM], q))
+        want = [(n, lo_, hi_) for n, lo_, hi_ in _urdf_collision_boxes(urdf_file, qd)]
+        got = []
+        for g in range(m.ngeom):
+            if m.geom_type[g] == mujoco.mjtGeom.mjGEOM_MESH and m.geom_contype[g] == 1:
+                mid = m.geom_dataid[g]
+                v = m.mesh_vert[m.mesh_vertadr[mid]:m.mesh_vertadr[mid] + m.mesh_vertnum[mid]]
+                w = (d.geom_xmat[g].reshape(3, 3) @ v.T).T + d.geom_xpos[g]
+                got.append((w.min(0), w.max(0)))
+        assert len(got) == len(want) == 13, (len(got), len(want))
+        # match each expected box to the nearest geom box: all 6 bounds within 1.5 mm
+        for name, lo_, hi_ in want:
+            best = min(max(np.abs(a - lo_).max(), np.abs(b - hi_).max()) for a, b in got)
+            assert best < 0.0015, f"{name}: no MuJoCo collision mesh within 1.5 mm of the description's (nearest {best * 1000:.1f} mm)"
