@@ -219,6 +219,10 @@ class PiperIsaacSim:
     def hold(self) -> None:
         self._rpc(cmd="hold")
 
+    def gripper_width(self) -> float:
+        """The measured gripper opening in metres (0 closed, 0.07 open)."""
+        return float(self._rpc(cmd="state")["gripper"])
+
     # ------------------------------------------------------------------ commands
     def _guard(self, q, measured) -> str | None:
         v = check_command(ARM_JOINTS, list(map(float, q)), self.limits, dict(zip(ARM_JOINTS, map(float, measured))), GuardConfig(ARM_JOINTS, MAX_STEP, self.margin))
