@@ -19,7 +19,7 @@
         <param name="initial_value">${initial}</param>
       </state_interface>
       <state_interface name="velocity" />
-      <!-- Isaac's joint-state publisher always sends efforts; JointStateTopicSystem needs the interface. -->
+      <!-- Isaac's joint-state publisher and the vendor driver (motor torque estimate, N.m) always send efforts; JointStateTopicSystem needs the interface. -->
       <xacro:if value="${effort}"><state_interface name="effort" /></xacro:if>
     </joint>
   </xacro:macro>
@@ -69,12 +69,12 @@
         </xacro:if>
       </hardware>
 
-      <xacro:piper_joint prefix="${prefix}" name="joint1" initial="${init['joint1']}" effort="${hardware == 'isaac'}" />
-      <xacro:piper_joint prefix="${prefix}" name="joint2" initial="${init['joint2']}" effort="${hardware == 'isaac'}" />
-      <xacro:piper_joint prefix="${prefix}" name="joint3" initial="${init['joint3']}" effort="${hardware == 'isaac'}" />
-      <xacro:piper_joint prefix="${prefix}" name="joint4" initial="${init['joint4']}" effort="${hardware == 'isaac'}" />
-      <xacro:piper_joint prefix="${prefix}" name="joint5" initial="${init['joint5']}" effort="${hardware == 'isaac'}" />
-      <xacro:piper_joint prefix="${prefix}" name="joint6" initial="${init['joint6']}" effort="${hardware == 'isaac'}" />
+      <xacro:piper_joint prefix="${prefix}" name="joint1" initial="${init['joint1']}" effort="${hardware in ['isaac', 'real']}" />
+      <xacro:piper_joint prefix="${prefix}" name="joint2" initial="${init['joint2']}" effort="${hardware in ['isaac', 'real']}" />
+      <xacro:piper_joint prefix="${prefix}" name="joint3" initial="${init['joint3']}" effort="${hardware in ['isaac', 'real']}" />
+      <xacro:piper_joint prefix="${prefix}" name="joint4" initial="${init['joint4']}" effort="${hardware in ['isaac', 'real']}" />
+      <xacro:piper_joint prefix="${prefix}" name="joint5" initial="${init['joint5']}" effort="${hardware in ['isaac', 'real']}" />
+      <xacro:piper_joint prefix="${prefix}" name="joint6" initial="${init['joint6']}" effort="${hardware in ['isaac', 'real']}" />
       <!-- MuJoCo renders the MJCF camera named "camera" and publishes it through this sensor (topics as the RealSense driver). -->
       <xacro:if value="${hardware == 'mujoco' and camera != 'none'}">
         <sensor name="camera">
@@ -86,7 +86,7 @@
       </xacro:if>
       <!-- Gripper opening width in metres (official single-DOF model; fingers are URDF mimics). -->
       <xacro:if value="${gripper}">
-        <xacro:piper_joint prefix="${prefix}" name="gripper" initial="${init['gripper']}" effort="${hardware == 'isaac'}" />
+        <xacro:piper_joint prefix="${prefix}" name="gripper" initial="${init['gripper']}" effort="${hardware in ['isaac', 'real']}" />
         <!-- Gazebo must be told about the mimic fingers (state interfaces only). Mock and Isaac leave
              them out: the URDF mimic relation (+/-0.5) is enough for ros2_control, and Isaac's runner
              couples the fingers to `gripper` in physics. -->

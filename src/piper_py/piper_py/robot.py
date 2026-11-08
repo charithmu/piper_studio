@@ -192,6 +192,22 @@ class Piper:
             raise RuntimeError("no joint state received yet")
         return dict(zip(msg.name, msg.position))
 
+    def joint_velocities(self) -> dict[str, float]:
+        """Latest joint velocities (rad/s; the gripper in m/s) by name, as the controller manager publishes them (the real driver sends motor velocity)."""
+        with self._lock:
+            msg = self._joint_state
+        if msg is None:
+            raise RuntimeError("no joint state received yet")
+        return dict(zip(msg.name, msg.velocity))
+
+    def joint_efforts(self) -> dict[str, float]:
+        """Latest joint efforts by name: on the real arm and Isaac the motor torque estimate in N.m (the gripper: force); empty on backends that publish none."""
+        with self._lock:
+            msg = self._joint_state
+        if msg is None:
+            raise RuntimeError("no joint state received yet")
+        return dict(zip(msg.name, msg.effort))
+
     def joint_positions(self) -> list[float]:
         js = self.joint_state()
         return [js[j] for j in self.arm_joints]

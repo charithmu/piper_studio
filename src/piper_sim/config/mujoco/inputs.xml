@@ -5,7 +5,7 @@
 
   Actuator model (PROVISIONAL, not identified on the real arm): critically damped position servos
   with ideal gravity compensation (gravcomp), standing in for the firmware's own position loop.
-  forcerange equals the URDF effort values, which are vendor placeholders (DECISIONS.md D4).
+  forcerange (+-100) is the simulator's own and deliberately NOT tied to the URDF effort (SDK torque range, DECISIONS.md D4): the servo gains are provisional.
   Actuator names equal the ros2_control joint names.
 -->
 <mujoco_inputs>

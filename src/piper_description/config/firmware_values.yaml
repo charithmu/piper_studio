@@ -5,6 +5,10 @@
 #
 # source:   docs/real_arm/arms/piper-01.readout.json (tools/real_arm/arm_info.py, read-only), firmware S-V1.9-1, 2026-10-14,
 #           after the upgrade to the latest firmware the arm supports and the user's calibration
-# not in the firmware: joint effort (URDF 100 N.m is a placeholder), link masses and inertias (URDF/CAD, unmeasured)
+# not in the firmware: link masses and inertias (URDF/CAD, unmeasured)
+# NOT firmware-reported, but arm-specific: arm_joint_max_effort is the SDK's move_mit feed-forward torque range at firmware >= S-V1.8-8
+# (pyAgxArm docs/piper/firmware_reference.md: +-16 N.m for c = 1, joints 1-3; +-16 x 0.813252 for joints 4-6). It is a command encoding
+# range, an upper bound and NOT a motor rating; it replaces the vendor placeholder of 100 N.m.
 arm_joint_max_velocity: 3.0    # rad/s, joints 1-6 (firmware max_joint_spd; vendor URDF: 5)
+arm_joint_max_effort: [16.0, 16.0, 16.0, 13.012, 13.012, 13.012]   # N.m, joints 1-6 (SDK MIT range; vendor URDF: 100)
 gripper_stroke: 0.07           # m, gripper opening (firmware max_range_config; vendor URDF: 0.1)

@@ -88,7 +88,8 @@ class FakeDriver(Node):
         prev = list(self.q)
         self.q = [q + self.alpha * (t - q) for q, t in zip(self.q, self.target)]
         msg = JointState(name=JOINTS, position=self.q,
-                         velocity=[(q - p) / self.dt for q, p in zip(self.q, prev)])
+                         velocity=[(q - p) / self.dt for q, p in zip(self.q, prev)],
+                         effort=[0.1 * (i + 1) for i in range(len(JOINTS))])   # like the vendor driver: motor torque estimate, N.m
         msg.header.stamp = self.get_clock().now().to_msg()
         self.pub.publish(msg)
 

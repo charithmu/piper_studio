@@ -78,7 +78,7 @@ READOUT = Path(__file__).resolve().parents[3] / "docs/real_arm/arms/piper-01.rea
 
 def test_official_model_plus_firmware_values(tmp_path):
     """Limits, masses and kinematics equal the official model, except the declared firmware overrides
-    (arm joint velocity, gripper stroke; config/firmware_values.yaml)."""
+    (arm joint velocity and effort, gripper stroke; config/firmware_values.yaml)."""
     ours = model_audit.load_urdf("ours", write(tmp_path, expand_official()))
     ref = model_audit.load_urdf("official", OFFICIAL)
     stroke = FIRMWARE["gripper_stroke"]
@@ -87,6 +87,7 @@ def test_official_model_plus_firmware_values(tmp_path):
         want = [j.type, j.lower, j.upper, j.effort, j.velocity, j.mimic]
         if name in ARM:
             want[4] = FIRMWARE["arm_joint_max_velocity"]
+            want[3] = FIRMWARE["arm_joint_max_effort"][ARM.index(name)]
         if name == "gripper":
             want[2] = stroke
         elif name == "gripper_joint1":

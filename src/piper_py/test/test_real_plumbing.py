@@ -63,6 +63,13 @@ class TestRealPlumbing(unittest.TestCase):
         time.sleep(0.5)
         self.assert_near(self.arm.joint_positions(), START, 1e-3)
 
+    def test_2a_velocity_and_effort_reach_the_client(self):
+        """The vendor driver's per-joint velocity and torque estimate pass through ros2_control to the client."""
+        eff = self.arm.joint_efforts()
+        self.assertAlmostEqual(eff[self.arm.arm_joints[0]], 0.1, places=6)
+        self.assertAlmostEqual(eff[self.arm.arm_joints[5]], 0.6, places=6)
+        self.assertIn(self.arm.arm_joints[0], self.arm.joint_velocities())
+
     def test_2b_driver_status_is_read_and_a_fault_blocks_activation(self):
         """The vendor driver's diagnostics (arm, motors, gripper) are readable, and a reported fault refuses activation."""
         deadline = time.monotonic() + 10

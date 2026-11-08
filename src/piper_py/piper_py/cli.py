@@ -31,7 +31,8 @@ def main(argv=None):
     p.add_argument("--prefix", default="piper_", help="prefix of the robot's joint and frame names (launch argument prefix:=)")
     p.add_argument("--speed", type=float, default=0.2, help="MoveIt velocity scaling (0-1]")
     sub = p.add_subparsers(dest="cmd", required=True)
-    sub.add_parser("state", help="print measured joint state as JSON")
+    st_p = sub.add_parser("state", help="print measured joint state as JSON")
+    st_p.add_argument("--full", action="store_true", help="also velocity and effort (real arm: motor torque estimate, N.m)")
     sub.add_parser("status", help="real arm: health reported by the vendor driver (arm, motors, gripper); read-only")
     sub.add_parser("controllers", help="list controllers and their states")
     sub.add_parser("activate", help="activate arm/gripper controllers after checking feedback")
@@ -72,7 +73,11 @@ def main(argv=None):
 
     with Piper(namespace=a.namespace, prefix=a.prefix) as arm:
         if a.cmd == "state":
-            print(json.dumps(arm.joint_state(), indent=2))
+            if a.full:
+                js, vel, eff = arm.joint_state(), arm.joint_velocities(), arm.joint_efforts()
+                print(json.dumps({n: {"position": js[n], "velocity": vel.get(n), "effort": eff.get(n)} for n in js}, indent=2))
+            else:
+                print(json.dumps(arm.joint_state(), indent=2))
             return 0
         if a.cmd == "status":
             st = arm.status()

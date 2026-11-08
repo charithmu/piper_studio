@@ -65,7 +65,7 @@
       <parent link="${prefix}base_link" />
       <child link="${prefix}link1" />
       <axis xyz="0 0 1" />
-      <limit lower="-2.6179938" upper="2.6179938" effort="100" velocity="3.0" />
+      <limit lower="-2.6179938" upper="2.6179938" effort="16.0" velocity="3.0" />
     </joint>
     <link name="${prefix}link2">
       <inertial>
@@ -91,7 +91,7 @@
       <parent link="${prefix}link1" />
       <child link="${prefix}link2" />
       <axis xyz="0 0 1" />
-      <limit lower="0" upper="3.1415926" effort="100" velocity="3.0" />
+      <limit lower="0" upper="3.1415926" effort="16.0" velocity="3.0" />
     </joint>
     <link name="${prefix}link3">
       <inertial>
@@ -117,7 +117,7 @@
       <parent link="${prefix}link2" />
       <child link="${prefix}link3" />
       <axis xyz="0 0 1" />
-      <limit lower="-2.9670597" upper="0" effort="100" velocity="3.0" />
+      <limit lower="-2.9670597" upper="0" effort="16.0" velocity="3.0" />
     </joint>
     <link name="${prefix}link4">
       <inertial>
@@ -143,7 +143,7 @@
       <parent link="${prefix}link3" />
       <child link="${prefix}link4" />
       <axis xyz="0 0 1" />
-      <limit lower="-1.7453292" upper="1.7453292" effort="100" velocity="3.0" />
+      <limit lower="-1.7453292" upper="1.7453292" effort="13.012" velocity="3.0" />
     </joint>
     <link name="${prefix}link5">
       <inertial>
@@ -169,7 +169,7 @@
       <parent link="${prefix}link4" />
       <child link="${prefix}link5" />
       <axis xyz="0 0 1" />
-      <limit lower="-1.2217304" upper="1.2217304" effort="100" velocity="3.0" />
+      <limit lower="-1.2217304" upper="1.2217304" effort="13.012" velocity="3.0" />
     </joint>
     <link name="${prefix}link6">
       <inertial>
@@ -195,7 +195,7 @@
       <parent link="${prefix}link5" />
       <child link="${prefix}link6" />
       <axis xyz="0 0 1" />
-      <limit lower="-2.9670597" upper="2.9670597" effort="100" velocity="3.0" />
+      <limit lower="-2.9670597" upper="2.9670597" effort="13.012" velocity="3.0" />
     </joint>
     <xacro:if value="${gripper}">
       <link name="${prefix}flange_link">

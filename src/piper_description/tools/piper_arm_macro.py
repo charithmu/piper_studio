@@ -55,7 +55,7 @@ def firmware_values() -> dict:
 
 
 def apply_firmware(root: ET.Element, values: dict | None = None) -> ET.Element:
-    """Apply the firmware overrides to an official (unprefixed) URDF tree, in place: arm joint velocity, gripper stroke (fingers are +-stroke/2)."""
+    """Apply the firmware overrides to an official (unprefixed) URDF tree, in place: arm joint velocity and effort (SDK range), gripper stroke (fingers are +-stroke/2)."""
     v = values or firmware_values()
     stroke = float(v["gripper_stroke"])
     for j in root.iter("joint"):
@@ -64,6 +64,7 @@ def apply_firmware(root: ET.Element, values: dict | None = None) -> ET.Element:
             continue
         if re.fullmatch(r"joint[1-6]", name):
             lim.set("velocity", str(v["arm_joint_max_velocity"]))
+            lim.set("effort", str(v["arm_joint_max_effort"][int(name[-1]) - 1]))
         elif name == "gripper":
             lim.set("upper", str(stroke))
         elif name == "gripper_joint1":
@@ -320,7 +321,7 @@ def main() -> int:
         for k in report():
             print("firmware differs from vendor URDF:", k)
         v = firmware_values()
-        print(f"overrides: arm joint velocity {v['arm_joint_max_velocity']} rad/s, gripper stroke {v['gripper_stroke']} m")
+        print(f"overrides: arm joint velocity {v['arm_joint_max_velocity']} rad/s, effort {v['arm_joint_max_effort']} N.m (SDK range), gripper stroke {v['gripper_stroke']} m")
         return 0
     if cmd == "generate":
         OUT.write_text(build())

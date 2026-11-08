@@ -23,7 +23,7 @@ values are not kept.
 | Joint max speed | **3.0 rad/s** | 5 rad/s | **differ**: we use 3.0 (`config/firmware_values.yaml`) |
 | Joint max acceleration | **5.0 rad/s^2** | not in the URDF | MoveIt uses 5.0 |
 | Gripper stroke | **0.07 m** | 0.1 m (fingers 0.05 each) | **differ**: we use 0.07 (fingers 0.035 each) |
-| Joint effort | not reported | 100 N.m (placeholder) | unknown, kept as placeholder |
+| Joint effort | not reported | 100 N.m (placeholder) | **differ**: we use the SDK's MIT torque range, ±16 N.m (joints 1-3) / ±13.012 (joints 4-6): an upper bound, not a rating |
 | Link masses/inertias | not reported | CAD estimates | unmeasured, see `docs/description/MASSES.md` |
 
 ## Current state (2026-10-14, after the upgrade and the calibration)
@@ -63,4 +63,4 @@ from 16.8° to its resting position at 22.7° when the motors go off.
 1. `speed_percent` for `backend:=real` is a launch argument (default 20); the value used for real runs is the user's to set. What 100 % corresponds to in rad/s is not documented.
 2. Crash-protection level is 0 (no detection); changing it is a write to the arm, the user's decision.
 3. Whether the arm has a Revo2 hand or another device on the bus (extra frames 0x1C0-0x1C3 are seen).
-4. Joint torque limits: not reported by the firmware. The SDK's `move_mit` feed-forward range at firmware >= S-V1.8-8 is +-16 N.m (joints 1-3) and +-13.0 N.m (joints 4-6) (pyAgxArm `firmware_reference.md`): a command encoding range, not a rating.
+4. Joint torque rating: not reported by the firmware. The description uses the SDK's `move_mit` range (+-16 / +-13.012 N.m) as an upper bound; the real rating needs the vendor or a measurement.
