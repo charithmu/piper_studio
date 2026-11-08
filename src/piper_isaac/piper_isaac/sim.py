@@ -219,7 +219,7 @@ class PiperIsaacSim:
     def hold(self) -> None:
         self._rpc(cmd="hold")
 
-    def gripper_width(self) -> float:
+    def gripper_opening(self) -> float:
         """The measured gripper opening in metres (0 closed, 0.07 open)."""
         return float(self._rpc(cmd="state")["gripper"])
 
