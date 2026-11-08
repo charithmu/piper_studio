@@ -113,10 +113,9 @@ function setViewPreset(v) {
   const p = {iso: [0.55, -0.7, 0.45], front: [1, 0, 0.25], side: [0, -1, 0.25], top: [0.001, -0.001, 1.2]}[v];
   if (v === 'wrist' && S) {
     const tcp = S.links[model.tcp]; if (!tcp) return;
-    const o = new THREE.Vector3(); tcp.getWorldPosition(o); t.copy(o);
-    const m = new THREE.Matrix4().extractRotation(tcp.matrixWorld);
-    const back = new THREE.Vector3(0, 0, -1).applyMatrix4(m), up = new THREE.Vector3(1, 0, 0).applyMatrix4(m);
-    camera.position.copy(o).addScaledVector(back, 0.35).addScaledVector(up, 0.1); controls.update(); return;
+    // close view of the gripper and the camera on its stand, from the side the fingers do not open to (tcp frame: z approach, y finger axis, x towards the camera)
+    const m = new THREE.Matrix4().extractRotation(tcp.matrixWorld), at = (v) => { const w = new THREE.Vector3(...v).applyMatrix4(m); return w.add(tcp.getWorldPosition(new THREE.Vector3())); };
+    t.copy(at([-0.04, 0, -0.07])); camera.position.copy(at([-0.04, -0.28, -0.07])); controls.update(); return;
   }
   if (!p) return;
   t.set(0.15, 0, 0.15); camera.position.set(t.x + p[0], t.y + p[1], t.z + p[2]); controls.update();
@@ -140,9 +139,9 @@ async function visualObject(s) {
   }
   const c = await loadDae(url);
   const o = c.scene.clone(true);
-  // ColladaLoader turns a Z_UP file into Y-up (-90 deg about x); this scene is Z-up like ROS, so undo it (Y_UP files are rotated up instead)
-  const isZup = Math.abs(o.quaternion.x + Math.SQRT1_2) < 1e-3;
-  o.quaternion.set(isZup ? 0 : Math.SQRT1_2, 0, 0, isZup ? 1 : Math.SQRT1_2);
+  // ColladaLoader turns a Z_UP file into Y-up (-90 deg about x). URDF poses expect the vertex data as it is in the file, whatever up_axis it
+  // declares (d435_colored.dae says Y_UP but is already in the frame its URDF origin expects, and RViz / Gazebo show it that way), so undo it.
+  o.quaternion.set(0, 0, 0, 1);
   const g = new THREE.Group(); g.add(o); g.scale.set(...s.scale); return g;
 }
 function primitive(s, mat) {

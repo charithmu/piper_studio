@@ -253,3 +253,16 @@ def test_camera_calibration_replaces_the_nominal_pose(tmp_path):
     assert origin(measured, "camera_link_joint") == origin(nominal, "camera_link_joint")       # the D435 body itself is unchanged
     named = ET.fromstring(expand(camera="d435", camera_calibration="agilex_mid_stand"))        # a name in config/camera_mounts
     assert origin(named, "camera_mount_joint") == origin(nominal, "camera_mount_joint")
+
+
+def test_camera_and_stand_collision_are_the_real_shapes_not_boxes():
+    """The packaged stand and the D435 collide as their own (simplified) meshes, in the frame of their visual; a custom stand falls back to a box."""
+    root = ET.fromstring(expand(camera="d435"))
+    for link, stl in (("camera_mount_link", "realsense_mid_stand_collision.stl"), ("camera_link", "d435_collision.stl")):
+        col = root.find(f"link[@name='{P}{link}']/collision")
+        assert col.find("geometry/mesh") is not None and col.find("geometry/mesh").get("filename").endswith(stl), link
+        vis = root.find(f"link[@name='{P}{link}']/visual")
+        assert col.find("origin").attrib == vis.find("origin").attrib, f"{link}: collision must use the visual's frame"
+    assert (PKG / "meshes/realsense_mid_stand_collision.stl").stat().st_size < 400_000       # low-poly, not the 15 MB visual
+    box = ET.fromstring(expand(camera="d435", camera_mount_mesh="none"))
+    assert box.find(f"link[@name='{P}camera_mount_link']/collision/geometry/box") is not None

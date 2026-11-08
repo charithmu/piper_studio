@@ -42,11 +42,20 @@
           <geometry><mesh filename="file://${stand_mesh}" /></geometry>
         </visual>
       </xacro:unless>
-      <!-- collision: bounding box of the stand mesh in the stand frame -->
-      <collision>
-        <origin xyz="-0.018 -0.014 0.002" rpy="0 0 0" />
-        <geometry><box size="0.074 0.097 0.048" /></geometry>
-      </collision>
+      <!-- collision: the stand's own shape (meshes/realsense_mid_stand_collision.stl, tools/build_collision_meshes.py) in the visual's frame;
+           a box around the stand when another or no stand mesh is chosen (mesh:=none or a path) -->
+      <xacro:if value="${mesh == ''}">
+        <collision>
+          <origin xyz="0 0 0" rpy="-1.57 0 1.57" />
+          <geometry><mesh filename="file://$(find piper_description)/meshes/realsense_mid_stand_collision.stl" /></geometry>
+        </collision>
+      </xacro:if>
+      <xacro:unless value="${mesh == ''}">
+        <collision>
+          <origin xyz="-0.018 -0.014 0.002" rpy="0 0 0" />
+          <geometry><box size="0.074 0.097 0.048" /></geometry>
+        </collision>
+      </xacro:unless>
     </link>
     <joint name="${prefix}camera_mount_joint" type="fixed">
       <origin xyz="${' '.join(map(str, piper_mount_calibration['stand_in_gripper_base']['xyz']))}"

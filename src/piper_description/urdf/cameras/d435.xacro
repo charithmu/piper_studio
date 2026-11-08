@@ -87,10 +87,19 @@ aluminum peripherial evaluation case.
         </xacro:unless>     
       </visual>
       <collision>
-        <origin xyz="0 ${-d435_cam_depth_py} 0" rpy="0 0 0"/>
-        <geometry>
-          <box size="${d435_cam_depth} ${d435_cam_width} ${d435_cam_height}"/>
-        </geometry>
+        <xacro:if value="${use_mesh}">
+          <!-- the body's convex hull (tools/build_collision_meshes.py), in the visual mesh's frame -->
+          <origin xyz="${d435_zero_depth_to_glass + d435_glass_to_front} ${-d435_cam_depth_py} 0" rpy="${M_PI/2} 0 ${M_PI/2}"/>
+          <geometry>
+            <mesh filename="file://$(find piper_description)/meshes/d435_collision.stl" />
+          </geometry>
+        </xacro:if>
+        <xacro:unless value="${use_mesh}">
+          <origin xyz="0 ${-d435_cam_depth_py} 0" rpy="0 0 0"/>
+          <geometry>
+            <box size="${d435_cam_depth} ${d435_cam_width} ${d435_cam_height}"/>
+          </geometry>
+        </xacro:unless>
       </collision>
       <inertial>
         <!-- The following are not reliable values, and should not be used for modeling -->
