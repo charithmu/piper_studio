@@ -10,3 +10,8 @@ for_reference/
 ucode.elf
 *.code-workspace
 tools/viewer/run/
+src/piper_assets/piper_assets/data/
+src/*/build/
+*.egg-info/
+dist/
+src/piper_core/piper_core/_source.py

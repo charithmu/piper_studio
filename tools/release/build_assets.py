@@ -1,0 +1,148 @@
+#!/usr/bin/env python3
+"""Build the data of the `piper_assets` wheel from this workspace (needs the ROS environment: xacro, piper_description, piper_sim).
+
+    source scripts/env.sh && python tools/release/build_assets.py [--out src/piper_assets/piper_assets/data]
+
+Writes, for downstream users that have no ROS (`pip install piper_assets`):
+  piper_{none,d435}_w{0.0,0.07}.urdf   flat URDF, no prefix (joint1 .. joint6, base_link, tcp_link), gripper fixed at that width
+  piper_{none,d435}_open.urdf          the same with the moving gripper (mimic fingers); `piper_assets.urdf_path(width)` makes other widths from it
+  piper_{none,d435}.srdf               the expanded SRDF (self-collision pairs)
+  meshes/<package>/...                 every mesh the URDFs use (visual .dae and collision .stl), referenced by relative paths
+  limits.json                          position (hard and planning), velocity, acceleration, jerk, effort, each with its source
+  scene.json                           the shared scene objects and the placeholder table
+  camera_mounts/*.yaml                 nominal and measured camera mount poses
+  licenses/                            licence texts of the third-party meshes
+  manifest.json                        version, source commit, file hashes
+The result is generated: it is git-ignored and built into the wheel by scripts/build_wheels.sh. A test compares it with a fresh expansion.
+"""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import re
+import shutil
+import subprocess
+import xml.etree.ElementTree as ET
+from pathlib import Path
+
+import xacro
+import yaml
+
+WS = Path(__file__).resolve().parents[2]
+MARGIN = 0.01
+GRIPPER_WIDTHS = (0.0, 0.07)
+CAMERAS = ("none", "d435")
+JERK = 25.0   # rad/s^3: derived (5 rad/s^2 reached in 0.2 s), NOT in the firmware or any datasheet
+
+
+def sha(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def git_state() -> dict:
+    def run(*a):
+        return subprocess.run(["git", "-C", str(WS), *a], capture_output=True, text=True).stdout.strip()
+    return {"commit": run("rev-parse", "HEAD"), "describe": run("describe", "--tags", "--always", "--dirty"), "dirty": bool(run("status", "--porcelain", "--", "src", "tools"))}
+
+
+def localise_meshes(urdf: str, out: Path) -> str:
+    """Copy every mesh into out/meshes/<package>/<path in the package share> and point the URDF at it with a relative path."""
+    from ament_index_python.packages import get_package_share_directory
+
+    def resolve(name: str) -> Path:
+        name = name.removeprefix("file://")
+        if name.startswith("package://"):
+            pkg, rest = name[len("package://"):].split("/", 1)
+            return Path(get_package_share_directory(pkg)) / rest
+        return Path(name)
+
+    def rewrite(m):
+        src = resolve(m.group(1))   # not resolved: a symlink install would lose the share/<pkg> part
+        parts = src.parts
+        i = len(parts) - 1 - parts[::-1].index("share")          # .../install/<pkg>/share/<pkg>/<rest>
+        pkg, rest = parts[i + 1], Path(*parts[i + 2:])
+        if pkg == "agx_arm_description":
+            rest = Path(*rest.parts[1:]) if rest.parts[0] == "agx_arm_urdf" else rest
+        dst = out / "meshes" / pkg / rest
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(src, dst)
+        return f'filename="meshes/{pkg}/{rest.as_posix()}"'
+
+    return re.sub(r'filename="([^"]+)"', rewrite, urdf)
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--out", type=Path, default=WS / "src/piper_assets/piper_assets/data")
+    out = ap.parse_args().out.resolve()
+    if out.exists():
+        shutil.rmtree(out)
+    out.mkdir(parents=True)
+
+    from piper_core import fixed_gripper, limits_from_urdf, zero_pose
+    from piper_sim import _without_ros2_control, robot_description
+
+    files = {}
+    for cam in CAMERAS:
+        maps = {"prefix": "", "gripper": True, **({"camera": cam} if cam != "none" else {})}
+        urdf = _without_ros2_control(robot_description("mujoco", **maps))
+        urdf = localise_meshes(urdf, out)
+        variants = {f"piper_{cam}_open.urdf": urdf, **{f"piper_{cam}_w{w}.urdf": fixed_gripper(urdf, w, "") for w in GRIPPER_WIDTHS}}
+        for name, text in variants.items():
+            (out / name).write_text(text)
+        root = ET.fromstring(urdf)
+        srdf = xacro.process_file(str(WS / "src/piper_control/config/moveit/piper.srdf.xacro"),
+                                  mappings={"robot_name": root.get("name"), "prefix": "", "gripper": "true", "camera": cam}).toxml()
+        (out / f"piper_{cam}.srdf").write_text(srdf)
+        files[cam] = urdf
+
+    # limits with provenance
+    root = ET.fromstring(files["none"])
+    hard = limits_from_urdf(files["none"])
+    joints = [f"joint{i}" for i in range(1, 7)]
+    fw = yaml.safe_load((WS / "src/piper_description/config/firmware_values.yaml").read_text())
+    pos = {j: {"lower": hard[j][0], "upper": hard[j][1]} for j in joints}
+    plan = {j: {"lower": hard[j][0] + MARGIN, "upper": hard[j][1] - MARGIN} for j in joints}
+    limits = {
+        "joints": joints, "margin": MARGIN,
+        "position": {"values": pos, "unit": "rad", "source": "vendor URDF = limits stored in the arm (firmware S-V1.9-1, docs/real_arm/arms/piper-01.md)"},
+        "planning_position": {"values": plan, "unit": "rad", "source": f"position shrunk by the guard margin {MARGIN} rad: a trajectory inside these is executed unchanged"},
+        "velocity": {"value": fw["arm_joint_max_velocity"], "unit": "rad/s", "source": "firmware (max_joint_spd), measured on the arm"},
+        "acceleration": {"value": 5.0, "unit": "rad/s^2", "source": "firmware (stored limit)"},
+        "jerk": {"value": JERK, "unit": "rad/s^3", "source": "DERIVED, no source: 5 rad/s^2 reached in 0.2 s", "flag": "derived"},
+        "effort": {"values": dict(zip(joints, fw["arm_joint_max_effort"])), "unit": "N.m",
+                   "source": "SDK move_mit torque command range (pyAgxArm firmware_reference), an upper bound",
+                   "flag": "not a motor rating"},
+        "gripper": {"stroke": fw["gripper_stroke"], "unit": "m", "source": "firmware (max_range_config)"},
+        "zero_pose": zero_pose(hard, joints, MARGIN),
+        "max_step": 0.15,
+    }
+    (out / "limits.json").write_text(json.dumps(limits, indent=1))
+
+    scene = yaml.safe_load((WS / "src/piper_sim/config/scene_objects.yaml").read_text())
+    (out / "scene.json").write_text(json.dumps({"frame": "base_link", **scene}, indent=1))
+
+    shutil.copytree(WS / "src/piper_description/config/camera_mounts", out / "camera_mounts")
+    lic = out / "licenses"
+    lic.mkdir()
+    shutil.copy2(WS / "external/agx_arm_ros/LICENSE", lic / "agx_arm_ros-MIT.txt")
+    (lic / "NOTICE.txt").write_text(
+        "Meshes in meshes/agx_arm_description and the stand/gripper meshes: AgileX Robotics, MIT (agx_arm_ros / agx_arm_sim).\n"
+        "meshes/piper_description/d435_colored.dae: generated from MuJoCo Menagerie realsense_d435i (Apache-2.0, Google DeepMind).\n"
+        "meshes/realsense2_description: Intel RealSense / ROS realsense2_description (Apache-2.0).\n"
+        "Everything else: Apache-2.0, Piper Studio.\n")
+
+    tcp = re.search(r'name="tcp_joint".*?<origin[^>]*xyz="([^"]+)"', files["none"], re.S)
+    manifest = {
+        "source": git_state(), "base_link": "base_link", "tcp_link": "tcp_link", "tcp_xyz_in_gripper_base": [float(v) for v in tcp.group(1).split()] if tcp else None,
+        "joint_names": joints, "gripper_widths": list(GRIPPER_WIDTHS), "cameras": list(CAMERAS), "robot_name": root.get("name"),
+        "files": {str(p.relative_to(out)): sha(p) for p in sorted(out.rglob("*")) if p.is_file()},
+    }
+    (out / "manifest.json").write_text(json.dumps(manifest, indent=1))
+    print(f"{out}: {len(manifest['files'])} files, {sum(p.stat().st_size for p in out.rglob('*') if p.is_file()) / 1e6:.1f} MB")
+
+
+if __name__ == "__main__":
+    main()
