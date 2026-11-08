@@ -19,8 +19,11 @@ from __future__ import annotations
 
 import math
 import time
-from dataclasses import dataclass, field
 
+import numpy as np
+
+from piper_core.backend import (ARM_JOINTS, MAX_STEP, ArmState, BackendError, ExecResult, Outcome, Trajectory, check_start,
+                               check_trajectory)
 from piper_core.guard import GuardConfig, check_command
 from piper_core.poses import classify_state, zero_pose
 
@@ -34,18 +37,8 @@ DRIVER_FAULT_BITS = ("voltage_too_low", "motor_overheating", "driver_overcurrent
                      "collision_status", "driver_error_status", "stall_status")
 
 
-class RealArmError(RuntimeError):
+class RealArmError(BackendError):
     """A refused or aborted action. The arm is left holding (motors on) unless the message says otherwise."""
-
-
-@dataclass
-class Outcome:
-    ok: bool
-    message: str = ""
-    details: dict = field(default_factory=dict)
-
-    def __bool__(self):
-        return self.ok
 
 
 class RealArm:
@@ -112,7 +105,7 @@ class RealArm:
                 out += [f"joint{i}:{k}" for k in DRIVER_FAULT_BITS if getattr(d.msg.foc_status, k, False)]
         return out
 
-    def state(self) -> str:
+    def pose_state(self) -> str:
         """'zero' | 'valid' | 'slumped' | 'invalid' (piper_core.classify_state on the measured joints)."""
         return classify_state(self.positions() or {}, self.limits, JOINTS, self.margin, DONE_TOLERANCE)
 
@@ -181,10 +174,10 @@ class RealArm:
         self._hold()
         return Outcome(False, f"goal not reached within {timeout:.0f} s, holding")
 
-    def move_to(self, target: dict[str, float], speed_percent: int | None = None) -> Outcome:
+    def _move(self, target: dict[str, float], speed_percent: int | None = None) -> Outcome:
         """One checked point-to-point move (firmware interpolation) from a VALID or ZERO arm. Never from the slumped pose (use start())."""
-        if self.state() not in ("zero", "valid"):
-            return Outcome(False, f"the arm is {self.state()}: call start() first")
+        if self.pose_state() not in ("zero", "valid"):
+            return Outcome(False, f"the arm is {self.pose_state()}: call start() first")
         bad = self.problems()
         if bad:
             return Outcome(False, "; ".join(bad))
@@ -202,7 +195,7 @@ class RealArm:
         bad = self.problems()
         if bad:
             return Outcome(False, "not starting: " + "; ".join(bad))
-        state = self.state()
+        state = self.pose_state()
         if state == "invalid":
             return Outcome(False, "not starting: the arm is outside its limits by more than a slump or has no feedback")
         cfg = self._configure(speed_percent or self.speed_percent)
@@ -217,60 +210,126 @@ class RealArm:
             if not r:
                 return r
         elif state == "valid":
-            r = self.move_to(self.zero(), speed_percent)
+            r = self._move(self.zero(), speed_percent)
             if not r:
                 return r
-        return Outcome(self.state() == "zero", "ready: enabled, at zero" if self.state() == "zero" else "not at zero after start")
+        return Outcome(self.pose_state() == "zero", "ready: enabled, at zero" if self.pose_state() == "zero" else "not at zero after start")
 
     def stop(self, speed_percent: int | None = None, settle: float = 1.0) -> Outcome:
         """Zero, check, wait, park, wait, motors off. An arm that is already slumped is left alone."""
-        if self.state() == "slumped":
+        if self.pose_state() == "slumped":
             return Outcome(True, "already powered off and slumped")
-        r = self.move_to(self.zero(), speed_percent)
+        r = self._move(self.zero(), speed_percent)
         if not r:
             return Outcome(False, f"zero: {r.message}; motors left on")
         self._sleep(settle)
-        if self.state() != "zero":
+        if self.pose_state() != "zero":
             return Outcome(False, "the arm did not stay at zero; motors left on")
-        r = self.move_to(self.park(), speed_percent)
+        r = self._move(self.park(), speed_percent)
         if not r:
             return Outcome(False, f"park: {r.message}; motors left on")
         self._sleep(settle)
         return self.disable()
 
-    def execute(self, trajectory, margin_percent: float = 20.0) -> Outcome:
-        """Follow a planner trajectory [(t_seconds, [q1..q6]), ...] (t from 0, increasing) with one move_j per point.
+    # ------------------------------------------------------------------ ArmBackend (piper_core.backend)
+    joint_names = list(JOINTS)
 
-        Every point goes through the guard (limits, margin, step from the measured position of at most 0.15 rad). The firmware speed
-        percent is derived from the fastest segment plus `margin_percent` (assumes 100 % = 3.0 rad/s, unverified). A fault, a guard
-        rejection or a lost state aborts and holds. The first point must be at the arm's present pose (a planner starts there).
+    def state(self) -> ArmState:
+        """The measured joints as an ArmState. dq is NaN: the SDK feedback used here has no velocity."""
+        q = self.positions()
+        if q is None:
+            raise RealArmError("no joint feedback")
+        now = self._now()
+        ja = self.sdk.get_joint_angles()
+        stamp = float(getattr(ja, "timestamp", None) or now)
+        return ArmState(now, np.array([q[j] for j in JOINTS]), np.full(6, np.nan), stamp)
+
+    def hold(self) -> None:
+        self._hold()
+
+    def command(self, q, dq=None) -> None:
+        """One setpoint through the guard (limits, margin, step from the measured pose, faults). BackendError if it is refused."""
+        if self.pose_state() not in ("zero", "valid"):
+            raise RealArmError(f"the arm is {self.pose_state()}: call start() first")
+        bad = self.problems()
+        if bad:
+            raise RealArmError("; ".join(bad))
+        g = self._guard(dict(zip(JOINTS, map(float, q))), max_step=MAX_STEP)
+        if not g:
+            raise RealArmError(g.message)
+        self.sdk.move_j(g.details["positions"])
+
+    def move_to(self, q, duration: float | None = None) -> ExecResult:
+        """One checked point-to-point move (firmware interpolation) from a valid arm. `q`: six values or {joint: value}."""
+        target = dict(q) if isinstance(q, dict) else dict(zip(JOINTS, map(float, q)))
+        pct = None
+        if duration:
+            now = self.positions()
+            if now:
+                pct = math.ceil(100.0 * max(abs(target[j] - now[j]) for j in JOINTS) / duration / FIRMWARE_MAX_VELOCITY)
+        r = self._move(target, pct)
+        qn = self.positions() or {}
+        return ExecResult(r.ok, "done" if r else "guard:rejected", "" if r else r.message, np.array([self._now()]),
+                          np.array([[target[j] for j in JOINTS]]), np.array([[qn.get(j, np.nan) for j in JOINTS]]))
+
+    def execute(self, traj, *, margin_percent: float = 20.0, blocking: bool = True) -> ExecResult:
+        """Follow a trajectory with one move_j per trajectory point (see the module docstring for the rules and the caveat).
+
+        The whole trajectory is checked before anything moves (`check_trajectory`: limits, margin, step, velocity; `check_start`);
+        nothing is clamped. While it runs, every point also passes the guard against the MEASURED pose (step of at most 0.15 rad,
+        faults) and a rejection stops and holds. The firmware speed percent is the fastest segment (100 % = 3.0 rad/s, unverified)
+        plus `margin_percent`. `traj` may also be [(t, [q1..q6]), ...]. Logs the commanded and measured joints at each point.
         """
-        points = [(float(t), list(map(float, q))) for t, q in trajectory]
-        if len(points) < 2 or any(len(q) != 6 for _, q in points) or any(b[0] <= a[0] for a, b in zip(points, points[1:])):
-            return Outcome(False, "trajectory needs at least 2 points with increasing times and 6 joints each")
-        if self.state() not in ("zero", "valid"):
-            return Outcome(False, f"the arm is {self.state()}: call start() first")
+        if not blocking:
+            raise NotImplementedError("RealArm.execute is blocking only")
+        try:
+            traj = traj if isinstance(traj, Trajectory) else Trajectory.from_pairs(traj)
+        except (ValueError, TypeError) as e:
+            return ExecResult(False, "bad_trajectory", str(e))
+        if list(traj.joint_names) != list(JOINTS):
+            return ExecResult(False, "bad_trajectory", f"joint_names must be {list(JOINTS)}")
+        if self.pose_state() not in ("zero", "valid"):
+            return ExecResult(False, "not_ready", f"the arm is {self.pose_state()}: call start() first")
+        bad = self.problems()
+        if bad:
+            return ExecResult(False, "fault", "; ".join(bad))
+        refused = check_trajectory(traj, self.limits, margin=self.margin, max_step=MAX_STEP, max_velocity=FIRMWARE_MAX_VELOCITY)
+        if refused:
+            return ExecResult(False, *refused)
         start = self.positions()
-        if max(abs(start[j] - points[0][1][i]) for i, j in enumerate(JOINTS)) > 0.05:
-            return Outcome(False, "the trajectory does not start at the arm's present pose (more than 0.05 rad away)")
-        vmax = max(max(abs(q1[i] - q0[i]) for i in range(6)) / (t1 - t0) for (t0, q0), (t1, q1) in zip(points, points[1:]))
-        if vmax > FIRMWARE_MAX_VELOCITY:
-            return Outcome(False, f"the trajectory needs {vmax:.2f} rad/s, the firmware allows {FIRMWARE_MAX_VELOCITY}")
-        cfg = self._configure(math.ceil(100.0 * vmax / FIRMWARE_MAX_VELOCITY * (1 + margin_percent / 100.0)) or 1)
+        refused = check_start(traj, [start[j] for j in JOINTS])
+        if refused:
+            return ExecResult(False, *refused)
+        seg = np.abs(np.diff(traj.q, axis=0)).max(axis=1) / np.diff(traj.t)
+        cfg = self._configure(math.ceil(100.0 * float(seg.max()) / FIRMWARE_MAX_VELOCITY * (1 + margin_percent / 100.0)) or 1)
         if not cfg:
-            return cfg
+            return ExecResult(False, "fault", cfg.message)
+        log_t, log_c, log_m, events = [], [], [], []
+
+        def result(ok, reason, detail=""):
+            return ExecResult(ok, reason, detail, np.array(log_t), np.array(log_c).reshape(-1, 6), np.array(log_m).reshape(-1, 6), events)
+
         t_start = self._now()
-        for t, q in points[1:]:
+        for t, q in zip(traj.t[1:], traj.q[1:]):
             wait = t_start + t - self._now()
             if wait > 0:
                 self._sleep(wait)
             bad = self.problems()
             if bad:
                 self._hold()
-                return Outcome(False, "aborted, holding: " + "; ".join(bad))
-            g = self._guard(dict(zip(JOINTS, q)), max_step=0.15)
+                events.append((float(t), "fault", "; ".join(bad)))
+                return result(False, "fault", "aborted, holding: " + "; ".join(bad))
+            g = self._guard(dict(zip(JOINTS, map(float, q))), max_step=MAX_STEP)
             if not g:
                 self._hold()
-                return Outcome(False, f"guard rejected the point at t={t:.3f}: {g.message}; holding")
+                events.append((float(t), "guard:rejected", g.message))
+                return result(False, "guard:rejected", f"point at t={t:.3f}: {g.message}; holding")
             self.sdk.move_j(g.details["positions"])
-        return self._wait_at(dict(zip(JOINTS, points[-1][1])), timeout=10.0)
+            now = self.positions() or {}
+            log_t.append(self._now() - t_start)
+            log_c.append(g.details["positions"])
+            log_m.append([now.get(j, np.nan) for j in JOINTS])
+        end = self._wait_at(dict(zip(JOINTS, map(float, traj.q[-1]))), timeout=10.0)
+        if not end:
+            events.append((float(traj.t[-1]), "end", end.message))
+        return result(end.ok, "done" if end.ok else "timeout", end.message)

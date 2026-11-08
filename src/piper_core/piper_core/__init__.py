@@ -8,10 +8,13 @@ direct path and any downstream planner agree:
 Nothing here imports ROS; the inputs are plain text (a URDF, an SRDF) and numbers.
 """
 
+from piper_core.backend import (ArmBackend, ArmState, BackendError, ExecResult, Outcome, Trajectory, check_start, check_trajectory,
+                               resample)
 from piper_core.guard import GuardConfig, Verdict, check_command
 from piper_core.limits import limits_from_urdf
 from piper_core.poses import classify_state, named_poses_from_srdf, zero_pose
 from piper_core.real_arm import RealArm, RealArmError
 
-__all__ = ["GuardConfig", "Verdict", "check_command", "limits_from_urdf", "named_poses_from_srdf",
+__all__ = ["ArmBackend", "ArmState", "BackendError", "ExecResult", "Outcome", "Trajectory", "check_start", "check_trajectory", "resample",
+           "GuardConfig", "Verdict", "check_command", "limits_from_urdf", "named_poses_from_srdf",
            "classify_state", "zero_pose", "RealArm", "RealArmError"]

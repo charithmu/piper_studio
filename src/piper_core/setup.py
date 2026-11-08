@@ -10,7 +10,8 @@ setup(
         ("share/ament_index/resource_index/packages", ["resource/" + package_name]),
         ("share/" + package_name, ["package.xml"]),
     ],
-    install_requires=[],  # no ROS and nothing else: plain Python, usable from any project (pip install src/piper_core)
+    install_requires=["numpy>=1.24"],  # no ROS: plain Python and numpy, usable from any project (pip install src/piper_core)
+    python_requires=">=3.10",
     extras_require={"test": ["pytest"]},
     zip_safe=True,
     maintainer="Charith Munasinghe",
