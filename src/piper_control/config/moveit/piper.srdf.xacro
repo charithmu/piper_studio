@@ -21,7 +21,9 @@
     <xacro:never a="camera_mount_link" b="flange_link" /> <xacro:never a="camera_mount_link" b="gripper_base" />
   </xacro:if>
 
-  <!-- zero: all joints 0, with joint2/joint3 0.01 rad inside their hard stops (matches config/initial_positions.yaml). Start and end pose of every simulation. -->
+  <!-- zero: the one valid start and end pose of every session: every joint 0, with joint2/joint3 0.01 rad inside their limits (their limits
+       are 0; a pose exactly on a limit is rejected by planners and unreachable for the arm; 0.01 = the guard's limit_margin).
+       Equals config/initial_positions.yaml and piper_core.zero_pose (test_named_poses). -->
   <group_state name="zero" group="arm">
     <joint name="${prefix}joint1" value="0" />
     <joint name="${prefix}joint2" value="0.01" />
@@ -30,9 +32,10 @@
     <joint name="${prefix}joint5" value="0" />
     <joint name="${prefix}joint6" value="0" />
   </group_state>
-  <!-- rest: zero with joint5 lowered 16.82 deg (recorded on the real arm 2026-10-14): the wrist hangs just above the support brackets, so
-       disabling the motors there drops the arm only a few millimetres. Reach it from zero (piper rest does). -->
-  <group_state name="rest" group="arm">
+  <!-- park: Piper Studio internal (real arm stop sequence, not offered to downstream users): zero with joint5 lowered 16.82 deg (recorded
+       on the real arm 2026-10-14), so the wrist hangs just above the support brackets and powering off drops the arm only a little.
+       Reached from zero by Piper.stop(). Not the slumped pose (what a powered-off arm sags into, outside the limits). -->
+  <group_state name="park" group="arm">
     <joint name="${prefix}joint1" value="0" />
     <joint name="${prefix}joint2" value="0.01" />
     <joint name="${prefix}joint3" value="-0.01" />

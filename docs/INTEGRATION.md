@@ -62,14 +62,14 @@ Names below are for the default prefix; with another prefix, joints and frames f
 | Gripper | action `/gripper_controller/gripper_cmd` (`ParallelGripperCommand`) | width in metres |
 | Planning | MoveIt `move_group`, group `arm` (end effector group `gripper`) | OMPL and Pilz (LIN, PTP, CIRC) |
 | Servo | MoveIt Servo `~/delta_twist_cmds`, `~/pose_target_cmds`, `~/delta_joint_cmds` | publishes to the streaming controller |
-| Named poses | SRDF group states `zero`, `rest`, `ready` | `zero`: start and end pose of every session; `rest`: park pose of the real arm |
+| Named poses | SRDF group states `zero`, `ready` (and the internal `park`) | `zero`: start and end pose of every session. `park` and the powered-off (slumped) pose are Piper Studio internals, handled by `start()` / `stop()` |
 | Driver health (real arm) | `/feedback/arm_status`, `/feedback/motor_status`, `/feedback/gripper_status` | vendor `diagnostic_msgs/DiagnosticArray`, 2 Hz; `Piper.status()`, `Piper.faults()`, `piper status`; `activate()` refuses (`ARM_FAULT`) while one is reported. Simulators publish none. |
 | Camera | `/camera/color/image_raw`, `/camera/color/camera_info`, `/camera/aligned_depth_to_color/image_raw` | RealSense topic names, in simulation and (planned) with the real driver |
 
 **One command owner:** exactly one of `arm_controller` and `arm_position_controller` is active; switch explicitly (`Piper.use_streaming()` / `use_trajectories()`).
 `controllers.yaml`, the MoveIt yaml and the MuJoCo inputs are templates with a `${prefix}` token; fill them with `piper_description.render_config(path, prefix)`.
 
-Python client (`piper_py`): `Piper(prefix="piper_")`, then `joint_state()`, `move_joints()`, `stream_joints()`, `gripper()`, `move_named()`, `move_pose()`,
+Python client (`piper_py`): `Piper(prefix="piper_")`, then `joint_state()`, `move_joints()`, `stream_joints()`, `gripper()`, `start()` / `stop()` (session begin and end), `move_named()`, `move_pose()`,
 `servo_twist()`, `image()`, `tcp_pose()`. Every call returns a `Result` and **success means executed**, not planned.
 
 ## 3. Without ROS: `piper_core`
@@ -91,7 +91,7 @@ wrapper (`RealArm`: state, gripper, enable/disable, `execute(trajectory)` with t
 ## 4. Real arm rules (do not weaken in a wrapper)
 
 Motors are not enabled at start. The arm speed is set explicitly. Command controllers start inactive and are activated only after fresh, consistent feedback
-(`piper activate`). Commands pass the guard. Every session starts and ends at `zero`; the real arm is parked at `rest` before the motors are disabled.
+(`piper activate`). Commands pass the guard. Every session starts with `piper start` (`Piper.start()`: motors, leave the powered-off pose, checked arrival at zero, controllers active) and ends at `zero` with `piper stop` (zero, park, motors off). Nothing is ever commanded from outside the limits.
 Anything that can move the real arm needs the user present and approving.
 
 ## 5. Versioning

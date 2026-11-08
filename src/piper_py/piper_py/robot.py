@@ -39,7 +39,7 @@ from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import CameraInfo, Image, JointState
 from shape_msgs.msg import SolidPrimitive
 from std_msgs.msg import Float64MultiArray
-from std_srvs.srv import SetBool
+from std_srvs.srv import SetBool, Trigger
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 
 DEFAULT_PREFIX = "piper_"  # prefix of every joint and frame name (see piper_description, piper.urdf.xacro `prefix`)
@@ -54,6 +54,7 @@ ARM_STATUS = {0: "normal", 1: "emergency stop", 2: "no solution", 3: "singularit
               11: "teaching recording", 12: "teaching executing", 13: "teaching paused", 14: "main controller overtemperature",
               15: "release resistor overtemperature"}
 MODE_FEEDBACK = {0: "MOVE P", 1: "MOVE J", 2: "MOVE L", 3: "MOVE C", 4: "MOVE MIT", 5: "MOVE CPV"}
+INTERNAL_POSES = ("park",)    # Piper Studio's own poses: not offered to downstream users, used by start()/stop()
 STATUS_TOPICS = {"arm": "arm_status", "motors": "motor_status", "gripper": "gripper_status"}
 
 
@@ -135,6 +136,7 @@ class Piper:
         self._switch_controllers = self.node.create_client(
             SwitchController, f"{self._prefix}/controller_manager/switch_controller")
         self._enable_motors = self.node.create_client(SetBool, f"{self._prefix}/enable_agx_arm")  # vendor driver (backend:=real)
+        self._go_zero = self.node.create_client(Trigger, f"{self._prefix}/go_zero")  # start sequence (backend:=real)
         self._trajectory = ActionClient(self.node, FollowJointTrajectory,
                                         f"{self._prefix}/arm_controller/follow_joint_trajectory")
         self._gripper = ActionClient(self.node, ParallelGripperCommand,
@@ -299,8 +301,7 @@ class Piper:
         """
         states = self.controllers()
         wanted = [c for c in ("arm_controller", "gripper_controller") if c in states]
-        real = "command_guard" in self.node.get_node_names() or \
-            self.node.count_publishers(f"{self._prefix}/feedback/joint_states") > 0
+        real = self._is_real()
         if real:
             with self._lock:
                 fb = self._feedback
@@ -317,10 +318,29 @@ class Piper:
             bad = self.faults()
             if bad:
                 return Result(False, "ARM_FAULT", "the driver reports a fault: " + "; ".join(bad), {"faults": bad})
+            outside = self._outside_limits()
+            if outside:
+                return Result(False, "NOT_STARTED", "the arm is outside its limits (powered off and slumped): call start() first",
+                              {"outside_limits": outside})
         todo = [c for c in wanted if states[c] != "active"]
         if states.get("arm_position_controller") == "active" and "arm_controller" in todo:
             return self.switch(todo, ["arm_position_controller"])
         return self.switch(todo) if todo else Result(True, "SUCCESS", "already active")
+
+    def _is_real(self) -> bool:
+        return "command_guard" in self.node.get_node_names() or \
+            self.node.count_publishers(f"{self._prefix}/feedback/joint_states") > 0
+
+    def _outside_limits(self) -> dict[str, float]:
+        """Arm joints outside their limits, with by how much (rad). Non-empty on a powered-off real arm (slumped pose)."""
+        lim, q = self.joint_limits(), self.joint_state()
+        return {j: round(max(lim[j][0] - q[j], q[j] - lim[j][1]), 4) for j in self.arm_joints
+                if j in lim and not lim[j][0] <= q[j] <= lim[j][1]}
+
+    def _at_zero(self, tolerance: float = 0.02) -> bool:
+        zero = self.named_poses()["zero"]
+        q = self.joint_state()
+        return all(abs(q[j] - zero[j]) <= tolerance for j in self.arm_joints)
 
     def deactivate(self) -> Result:
         """Stop all command controllers; the arm holds through its own firmware/servo."""
@@ -332,7 +352,7 @@ class Piper:
     def set_motors(self, on: bool, timeout: float = 15.0) -> Result:
         """Enable or disable the real arm's motors (vendor driver service enable_agx_arm; backend:=real only).
 
-        Disabling releases the joints: a raised arm falls, so hold it or park it first (move_rest). The command controllers are
+        Disabling releases the joints: a raised arm falls, so hold it or call stop() instead. The command controllers are
         deactivated first so nothing keeps commanding a limp arm.
         """
         if not on:
@@ -489,25 +509,79 @@ class Piper:
                 if j.get("type") in ("revolute", "prismatic") and j.find("limit") is not None}
         return self._limits
 
-    def named_poses(self) -> dict[str, dict[str, float]]:
-        """Arm group states from the SRDF loaded in move_group."""
+    def named_poses(self, internal: bool = False) -> dict[str, dict[str, float]]:
+        """Arm group states from the SRDF loaded in move_group. Piper Studio's internal poses (`park`) are left out unless asked for."""
         if self._named is None:
             srdf = ET.fromstring(self._get_string_param("move_group", "robot_description_semantic"))
             self._named = {
                 s.get("name"): {j.get("name"): float(j.get("value")) for j in s.findall("joint")}
                 for s in srdf.findall("group_state") if s.get("group") == self.group}
-        return self._named
+        return self._named if internal else {k: v for k, v in self._named.items() if k not in INTERNAL_POSES}
 
     def move_named(self, name: str, velocity_scaling: float = 0.2) -> Result:
+        """Move to a named pose (`zero`, `ready`, ...), from anywhere inside the limits."""
         poses = self.named_poses()
         if name not in poses:
             return Result(False, "UNKNOWN_NAME", f"{name!r} not in {sorted(poses)}")
         return self.move_to_joints([poses[name][j] for j in self.arm_joints], velocity_scaling)
 
-    def move_rest(self, velocity_scaling: float = 0.2) -> Result:
-        """Park the real arm: go to 'zero', then lower joint 5 to 'rest' (disabling the motors there drops the arm only a few mm)."""
+    def start(self, velocity_scaling: float = 0.2) -> Result:
+        """Make the arm ready for control, from wherever it is: the one call a session begins with.
+
+        Real arm: enable the motors; if the arm is slumped (powered off, outside its limits) leave that pose with one checked move to
+        zero (command_guard `go_zero`); activate the controllers; if the arm is valid but not at zero, plan there. Simulators: activate,
+        and go to zero. Success means: controllers active and the arm measured at zero. Never commands anything from outside the limits.
+        """
+        real = self._is_real()
+        if real:
+            r = self.set_motors(True)
+            if not r:
+                return Result(False, "START_FAILED", f"motors: {r.message}")
+            if self._outside_limits() or not self._at_zero():
+                if self._outside_limits():
+                    try:
+                        res = self._call(self._go_zero, Trigger.Request(), 60.0)
+                    except RuntimeError as e:
+                        return Result(False, "START_FAILED", f"command_guard go_zero not available: {e}")
+                    if not res.success:
+                        return Result(False, "START_FAILED", res.message)
+        r = self.activate()
+        for _ in range(10):          # ros2_control's state trails the driver for a moment after a move: wait for it to agree
+            if r or r.code != "STATE_MISMATCH":
+                break
+            time.sleep(0.3)
+            r = self.activate()
+        if not r:
+            return r
+        if not self._at_zero():
+            r = self.move_named("zero", velocity_scaling)
+            if not r:
+                return Result(False, "START_FAILED", f"zero: {r.message}")
+        return Result(True, "SUCCESS", "ready: at zero, controllers active") if self._at_zero() else \
+            Result(False, "START_FAILED", "the arm is not at zero after the start sequence")
+
+    def stop(self, velocity_scaling: float = 0.2, settle: float = 1.0) -> Result:
+        """End a session: zero, check it, wait, then (real arm) park, wait and power the motors off. Downstream code just calls this.
+
+        Simulators end at zero. The park pose is Piper Studio's own: zero with joint 5 lowered, so the powered-off arm drops only a little.
+        Call it with the arm anywhere inside its limits; an arm that is already slumped (motors off) is left alone.
+        """
+        if self._is_real() and self._outside_limits():
+            return Result(True, "SUCCESS", "already powered off and slumped")
         r = self.move_named("zero", velocity_scaling)
-        return r if not r else self.move_named("rest", velocity_scaling)
+        if not r:
+            return r
+        time.sleep(settle)
+        if not self._at_zero():
+            return Result(False, "STOP_FAILED", "the arm did not reach zero; motors left on", {"state": self.joint_state()})
+        if not self._is_real():
+            return Result(True, "SUCCESS", "at zero")
+        r = self.move_to_joints([self.named_poses(internal=True)["park"][j] for j in self.arm_joints], velocity_scaling)
+        if not r:
+            return Result(False, "STOP_FAILED", f"park: {r.message}; motors left on")
+        time.sleep(settle)
+        r = self.set_motors(False)
+        return Result(True, "SUCCESS", "parked, motors off") if r else Result(False, "STOP_FAILED", f"motors: {r.message}")
 
     def move_pose(self, position, orientation_xyzw, frame: str | None = None, linear: bool = False,
                   velocity_scaling: float = 0.2, position_tolerance: float = 0.001,

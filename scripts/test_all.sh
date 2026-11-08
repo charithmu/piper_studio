@@ -22,7 +22,7 @@ for backend in "$@"; do
 done
 if [ $# -gt 0 ]; then
   domain=$((domain + 1)); export ROS_DOMAIN_ID=$domain
-  run "real-arm plumbing (fake driver)" timeout 600 python -m pytest src/piper_py/test/test_real_plumbing.py src/piper_py/test/test_real_resting.py -q
+  run "real-arm plumbing (fake driver)" timeout 600 python -m pytest src/piper_py/test/test_real_plumbing.py src/piper_py/test/test_real_start_stop.py -q
   ros2 daemon stop >/dev/null 2>&1
   domain=$((domain + 1)); export ROS_DOMAIN_ID=$domain
   run "carrier example" timeout 600 python -m pytest src/piper_examples -q

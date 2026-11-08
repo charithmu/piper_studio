@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Real Piper: put the arm in a known state, then move it to the zero pose (--rest: and on to the park pose) with move_j. Replaces arm_move_rest.py.
+"""Real Piper: put the arm in a known state, then move it to the zero pose (--park: and on to the park pose) with move_j. Replaces arm_move_rest.py.
 
     source scripts/env.sh
     python tools/real_arm/arm_zero.py --dry-run         # preflight and plan only: reads, nothing is changed
@@ -7,15 +7,15 @@
 
 Zero pose = all joints 0 (what the vendor's go-zero demo and the GUI's "Go Zero" use). By default joints whose stored limit IS 0 (joint 2 min, joint 3 max)
 are aimed 0.01 rad inside that limit (the SRDF 'zero') so the target never sits on the limit; --exact sends pure zeros like the vendor demo.
---rest continues from zero to the park pose 'rest' (joint 5 lowered 16.82 deg): the wrist hangs just above the support brackets, so disabling the motors
-there drops the arm only a few mm. Routine: always come to zero first, then rest, then disable.
+--park continues from zero to the park pose 'park' (joint 5 lowered 16.82 deg): the wrist hangs just above the support brackets, so disabling the motors
+there drops the arm only a few mm. Routine: always come to zero first, then park, then disable.
 
 Sequence (nothing is sent until you press Enter):
   0. preflight, reads only: arm is a slave, status normal, no error, teach off, driver bits clean, stored limits readable
   1. known configuration: speed percent set FIRST (the SDK's mode frame carries a speed, default 50 %), then CAN control + MOVE_J; read back that the arm reports MOVE_J
   2. enable all six joints (enabling alone does not move the arm)
   3. one move_j to the zero pose, watched at 10 Hz; done when all joints are within 0.5 deg for 1 s. No time limit unless --timeout is given
-  4. hold; then ask before disabling (disable drops a raised arm: from the rest pose it drops only a few mm)
+  4. hold; then ask before disabling (disable drops a raised arm: from the park pose it drops only a few mm)
 Only real faults stop it: arm status != normal, an error code, or a driver fault bit (it then HOLDS the pose with move_j, joints resting past a stored limit are pulled to its edge, and leaves the motors enabled).
 Ctrl-C does the same. To release the arm afterwards: tools/real_arm/arm_stop.py. Not used: reset() (powers the arm off), move_js / MIT / CPV, any set_* write to stored parameters.
 This arm has no e-stop button: keep a hand on the power switch.
@@ -29,7 +29,7 @@ from arm_common import angles, deg, open_arm, resolve_canbus
 MODE_J = 1
 DONE_DEG, DONE_HOLD_S = 0.5, 1.0
 ZERO_MARGIN = 0.01        # rad: joints whose stored limit is 0 (joint 2 min, joint 3 max) are aimed this far inside it (same as the SRDF 'zero' and the guard's limit_margin)
-REST_J5 = 0.2936          # rad (16.82 deg): 'rest' = zero with joint 5 lowered; same value as the SRDF 'rest' (guarded by a unit test)
+PARK_J5 = 0.2936          # rad (16.82 deg): 'park' = zero with joint 5 lowered; same value as the SRDF 'park' (guarded by a unit test)
 
 
 def drv_faults(arm):
@@ -77,7 +77,7 @@ def main():
     ap.add_argument("--speed", type=int, default=50, help="speed percent, 1..100 (default 50)")
     ap.add_argument("--timeout", type=float, default=0.0, help="seconds allowed for the move (0 = no limit)")
     ap.add_argument("--exact", action="store_true", help="send pure zeros (no margin inside the stored limits)")
-    ap.add_argument("--rest", action="store_true", help="after zero, move on to the park pose 'rest' (joint 5 lowered)")
+    ap.add_argument("--park", action="store_true", help="after zero, move on to the park pose 'park' (joint 5 lowered)")
     ap.add_argument("--stay", action="store_true", help="leave the motors enabled at the end (no disable prompt)")
     ap.add_argument("--yes", action="store_true", help="skip the Enter prompts")
     ap.add_argument("--dry-run", action="store_true", help="preflight and plan only")
@@ -125,13 +125,13 @@ def main():
 
         margin = 0.0 if args.exact else ZERO_MARGIN
         target = [min(max(0.0, lim[i][0] + (margin if lim[i][0] == 0.0 else 0.0)), lim[i][1] - (margin if lim[i][1] == 0.0 else 0.0)) for i in range(1, 7)]
-        rest = list(target)
-        rest[4] = REST_J5
-        goals = [("zero pose", target)] + ([("rest pose", rest)] if args.rest else [])
+        park = list(target)
+        park[4] = PARK_J5
+        goals = [("zero pose", target)] + ([("park pose", park)] if args.park else [])
         dist = max(abs(deg(a - b)) for a, b in zip(cur, target))
-        print("joint   now(deg)  zero(deg)  move(deg)" + ("   rest(deg)" if args.rest else "") + "   stored limits(deg)")
+        print("joint   now(deg)  zero(deg)  move(deg)" + ("   park(deg)" if args.park else "") + "   stored limits(deg)")
         for i in range(6):
-            print(f"  {i + 1}    {deg(cur[i]):8.2f}   {deg(target[i]):8.2f}   {deg(target[i] - cur[i]):8.2f}" + (f"   {deg(rest[i]):8.2f}" if args.rest else "")
+            print(f"  {i + 1}    {deg(cur[i]):8.2f}   {deg(target[i]):8.2f}   {deg(target[i] - cur[i]):8.2f}" + (f"   {deg(park[i]):8.2f}" if args.park else "")
                   + f"    [{deg(lim[i + 1][0]):7.1f}, {deg(lim[i + 1][1]):6.1f}]")
         print(f"largest move {dist:.1f} deg at {args.speed} % speed · now: mode_feedback {int(m.mode_feedback)}, "
               f"enabled {[bool(arm.get_joint_enable_status(i)) for i in range(1, 7)]}")
@@ -161,7 +161,7 @@ def main():
             raise SystemExit("could not enable all six joints: holding, not moving")
         print("all six joints enabled")
 
-        # ---- 3. the moves: zero, then (with --rest) rest
+        # ---- 3. the moves: zero, then (with --park) park
         reason = None
         for label, goal in goals:
             if max(abs(deg(a - b)) for a, b in zip(angles(arm), goal)) < DONE_DEG:
@@ -195,10 +195,10 @@ def main():
 
         # ---- 4. end
         if reason or args.stay:
-            print("leaving the motors enabled." + ("" if args.stay else " Release it with tools/real_arm/arm_stop.py (hold the arm, or park it with --rest first)."))
+            print("leaving the motors enabled." + ("" if args.stay else " Release it with tools/real_arm/arm_stop.py (hold the arm, or park it with --park first)."))
             return
         if not args.yes:
-            input(f"Press Enter to DISABLE (the arm is at the {'park (rest)' if args.rest else 'zero'} pose{'' if args.rest else ': for a short drop go to --rest first'}); Ctrl-C leaves it enabled and holding... ")
+            input(f"Press Enter to DISABLE (the arm is at the {'park' if args.park else 'zero'} pose{'' if args.park else ': for a short drop go to --park first'}); Ctrl-C leaves it enabled and holding... ")
         for _ in range(10):
             arm.disable()
             if not any(arm.get_joint_enable_status(i) for i in range(1, 7)):

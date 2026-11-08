@@ -4,11 +4,11 @@ import math
 
 import pytest
 
-from piper_core import GuardConfig, check_command, limits_from_urdf, named_poses_from_srdf
+from piper_core import GuardConfig, check_command, classify_state, limits_from_urdf, named_poses_from_srdf, zero_pose
 
 ARM = tuple(f"joint{i}" for i in range(1, 7))
 LIMITS = {**{j: (-1.0, 1.0) for j in ARM}, "gripper": (0.0, 0.1)}
-CFG = GuardConfig(ARM, max_step=0.15, limit_margin=0.01, limit_slack=0.1)
+CFG = GuardConfig(ARM, max_step=0.15, limit_margin=0.01)
 MEASURED = {j: 0.0 for j in ARM}
 
 
@@ -32,11 +32,30 @@ def test_rejects_a_jump_over_max_step():
     assert not v.ok and "max_step" in v.reason
 
 
-def test_clamps_slightly_outside_but_rejects_far_outside():
+def test_clamps_into_the_margin_but_rejects_anything_outside_the_limits():
     near = {**MEASURED, "joint1": 1.0}
-    v = run([1.05, 0, 0, 0, 0, 0], measured=near)   # inside limit + slack: clamped to hi - margin
+    v = run([0.995, 0, 0, 0, 0, 0], measured=near)   # inside the limit but closer than the margin: clamped to hi - margin
     assert v.ok and v.positions[0] == pytest.approx(0.99)
-    assert not run([1.2, 0, 0, 0, 0, 0], measured={**MEASURED, "joint1": 1.15}).ok
+    assert not run([1.001, 0, 0, 0, 0, 0], measured=near).ok   # outside the limit: never, not even slightly
+
+
+def test_nothing_is_forwarded_while_the_arm_is_slumped():
+    slumped = {**MEASURED, "joint1": 1.04}          # measured outside the limit, as a powered-off arm rests
+    assert not run([1.0, 0, 0, 0, 0, 0], measured=slumped).ok
+    assert run([1.0, 0, 0, 0, 0, 0], measured={**MEASURED, "joint1": 1.0005}).ok     # sensor noise at the limit is not a slump
+
+
+def test_zero_pose_and_state_classification():
+    lim = {**LIMITS, "joint2": (0.0, 3.14), "joint3": (-2.9, 0.0)}
+    zero = zero_pose(lim, ARM, 0.01)
+    assert zero["joint2"] == pytest.approx(0.01) and zero["joint3"] == pytest.approx(-0.01) and zero["joint1"] == 0.0
+    cls = lambda **kw: classify_state({**zero, **kw}, lim, ARM)
+    assert cls() == "zero"
+    assert cls(joint1=0.5) == "valid"
+    assert cls(joint2=-0.038, joint3=0.043, joint5=0.386) == "slumped"      # the measured powered-off pose
+    assert cls(joint2=-0.5) == "invalid"
+    assert cls(joint4=float("nan")) == "invalid"
+    assert classify_state({}, lim, ARM) == "invalid"
 
 
 def test_rejects_without_measured_state_or_limits():

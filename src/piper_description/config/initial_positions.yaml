@@ -1,6 +1,6 @@
 # Startup joint values for simulated and mock hardware.
-# joint2 and joint3 rest on a hard stop at 0.0; start 0.01 rad inside the limit
-# so floating-point drift cannot make MoveIt reject the start state as out of bounds.
+# The `zero` pose: joints 2 and 3 have a limit at 0.0, so zero holds them 0.01 rad inside it (a pose exactly on a limit is rejected by
+# planners and unreachable for the arm). Equals piper_core.zero_pose(limits, 0.01) and the SRDF `zero` (test_named_poses).
 initial_positions:
   joint1: 0.0
   joint2: 0.01

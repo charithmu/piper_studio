@@ -87,10 +87,10 @@ Vendor ROS node `agx_arm_ctrl`: `fast_mode` routes `control/joint_states` throug
 
 ## 6b. Named poses and the routine
 
-`zero` = all joints 0 with joints 2/3 0.01 rad inside their stops (the simulators' startup pose); `rest` = zero with joint 5 lowered 0.2936 rad, the park pose just above the
-support brackets. Routine on the real arm: come to `zero`, then `rest` (`piper rest` or `tools/real_arm/arm_zero.py --rest`), then disable the motors with someone at the arm.
-A Piper rests with joints 2 and 3 about 0.04 rad past their limits, so `command_guard` keeps arm joints 0.01 rad inside the limits and clamps (not rejects) values up to 0.1 rad outside;
-activating from the stops therefore lifts joints 2/3 by about 2.7 deg.
+Words: `zero` (the one valid start and end pose: all joints 0, joints 2/3 held 0.01 rad inside their limits), `park` (zero with joint 5 lowered 0.2936 rad, Piper Studio internal) and the
+slumped pose (what a powered-off arm sags into: joints 2/3 about 0.04 rad outside their limits). Definitions and reasons: `arms/piper-01.md`, "Poses and the start / stop sequence".
+Routine on the real arm: `piper start` (enable, leave the slumped pose by one checked move to zero, activate), work inside the limits, return to `zero`, `piper stop` (zero, wait, park, wait, motors off;
+someone at the arm). `tools/real_arm/arm_zero.py [--park]` is the same sequence at SDK level. The guard rejects every command while the arm is outside its limits and every target outside them.
 
 ## 6c. Joint limits and the zero point
 
@@ -134,7 +134,7 @@ with the arm at the zero pose. We do not use it.
 |---|---|---|
 | `arm_info.py [-r] [-c] [-b CANBUS] [--arm-id ID]` | coloured summary (default; top rows: role master/slave, motion mode, motors enabled/disabled, software e-stop, teach mode, faults) or the long raw form (`-r`); fixed 1.5 s passive listen first (stops if the arm is silent), then firmware, status, joints, drivers, limits, ratings, gripper; always saves JSON; `-c` also reads CPV parameters (switches the arm to CPV mode, then restores the previous mode and checks it) | the firmware query and enquiry frames |
 | `arm_enable_test.py` | enable, hold a few seconds, disable; no motion command; aborts on drift | enable/disable |
-| `arm_zero.py [--dry-run] [--speed 50] [--exact] [--stay]` | preflight (slave, status normal, teach off, limits readable), known state (speed first, CAN control + MOVE_J read back), enable, one `move_j` to the zero pose at the chosen speed (default 50 %, no time limit), stops only on a real fault (status, error code, driver bits) and then holds; asks before disabling. Replaces `arm_move_rest.py` | enable, mode frames, move_j, disable |
+| `arm_zero.py [--dry-run] [--speed 50] [--exact] [--park] [--stay]` | preflight (slave, status normal, teach off, limits readable), known state (speed first, CAN control + MOVE_J read back), enable, one `move_j` to the zero pose at the chosen speed (default 50 %, no time limit), stops only on a real fault (status, error code, driver bits) and then holds; asks before disabling. Replaces `arm_move_rest.py` | enable, mode frames, move_j, disable |
 | `arm_stop.py [--estop \| --reset]` | no prompts: motors off (default), electronic e-stop (slow damped lowering), or e-stop + reset (powers the arm off) | disable / e-stop / reset |
 | `arm_joints.py [--rad] [--once] [-b CANBUS]` | live joint table (j1-j6 and gripper) updated in place; passive (listens to 0x2A5-0x2A8, sends nothing, can run beside any other program); Enter saves the pose as a copy-paste line (radians) and appends it to `~/data/ml/isaac/piper_studio/arm_poses.log`; q quits | nothing |
 

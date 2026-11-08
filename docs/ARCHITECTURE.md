@@ -80,9 +80,9 @@ Dependency direction (arrows read "may use"): `piper_sim`, `piper_examples` -> `
 
 Rules for the shared parts:
 - **Limits come from the URDF.** `piper_core` parses them from the description's URDF; nothing else defines them.
-- **The guard is one function** in `piper_core` (finite, inside limits with margin and slack, fresh feedback, bounded step).
+- **The guard is one function** in `piper_core` (finite, inside the limits, clamped to the margin, never from a slumped arm, fresh feedback, bounded step).
   The ROS `command_guard` node and `RealArm` both call it.
-- **Safety defaults are not weakened by a wrapper:** motors not enabled at start, explicit speed, named poses `zero` and `rest`.
+- **Safety defaults are not weakened by a wrapper:** motors not enabled at start, explicit speed, named pose `zero` for everyone; `park` and the slumped pose stay inside the control layers (`start()` / `stop()`).
 - **A user's own simulator** only needs `piper_description` (`hardware:=` selects the ros2_control plugin, or none), and, if they
   want our controllers or MoveIt, `piper_control` on top of their controller manager.
 

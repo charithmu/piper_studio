@@ -3,7 +3,7 @@
 Publishes feedback/joint_states at `rate` Hz starting from `initial_positions`, and moves each
 joint toward the latest control/joint_states target with a first-order lag (`time_constant`).
 It also publishes the vendor driver's diagnostics (feedback/arm_status, motor_status, gripper_status at 2 Hz, same keys); the
-parameter `fault` (a joint name such as "joint3", or "arm") makes the matching entry report an ERROR, so tests can prove that faults are seen.
+parameter `slump_positions` (the pose it sags into when disabled) and `fault` (a joint name such as "joint3", or "arm") makes the matching entry report an ERROR, so tests can prove that faults are seen.
 Like the real driver, it ignores commands while `enabled` is false and turns NaN into 0.0
 (agx_arm_ctrl's _safe_get_value), so tests can prove that NaN never reaches it.
 """
@@ -30,6 +30,7 @@ class FakeDriver(Node):
         self.declare_parameter("time_constant", 0.05)
         self.declare_parameter("enabled", True)
         self.declare_parameter("fault", "")
+        self.declare_parameter("slump_positions", Parameter.Type.DOUBLE_ARRAY)   # where the arm sags to when its motors go off (empty: stays where it is)
         self.q = list(self.get_parameter("initial_positions").value)
         self.target = list(self.q)
         self.dt = 1.0 / self.get_parameter("rate").value
@@ -74,6 +75,9 @@ class FakeDriver(Node):
 
     def on_enable(self, request, response):
         self.set_parameters([Parameter("enabled", Parameter.Type.BOOL, bool(request.data))])
+        slump = list(self.get_parameter("slump_positions").value or [])
+        if not request.data and len(slump) == len(self.q):
+            self.q, self.target = list(slump), list(slump)     # a powered-off arm sags onto its stops
         response.success, response.message = True, "enabled" if request.data else "disabled"
         return response
 

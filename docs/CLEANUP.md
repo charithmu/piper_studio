@@ -82,6 +82,7 @@ The arm runs the latest firmware it supports (S-V1.9-1) and is calibrated; its r
 - [x] G5 Verified: 31 offline tests, `check`, launch tests mock, Gazebo, MuJoCo, Isaac (USD rebuilt with and without camera, `isaac.sh check` 0.001 mm, mass 4.7196 = URDF), real plumbing, carrier example. Not on the real arm.
 - [x] G7 Driver status consumed (read-only): `Piper.status()`, `Piper.faults()`, `piper status`, `activate()` refuses on a reported fault; the fake driver publishes the same diagnostics; test `test_2b`. Vendor interfaces and codes documented in `REAL_ARM.md` 6d. Joint 2/3 start from the resting pose verified (2026-10-14 first motion). Limits table with sources and starting values in `DECISIONS.md`.
 - [ ] G6 Open (needs the user): **weigh the arm, gripper, camera and stand and replace the masses in `MASSES.md` (to-do)**; joint torque rating and jerk (not in the firmware); camera and stand; the 4.5 mm is decided (stand on `gripper_base`, see C5; confirm with a caliper).
+- [x] G9 Poses and start/stop (2026-11-08, user rules): one word per thing (zero / park / slumped / vendor zero, see `arms/piper-01.md`). `rest` renamed `park` and hidden from downstream (**breaking**: SRDF pose, `piper rest`, `Piper.move_rest`, `arm_zero.py --rest` are gone); new `Piper.start()` / `stop()` and `piper start` / `piper stop`; `command_guard` service `go_zero` is the only way out of the slumped pose; the guard is strict (no `limit_slack`; rejects targets outside the limits and every command while the arm is outside them); `piper_core.zero_pose` / `classify_state`; `activate()` returns `NOT_STARTED` on a slumped arm; fake driver can sag (`slump_positions`). Tests: `test_real_start_stop.py` (replaces `test_real_resting.py`), `test_core.py`, `test_named_poses.py`. Not yet on the real arm (needs the user): `start` / `stop` through the ROS stack, and the real drop from zero / park.
 - [ ] G8 Idea, not done: `command_guard` could drop commands while the driver reports an ERROR, and `control_enable` (the vendor gate) could be closed by the guard on a fault.
 
 ## Verification record
@@ -99,7 +100,7 @@ Isaac and Gazebo cameras from their own sensors).
 | MuJoCo with viewer and camera on the virtual display | pass; camera publishes (it could not on the VNC desktop); depth 100 %, 13 Hz wall clock |
 | Isaac Sim 6.1 (GPU): USD rebuilt, runner, camera, video | pass; wrist depth 100 %, 31 Hz; `isaac.sh check`: fingertip error 0.001 mm, mass equal |
 | Isaac backend launch test | pass on rerun (one flake, C11) |
-| Real-arm plumbing with the fake driver; resting pose | pass |
+| Real-arm plumbing with the fake driver; start/stop from the slumped pose | pass |
 | RViz on the virtual display (model view, MoveIt) | renders; screenshots 01-06 |
 | Gazebo GUI on the virtual display | GUI renders, controllers fail to come up (C3) |
 | Real arm | not run |
