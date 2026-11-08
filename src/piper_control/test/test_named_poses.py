@@ -9,9 +9,9 @@ import pytest
 import yaml
 
 ROOT = Path(__file__).resolve().parents[3]
-SRDF = ROOT / "src/piper_bringup/config/moveit/piper.srdf.xacro"
+SRDF = ROOT / "src/piper_control/config/moveit/piper.srdf.xacro"
 INITIAL = ROOT / "src/piper_description/config/initial_positions.yaml"
-GUARD = ROOT / "src/piper_bringup/scripts/command_guard.py"
+GUARD = ROOT / "src/piper_control/scripts/command_guard.py"
 TOOL = ROOT / "tools/real_arm/arm_zero.py"
 JOINTS = [f"joint{i}" for i in range(1, 7)]
 

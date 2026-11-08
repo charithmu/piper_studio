@@ -7,7 +7,7 @@
   real: the official agx_arm_ctrl node owns the CAN bus. It publishes measured state on
   feedback/joint_states and accepts position targets on control/joint_states, with the official joint names.
   JointStateTopicSystem bridges them into ros2_control so trajectory controllers track measured
-  state, through piper_bringup's command_guard, which also translates the prefix: feedback/joint_states ->
+  state, through piper_control's command_guard, which also translates the prefix: feedback/joint_states ->
   hw/joint_states (prefixed) and hw/joint_commands (prefixed) -> control/joint_states. It drops NaN (published
   while no controller is active), out-of-limit and jump commands.
 -->

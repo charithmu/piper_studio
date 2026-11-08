@@ -1,4 +1,4 @@
-"""Provisional joint servo gains for Isaac Sim, kept equal to MuJoCo's (piper_bringup/config/mujoco/inputs.xml).
+"""Provisional joint servo gains for Isaac Sim, kept equal to MuJoCo's (piper_sim/config/mujoco/inputs.xml).
 
 (stiffness, damping, max force): N*m/rad, N*m*s/rad, N*m for revolute joints; N/m, N*s/m, N for the gripper.
 damping = the kv MuJoCo derives from dampratio and the link inertia; test_servo_gains.py checks the two agree.

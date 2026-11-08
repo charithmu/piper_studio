@@ -11,7 +11,7 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src/piper_description/tools"))
 import model_audit  # noqa: E402
-from piper_description import physics_model, robot_description  # noqa: E402
+from piper_sim import physics_model, robot_description  # noqa: E402
 
 out, n = Path(sys.argv[1]), int(sys.argv[2]) if len(sys.argv) > 2 else 25
 urdf = physics_model(robot_description("isaac", prefix=""))  # official names; the USD (prefixed) is compared by DOF order

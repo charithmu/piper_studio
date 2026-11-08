@@ -114,7 +114,7 @@ exercised only against a stand-in driver. ✓ = passed in the automated test or 
 <p>Needs a display. Use any free <code>ROS_DOMAIN_ID</code> (each domain gets its own Gazebo partition, so this does not disturb other sessions).</p>
 <pre>cd ~/projects/ros/piper_studio &amp;&amp; git switch feature/servo-camera &amp;&amp; source scripts/env.sh
 export ROS_DOMAIN_ID=77
-ros2 launch piper_bringup piper.launch.py backend:=gazebo camera:=d435 gui:=true rviz:=true</pre>
+ros2 launch piper_sim piper.launch.py backend:=gazebo camera:=d435 gui:=true rviz:=true</pre>
 <p>In a second terminal (same <code>source scripts/env.sh</code> and domain):</p>
 <pre>ros2 run rqt_image_view rqt_image_view /camera/color/image_raw        # also /camera/aligned_depth_to_color/image_raw
 ros2 run piper_py piper named ready                                  # camera looks down at the three objects
@@ -323,7 +323,7 @@ def architecture_svg() -> str:
     # description band
     band(596, 158, "Robot description and sensors (feeds every layer)")
     s.append(_box(16, 618, 230, 60, "v", "agx_arm_description", "official URDF + meshes · unmodified"))
-    s.append(_box(262, 618, 330, 60, "o", "piper_description", "xacro overlay: tcp_link · D435 · ros2_control per backend"))
+    s.append(_box(262, 618, 330, 60, "o", "piper_description", "xacro macros: arm, tcp, camera model + mount, ros2_control"))
     s.append(_box(608, 618, 376, 60, "o", "generators", "physics URDF · MJCF + scene · Gazebo world SDF · Isaac USD"))
     s.append(_arrow(246, 648, 262, 648))
     s.append(_arrow(592, 648, 608, 648))
@@ -367,8 +367,8 @@ runs and how the physics is reached.</p>
 <tr><th>Where</th><th>What</th></tr>
 <tr><td><code>piper_studio</code> (this repo, branch <code>main</code> + feature branches)</td><td>everything below; the legacy work is kept at tag <code>legacy-final-20261008</code></td></tr>
 <tr><td><code>external/agx_arm_ros</code> (submodule)</td><td>AgileX's official stack: <code>agx_arm_ctrl</code>, <code>agx_arm_description</code>, <code>agx_arm_moveit</code>, <code>agx_arm_msgs</code></td></tr>
-<tr><td><code>src/piper_description</code></td><td>xacro overlay and the generators (physics URDF, MJCF, Gazebo world, scene objects), model audit against the official URDF</td></tr>
-<tr><td><code>src/piper_bringup</code></td><td>the one launch file, controllers, MoveIt and Servo config, command guard, Gazebo server wrapper</td></tr>
+<tr><td><code>src/piper_description</code></td><td>the xacro macros (arm generated from the official model, tool frames, camera model + mount, ros2_control), meshes, validation tools; <code>src/piper_sim</code> has the simulator generators (physics URDF, MJCF, Gazebo world, scene objects)</td></tr>
+<tr><td><code>src/piper_sim</code> + <code>src/piper_control</code></td><td>piper_sim: the one launch file, simulator models, scenes, Gazebo server wrapper; piper_control: controllers, MoveIt and Servo config, command guard</td></tr>
 <tr><td><code>src/piper_py</code></td><td>Python API, <code>piper</code> CLI, demo recorder, step-response tool, stand-in driver, end-to-end tests</td></tr>
 <tr><td><code>isaac/</code></td><td>Isaac runner and USD conversion, run in Isaac's own environment (nothing installed into it)</td></tr>
 <tr><td><code>for_reference/agilex/</code> (git-ignored)</td><td>26 AgileX repositories cloned for study: SDKs, simulators, kinematics, gravity compensation, VLA training repos</td></tr>

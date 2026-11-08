@@ -1,6 +1,6 @@
 """The command guard: the rules every joint command for the arm must pass before it reaches the driver.
 
-One implementation, used by the ROS node (piper_bringup `command_guard.py`) and by any direct control path. Rejecting is always safe:
+One implementation, used by the ROS node (piper_control `command_guard.py`) and by any direct control path. Rejecting is always safe:
 the driver keeps its last valid target. Freshness of the measured state is checked by the caller (it owns the clock).
 
 A command is accepted only if

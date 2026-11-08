@@ -7,7 +7,7 @@ Topics (Isaac's bundled ROS 2 Jazzy, Fast DDS, same ROS_DOMAIN_ID as the workspa
     /isaac/joint_states     measured state of all 9 DOFs (arm, gripper width, both fingers)
     /isaac/joint_commands   position targets by joint name (what ros2_control's JointStateTopicSystem sends)
 
-The ROS side is unchanged: piper_bringup with backend:=isaac runs the shared controllers and MoveIt, and
+The ROS side is unchanged: piper_sim with backend:=isaac runs the shared controllers and MoveIt, and
 JointStateTopicSystem exchanges the two joint topics with this process. The USD comes from the same single
 description as every other backend (isaac/convert_urdf.py).
 """
@@ -30,7 +30,7 @@ ap.add_argument("--video-fps", type=float, default=30.0)
 ap.add_argument("--camera", default="none", help="none | d435: publish the wrist camera topics (USD must contain the camera)")
 ap.add_argument("--prefix", default="piper_", help="prefix of every joint and link name in the USD (the description's prefix)")
 ap.add_argument("--camera-pose", type=Path, help="camera pose in link6 (JSON from export_urdf.py --camera-pose-out); needed with --camera")
-ap.add_argument("--scene", type=Path, help="JSON list of static objects (same file content as piper_bringup/config/scene_objects.yaml)")
+ap.add_argument("--scene", type=Path, help="JSON list of static objects (same file content as piper_sim/config/scene_objects.yaml)")
 ap.add_argument("--frame-hz", type=float, default=float(os.environ.get("PIPER_ISAAC_FRAME_HZ", "0")),
                 help="app updates (and ROS publishing) per second; 0 = auto: 240 without rendering, 90 with a camera/video "
                      "(rendering costs ~6 ms per update). Higher = less control latency, more CPU")

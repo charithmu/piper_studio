@@ -1,7 +1,7 @@
 project: piper_studio
 kind: ros
 owner: ros/piper_studio
-docs: [README.md, HANDOFF.md, AGENTS.md]
+docs: [README.md, AGENTS.md, docs/CLEANUP.md]
 artifacts:
   - id: piper-demo
     pin: 7

@@ -19,7 +19,7 @@ the only shared resource is the GPU (about 3 GB for this scene).
 ```bash
 source scripts/env.sh
 scripts/isaac.sh build-usd                         # once, and after any description change
-ros2 launch piper_bringup piper.launch.py backend:=isaac   # starts ROS side AND the Isaac runner (via gpu-run)
+ros2 launch piper_sim piper.launch.py backend:=isaac   # starts ROS side AND the Isaac runner (via gpu-run)
 scripts/isaac.sh stop                              # stop this workspace's runner (PID file; never other Isaac processes)
 PIPER_TEST_BACKENDS=isaac colcon test --packages-select piper_py   # opt-in test (uses the GPU)
 ```
@@ -49,7 +49,7 @@ remains an option if in-process control is wanted later.
 `link6`, turned 180 deg about x because USD cameras look along -Z with +Y up. `ros2 launch ... backend:=isaac camera:=d435` then makes the
 runner create a USD camera there (640x480, 69.4 deg horizontal, near 0.05 m) and publish it through Isaac's ROS 2 camera graph on the
 RealSense topics (`/camera/color/image_raw`, `/camera/aligned_depth_to_color/image_raw`, `/camera/color/camera_info`, frame
-`camera_color_optical_frame`). The static objects of `piper_bringup/config/scene_objects.yaml` are passed as JSON (`--scene`) so all
+`camera_color_optical_frame`). The static objects of `piper_sim/config/scene_objects.yaml` are passed as JSON (`--scene`) so all
 simulators see the same scene. Cost: each rendered view is about 8 ms per frame (real-time factor ~0.6 with the wrist camera at 90 Hz frames).
 
 ## Things learned (each cost time)
@@ -77,7 +77,7 @@ export ISAAC_ENV_SH=/path/to/your/isaac-env.sh      # sources the Isaac Sim 6.x 
 export PIPER_ISAAC_DATA=/path/for/generated/files   # URDF + USD (default ~/data/ml/isaac/piper_studio)
 # If `gpu-run` (this machine's GPU scheduler) does not exist, replace it in scripts/isaac.sh `in_isaac()` by `exec "$@"`.
 scripts/bootstrap.sh && source scripts/env.sh
-scripts/isaac.sh build-usd && ros2 launch piper_bringup piper.launch.py backend:=isaac
+scripts/isaac.sh build-usd && ros2 launch piper_sim piper.launch.py backend:=isaac
 ```
 
 Verified with: Isaac Sim 6.1.0.0 (Kit 110.3), `isaacsim.ros2.core` 1.11.0, `isaacsim.asset.importer.urdf` (urdf-usd-converter 0.3.2),

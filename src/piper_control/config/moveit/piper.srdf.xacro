@@ -6,7 +6,7 @@
   <xacro:arg name="camera" default="none" />
   <xacro:property name="prefix" value="$(arg prefix)" />
   <!-- groups, passive joints, end effector, official named poses and collision matrix: generated from the official SRDF, prefixed -->
-  <xacro:include filename="$(find piper_bringup)/config/moveit/piper_official.srdf.xacro" />
+  <xacro:include filename="$(find piper_control)/config/moveit/piper_official.srdf.xacro" />
   <xacro:piper_official_srdf prefix="${prefix}" gripper="$(arg gripper)" />
 
   <xacro:if value="${'$(arg camera)' != 'none'}">

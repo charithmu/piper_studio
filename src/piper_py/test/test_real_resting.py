@@ -23,7 +23,7 @@ RESTING = [0.004, -0.0382, 0.0427, -0.0073, 0.3859, 0.0]  # measured on the real
 
 @pytest.mark.launch_test
 def generate_test_description():
-    bringup = os.path.join(get_package_share_directory("piper_bringup"), "launch", "piper.launch.py")
+    bringup = os.path.join(get_package_share_directory("piper_sim"), "launch", "piper.launch.py")
     return launch.LaunchDescription([
         launch_ros.actions.Node(package="piper_py", executable="fake_driver",
                                 parameters=[{"initial_positions": RESTING + [0.0]}]),

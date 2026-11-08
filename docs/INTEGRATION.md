@@ -9,7 +9,7 @@ You never need the simulators, scenes or demos of this repo. Take only the layer
 | You want | Take | ROS needed |
 |---|---|---|
 | The robot model in your own world or on your own robot | `piper_description` (+ the official AgileX submodule it includes) | for xacro only |
-| The same controllers and MoveIt setup | + `piper_bringup` (to be trimmed into `piper_control`, B4) | yes |
+| The same controllers and MoveIt setup | + `piper_control` | yes |
 | Python client for state, trajectories, gripper, MoveIt, Servo | + `piper_py` | yes |
 | The safety rules (limits, command guard, named poses) in plain Python | `piper_core` | **no** |
 | Direct control of the real arm without ROS | `piper_core.RealArm` *(planned, B3)*; today `tools/real_arm/` | no |
@@ -46,7 +46,7 @@ meshes and the SRDF are generated from it). Pin a commit or tag; see `piper.repo
 - Another camera or mount (ZED, OAK-D Pro, a CAD-exported bracket): add `urdf/cameras/<model>.xacro` defining `piper_camera_model(prefix, parent, hardware, width, height, hfov_deg, update_rate, *origin)`
   or `urdf/mounts/<mount>.xacro` defining `piper_camera_mount(prefix, parent, mesh, xyz, rpy)` and properties `piper_mount_camera_xyz/rpy`, then select with `camera:=` / `camera_mount:=`.
 
-## 2. The ROS interface (what `piper_bringup` + `piper_py` give you)
+## 2. The ROS interface (what `piper_control` + `piper_py` give you)
 
 Names below are for the default prefix; with another prefix, joints and frames follow it. Controllers, actions and topics do not.
 

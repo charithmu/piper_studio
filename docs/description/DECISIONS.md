@@ -49,7 +49,7 @@ Simulators get the same description plus two generated, tested transforms (`pipe
   MoveIt and piper_py, so they never touch a physics stop.
 - MuJoCo: `mujoco_model()` runs mujoco_ros2_control's URDF converter on the simulator description
   (collision STLs reused as visuals, because the converter keys meshes by file stem and mixed up the
-  DAE visuals with the collision meshes) plus `piper_bringup/config/mujoco/inputs.xml`: position
+  DAE visuals with the collision meshes) plus `piper_sim/config/mujoco/inputs.xml`: position
   actuators named like the ros2_control joints, finger equality constraints (±0.5 × gripper),
   contact exclusions (world–link1 because the fused base is not filtered as a parent; finger–finger
   as in the official SRDF). FK equals the official URDF to 1e-6 m; mass is conserved (fixed links

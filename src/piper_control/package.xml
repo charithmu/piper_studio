@@ -1,13 +1,14 @@
 <?xml version="1.0"?>
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
-  <name>piper_bringup</name>
+  <name>piper_control</name>
   <version>0.1.0</version>
-  <description>Single entry point for the Piper arm on mock, real and simulated hardware: ros2_control, controllers, MoveIt and RViz.</description>
+  <description>Piper control stack: controllers (one config for every backend), MoveIt, Servo, command guard for the real arm; runs on mock, the real arm, or any controller manager.</description>
   <maintainer email="mung@zhaw.ch">Charith Munasinghe</maintainer>
   <license>Apache-2.0</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
+  <buildtool_depend>ament_cmake_python</buildtool_depend>
 
   <exec_depend>piper_description</exec_depend>
   <exec_depend>piper_core</exec_depend>
@@ -34,10 +35,6 @@
   <exec_depend>python3-yaml</exec_depend>
   <exec_depend>moveit_ros_visualization</exec_depend>
   <exec_depend>rviz2</exec_depend>
-  <exec_depend>ros_gz_sim</exec_depend>
-  <exec_depend>ros_gz_bridge</exec_depend>
-  <exec_depend>gz_ros2_control</exec_depend>
-  <exec_depend>mujoco_ros2_control</exec_depend>
 
   <test_depend>ament_cmake_pytest</test_depend>
 

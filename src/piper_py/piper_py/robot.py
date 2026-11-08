@@ -1,4 +1,4 @@
-"""Python client for a Piper arm brought up with piper_bringup (any backend).
+"""Python client for a Piper arm brought up with piper_control or piper_sim (any backend).
 
 Every motion call blocks until the controller reports the outcome and returns a Result.
 A Result is successful only when execution succeeded, never merely because planning did.
