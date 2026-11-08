@@ -1,0 +1,337 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Piper Studio model viewer</title>
+<style>
+  :root { --bg:#14171c; --panel:#1b1f26; --line:#2c323c; --fg:#d7dde6; --dim:#8b95a5; --acc:#5aa9ff; --warn:#ff8a3d; --bad:#ff5d5d; --ok:#5ecb8a; }
+  @media (prefers-color-scheme: light) { :root { --bg:#eef1f5; --panel:#fff; --line:#d5dbe3; --fg:#1d232c; --dim:#667082; --acc:#1b6fd1; --warn:#c25a0a; --bad:#c62828; --ok:#1f8a4c; } }
+  * { box-sizing: border-box; }
+  html, body { margin:0; height:100%; background:var(--bg); color:var(--fg); font:13px/1.4 system-ui, sans-serif; }
+  #app { display:grid; grid-template-columns: 1fr 380px; height:100%; }
+  #view { position:relative; min-width:0; }
+  #view canvas { display:block; width:100%; height:100%; }
+  #hud { position:absolute; left:10px; top:10px; background:color-mix(in srgb, var(--panel) 85%, transparent); border:1px solid var(--line); border-radius:6px; padding:6px 10px; pointer-events:none; font-variant-numeric: tabular-nums; }
+  #legend { position:absolute; left:10px; bottom:10px; background:color-mix(in srgb, var(--panel) 85%, transparent); border:1px solid var(--line); border-radius:6px; padding:6px 10px; }
+  #legend i { display:inline-block; width:10px; height:10px; border-radius:2px; margin:0 4px 0 8px; vertical-align:-1px; }
+  #side { background:var(--panel); border-left:1px solid var(--line); overflow:auto; padding:10px 12px 40px; }
+  h1 { font-size:15px; margin:0 0 2px; } h2 { font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:var(--dim); margin:16px 0 6px; }
+  .dim { color:var(--dim); } .mono { font-family: ui-monospace, monospace; font-size:12px; }
+  .row { display:flex; align-items:center; gap:8px; margin:3px 0; }
+  .row label { flex:0 0 74px; } .row .val { flex:0 0 112px; text-align:right; font-variant-numeric: tabular-nums; }
+  input[type=range] { flex:1; min-width:0; accent-color: var(--acc); }
+  button, select { background:var(--bg); color:var(--fg); border:1px solid var(--line); border-radius:5px; padding:4px 9px; font:inherit; cursor:pointer; }
+  button:hover { border-color:var(--acc); } button.internal { border-style:dashed; color:var(--warn); }
+  .btns { display:flex; flex-wrap:wrap; gap:5px; margin:4px 0; }
+  .toggles label { display:inline-flex; align-items:center; gap:4px; margin:2px 10px 2px 0; }
+  table { border-collapse:collapse; width:100%; } td, th { padding:2px 5px; border-bottom:1px solid var(--line); text-align:left; font-weight:normal; }
+  th { color:var(--dim); font-size:11px; } tr.link { cursor:pointer; } tr.link:hover, tr.sel { background: color-mix(in srgb, var(--acc) 18%, transparent); }
+  .tag { display:inline-block; padding:0 5px; border-radius:3px; font-size:11px; }
+  .t-mesh { background:color-mix(in srgb, var(--acc) 30%, transparent); } .t-box { background:color-mix(in srgb, var(--warn) 40%, transparent); }
+  .t-none { background:color-mix(in srgb, var(--dim) 30%, transparent); } .t-other { background:color-mix(in srgb, var(--ok) 35%, transparent); }
+  .out { color:var(--bad); } pre { white-space:pre-wrap; margin:4px 0; font-size:11px; color:var(--dim); }
+  details summary { cursor:pointer; color:var(--dim); } #err { color:var(--bad); white-space:pre-wrap; }
+  @media (max-width: 800px) { #app { grid-template-columns: 1fr; grid-template-rows: 55vh 1fr; } #side { border-left:0; border-top:1px solid var(--line); } }
+</style>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
+</head>
+<body>
+<div id="app">
+  <div id="view">
+    <div id="hud" class="mono">loading...</div>
+    <div id="legend" class="dim">collision shapes:<i style="background:#4fb3ff"></i>mesh<i style="background:#ff9b3d"></i>box<i style="background:#5ecb8a"></i>sphere / cylinder<i style="background:#ff5d5d"></i>selected</div>
+  </div>
+  <div id="side">
+    <h1>Piper Studio model viewer</h1>
+    <div class="dim" id="git"></div>
+    <div id="err"></div>
+
+    <h2>Description</h2>
+    <div class="row"><label>camera</label><select id="o-camera"><option value="none">none</option><option value="d435">D435 on stand</option></select>
+      <label style="flex:0 0 auto">gripper</label><select id="o-gripper"><option value="true">fitted</option><option value="false">none</option></select></div>
+    <div class="row"><label>calibration</label><select id="o-cal"><option value="">nominal (default)</option></select></div>
+    <div class="dim" id="summary"></div>
+
+    <h2>Pose</h2>
+    <div class="btns" id="poses"></div>
+    <div id="sliders"></div>
+    <div class="dim mono" id="tcp"></div>
+
+    <h2>Show</h2>
+    <div class="toggles" id="toggles"></div>
+    <div class="btns"><button data-view="iso">iso</button><button data-view="front">front</button><button data-view="side">side</button><button data-view="top">top</button><button data-view="wrist">wrist</button><button id="fit">fit</button></div>
+
+    <h2>Links <span class="dim" style="text-transform:none">(click to select)</span></h2>
+    <table id="links"></table>
+    <div id="detail"></div>
+
+    <h2>Joint limits (URDF)</h2>
+    <table id="limits"></table>
+    <details><summary>firmware values applied (config/firmware_values.yaml)</summary><pre id="fw"></pre></details>
+    <details><summary>collision pairs disabled in the SRDF</summary><pre id="srdf"></pre></details>
+  </div>
+</div>
+<script type="module">
+import * as THREE from 'three';
+import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
+import {STLLoader} from 'three/addons/loaders/STLLoader.js';
+import {ColladaLoader} from 'three/addons/loaders/ColladaLoader.js';
+
+const $ = (id) => document.getElementById(id);
+const deg = (r) => (r * 180 / Math.PI);
+let model = null, q = {}, selected = null, S = null;               // q: joint name -> value; S: scene objects of the current model
+const show = {visual: true, collision: false, frames: false, axes: false, com: false, tcp: true};
+const COL = {mesh: 0x4fb3ff, box: 0xff9b3d, other: 0x5ecb8a, sel: 0xff5d5d};
+
+// ---------------------------------------------------------------- three.js scene (Z up, like ROS)
+const view = $('view');
+const renderer = new THREE.WebGLRenderer({antialias: true});
+renderer.setPixelRatio(devicePixelRatio);
+view.appendChild(renderer.domElement);
+const scene = new THREE.Scene();
+const dark = !matchMedia('(prefers-color-scheme: light)').matches;
+scene.background = new THREE.Color(dark ? 0x14171c : 0xeef1f5);
+THREE.Object3D.DEFAULT_UP.set(0, 0, 1);
+const camera = new THREE.PerspectiveCamera(40, 1, 0.01, 50);
+camera.up.set(0, 0, 1);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+scene.add(new THREE.HemisphereLight(0xffffff, 0x555566, 1.6));
+const sun = new THREE.DirectionalLight(0xffffff, 1.6); sun.position.set(1, -1.5, 2); scene.add(sun);
+const grid = new THREE.GridHelper(1, 20, 0x667085, 0x39414d); grid.rotation.x = Math.PI / 2; scene.add(grid);
+scene.add(new THREE.AxesHelper(0.15));
+const robotRoot = new THREE.Group(); scene.add(robotRoot);
+
+function resize() { const w = view.clientWidth, h = view.clientHeight; renderer.setSize(w, h); camera.aspect = w / h; camera.updateProjectionMatrix(); }
+addEventListener('resize', resize); resize();
+setViewPreset('iso');
+(function loop() { requestAnimationFrame(loop); controls.update(); renderer.render(scene, camera); })();
+
+function setViewPreset(v) {
+  const t = controls.target;
+  const p = {iso: [0.55, -0.7, 0.45], front: [1, 0, 0.25], side: [0, -1, 0.25], top: [0.001, -0.001, 1.2]}[v];
+  if (v === 'wrist' && S) {
+    const tcp = S.links[model.tcp]; if (!tcp) return;
+    const o = new THREE.Vector3(); tcp.getWorldPosition(o); t.copy(o);
+    const m = new THREE.Matrix4().extractRotation(tcp.matrixWorld);
+    const back = new THREE.Vector3(0, 0, -1).applyMatrix4(m), up = new THREE.Vector3(1, 0, 0).applyMatrix4(m);
+    camera.position.copy(o).addScaledVector(back, 0.35).addScaledVector(up, 0.1); controls.update(); return;
+  }
+  if (!p) return;
+  t.set(0.15, 0, 0.15); camera.position.set(t.x + p[0], t.y + p[1], t.z + p[2]); controls.update();
+}
+document.querySelectorAll('[data-view]').forEach(b => b.onclick = () => setViewPreset(b.dataset.view));
+$('fit').onclick = () => { controls.target.set(0.15, 0, 0.15); controls.update(); };
+
+// ---------------------------------------------------------------- loading shapes
+const stlLoader = new STLLoader(), daeLoader = new ColladaLoader(), cache = new Map();
+function loadStl(url) { if (!cache.has(url)) cache.set(url, new Promise((ok, no) => stlLoader.load(url, ok, undefined, no))); return cache.get(url); }
+function loadDae(url) { if (!cache.has(url)) cache.set(url, new Promise((ok, no) => daeLoader.load(url, ok, undefined, no))); return cache.get(url); }
+function rpyQuat(r) { return new THREE.Quaternion().setFromEuler(new THREE.Euler(r[0], r[1], r[2], 'ZYX')); }
+function place(obj, s) { obj.position.set(...s.xyz); obj.quaternion.copy(rpyQuat(s.rpy)); return obj; }
+
+async function visualObject(s) {
+  if (s.type !== 'mesh') return primitive(s, new THREE.MeshStandardMaterial({color: 0x9aa5b5}));
+  const url = s.url;
+  if (url.endsWith('.stl') || url.includes('.stl&')) {
+    const g = await loadStl(url);
+    return new THREE.Mesh(g, new THREE.MeshStandardMaterial({color: 0xb9c1cf, metalness: 0.1, roughness: 0.7}));
+  }
+  const c = await loadDae(url);
+  const o = c.scene.clone(true);
+  // ColladaLoader turns a Z_UP file into Y-up (-90 deg about x); this scene is Z-up like ROS, so undo it (Y_UP files are rotated up instead)
+  const isZup = Math.abs(o.quaternion.x + Math.SQRT1_2) < 1e-3;
+  o.quaternion.set(isZup ? 0 : Math.SQRT1_2, 0, 0, isZup ? 1 : Math.SQRT1_2);
+  const g = new THREE.Group(); g.add(o); g.scale.set(...s.scale); return g;
+}
+function primitive(s, mat) {
+  let geo;
+  if (s.type === 'box') geo = new THREE.BoxGeometry(...s.size);
+  else if (s.type === 'sphere') geo = new THREE.SphereGeometry(s.radius, 24, 16);
+  else { geo = new THREE.CylinderGeometry(s.radius, s.radius, s.length, 24); geo.rotateX(Math.PI / 2); }
+  return new THREE.Mesh(geo, mat);
+}
+function collisionMaterial(kind) {
+  return new THREE.MeshBasicMaterial({color: COL[kind] ?? COL.other, transparent: true, opacity: 0.28, depthWrite: false, side: THREE.DoubleSide});
+}
+async function collisionObject(s) {
+  const kind = s.type === 'mesh' ? 'mesh' : s.type === 'box' ? 'box' : 'other';
+  let obj;
+  if (s.type === 'mesh') { const g = await loadStl(s.url); obj = new THREE.Mesh(g, collisionMaterial(kind)); obj.scale.set(...s.scale); }
+  else obj = primitive(s, collisionMaterial(kind));
+  const edges = new THREE.LineSegments(new THREE.EdgesGeometry(obj.geometry, 25), new THREE.LineBasicMaterial({color: COL[kind] ?? COL.other}));
+  obj.add(edges); obj.userData.kind = kind; return obj;
+}
+
+// ---------------------------------------------------------------- building the robot from the model
+async function buildRobot() {
+  while (robotRoot.children.length) robotRoot.remove(robotRoot.children[0]);
+  const links = {}, joints = {}, byName = Object.fromEntries(model.links.map(l => [l.name, l]));
+  for (const l of model.links) {
+    const g = new THREE.Group(); g.name = l.name;
+    g.userData.vis = new THREE.Group(); g.userData.col = new THREE.Group(); g.userData.fr = new THREE.AxesHelper(0.03); g.userData.com = null;
+    g.userData.fr.visible = false; g.add(g.userData.vis, g.userData.col, g.userData.fr); g.userData.col.visible = false;
+    if (l.com && l.mass) {
+      const c = new THREE.Mesh(new THREE.SphereGeometry(0.006, 12, 8), new THREE.MeshBasicMaterial({color: 0xffd33d}));
+      c.position.set(...l.com); c.visible = false; g.add(c); g.userData.com = c;
+    }
+    links[l.name] = g;
+  }
+  const childLinks = new Set(model.joints.map(j => j.child));
+  const root = model.links.find(l => !childLinks.has(l.name));
+  robotRoot.add(links[root.name]);
+  for (const j of model.joints) {
+    const jg = new THREE.Group(); jg.name = j.name; jg.userData.def = j;
+    jg.position.set(...j.xyz); jg.quaternion.copy(rpyQuat(j.rpy));
+    links[j.parent].add(jg); jg.add(links[j.child]);
+    joints[j.name] = jg;
+    if (j.type !== 'fixed' && j.axis) {
+      const ax = new THREE.ArrowHelper(new THREE.Vector3(...j.axis).normalize(), new THREE.Vector3(), 0.06, 0xffe066, 0.015, 0.01);
+      ax.visible = false; jg.add(ax); jg.userData.axis = ax;
+    }
+  }
+  S = {links, joints, byName};
+  const jobs = [];
+  for (const l of model.links) {
+    const g = links[l.name];
+    for (const v of l.visual) jobs.push(visualObject(v).then(o => g.userData.vis.add(place(o, v))).catch(e => console.warn('visual', l.name, e)));
+    for (const c of l.collision) jobs.push(collisionObject(c).then(o => g.userData.col.add(place(o, c))).catch(e => console.warn('collision', l.name, e)));
+  }
+  await Promise.all(jobs);
+  applyShow(); applyPose();
+}
+
+// ---------------------------------------------------------------- pose
+function motionJoints() { return model.joints.filter(j => j.type !== 'fixed' && !j.mimic); }
+function jointValue(j) { if (j.mimic) return (q[j.mimic.joint] ?? 0) * j.mimic.multiplier + j.mimic.offset; return q[j.name] ?? 0; }
+function applyPose() {
+  if (!S) return;
+  for (const j of model.joints) {
+    if (j.type === 'fixed') continue;
+    const jg = S.joints[j.name], child = S.links[j.child], v = jointValue(j);
+    child.position.set(0, 0, 0); child.quaternion.identity();
+    if (j.type === 'prismatic') child.position.set(...j.axis).multiplyScalar(v);
+    else child.quaternion.setFromAxisAngle(new THREE.Vector3(...j.axis).normalize(), v);
+  }
+  robotRoot.updateMatrixWorld(true);
+  updateReadouts();
+}
+function relPose(from, to) {
+  const a = S.links[from], b = S.links[to]; if (!a || !b) return null;
+  const m = new THREE.Matrix4().copy(a.matrixWorld).invert().multiply(b.matrixWorld);
+  const p = new THREE.Vector3(), qq = new THREE.Quaternion(), s = new THREE.Vector3(); m.decompose(p, qq, s);
+  const e = new THREE.Euler().setFromQuaternion(qq, 'ZYX');
+  return {p, rpy: [e.x, e.y, e.z]};
+}
+function updateReadouts() {
+  const base = model.prefix + 'base_link', lines = [];
+  const t = relPose(base, model.tcp);
+  if (t) lines.push(`tcp in base_link  xyz ${t.p.toArray().map(v => v.toFixed(4)).join(' ')} m`, `                  rpy ${t.rpy.map(v => v.toFixed(3)).join(' ')} rad`);
+  const cam = relPose(model.prefix + 'link6', model.prefix + 'camera_color_optical_frame');
+  if (cam) lines.push(`camera in link6   xyz ${cam.p.toArray().map(v => v.toFixed(4)).join(' ')} m`);
+  $('tcp').textContent = lines.join('\n'); $('tcp').style.whiteSpace = 'pre';
+  const bad = motionJoints().filter(j => j.limit && (q[j.name] < j.limit.lower - 1e-6 || q[j.name] > j.limit.upper + 1e-6));
+  $('hud').innerHTML = `${model.name} · ${model.links.length} links · ${motionJoints().length} moving joints` +
+    (bad.length ? `<br><span class="out">outside limits: ${bad.map(j => j.name.replace(model.prefix, '')).join(', ')}</span>` : '');
+  for (const j of motionJoints()) {
+    const el = $('v-' + j.name); if (!el) continue;
+    const out = j.limit && (q[j.name] < j.limit.lower - 1e-6 || q[j.name] > j.limit.upper + 1e-6);
+    el.className = 'val mono' + (out ? ' out' : '');
+    el.textContent = j.type === 'prismatic' ? `${(q[j.name] * 1000).toFixed(1)} mm` : `${q[j.name].toFixed(4)} · ${deg(q[j.name]).toFixed(1)}°`;
+  }
+}
+function setPose(p) { for (const [k, v] of Object.entries(p)) q[k] = v; for (const j of motionJoints()) { const s = $('s-' + j.name); if (s) s.value = q[j.name] ?? 0; } applyPose(); }
+
+function buildPanel() {
+  const arm = model.arm_joints, gr = model.prefix + 'gripper';
+  $('sliders').innerHTML = '';
+  for (const j of motionJoints()) {
+    const row = document.createElement('div'); row.className = 'row';
+    const lo = j.limit.lower, hi = j.limit.upper, pad = j.type === 'prismatic' ? 0 : 0.1;
+    row.innerHTML = `<label>${j.name.replace(model.prefix, '')}</label><input id="s-${j.name}" type="range" min="${lo - pad}" max="${hi + pad}" step="0.0005" value="${q[j.name] ?? 0}"><span class="val mono" id="v-${j.name}"></span>`;
+    $('sliders').appendChild(row);
+    row.querySelector('input').oninput = e => { q[j.name] = parseFloat(e.target.value); applyPose(); };
+  }
+  const poses = $('poses'); poses.innerHTML = '';
+  const add = (label, pose, cls, title) => { const b = document.createElement('button'); b.textContent = label; if (cls) b.className = cls; if (title) b.title = title; b.onclick = () => setPose(pose); poses.appendChild(b); };
+  for (const [name, p] of Object.entries(model.poses)) add(name, p, name === 'park' ? 'internal' : '', name === 'park' ? 'Piper Studio internal pose (stop sequence); not offered to downstream users' : '');
+  add('all 0', Object.fromEntries(arm.map(a => [a, 0])), '', 'vendor zero: joints 2 and 3 exactly on their limit');
+  add('slumped', model.slumped, 'internal', 'the powered-off arm: outside the limits of joints 2 and 3. Shown for checking only, never commanded');
+}
+
+// ---------------------------------------------------------------- toggles, link list, details
+function applyShow() {
+  if (!S) return;
+  for (const l of model.links) {
+    const g = S.links[l.name];
+    g.userData.vis.visible = show.visual; g.userData.col.visible = show.collision;
+    g.userData.fr.visible = show.frames || (show.tcp && (l.name === model.tcp || l.name.endsWith('camera_color_optical_frame')));
+    if (g.userData.com) g.userData.com.visible = show.com;
+  }
+  for (const j of Object.values(S.joints)) if (j.userData.axis) j.userData.axis.visible = show.axes;
+  highlight();
+}
+const TOG = [['visual', 'visual meshes'], ['collision', 'collision shapes'], ['frames', 'all frames'], ['tcp', 'tcp / camera frame'], ['axes', 'joint axes'], ['com', 'centres of mass']];
+$('toggles').innerHTML = TOG.map(([k, t]) => `<label><input type="checkbox" data-t="${k}" ${show[k] ? 'checked' : ''}>${t}</label>`).join('');
+document.querySelectorAll('[data-t]').forEach(c => c.onchange = () => { show[c.dataset.t] = c.checked; applyShow(); });
+
+function kindOf(l) { if (!l.collision.length) return 'none'; const k = new Set(l.collision.map(c => c.type)); return k.size === 1 ? [...k][0] : 'mixed'; }
+function tagClass(k) { return k === 'mesh' ? 't-mesh' : k === 'box' ? 't-box' : k === 'none' ? 't-none' : 't-other'; }
+function buildLinks() {
+  const rows = model.links.map(l => `<tr class="link" data-l="${l.name}"><td>${l.name.replace(model.prefix, '')}</td><td>${l.visual.length ? l.visual.map(v => v.type === 'mesh' ? 'mesh' : v.type).join('+') : '–'}</td><td><span class="tag ${tagClass(kindOf(l))}">${kindOf(l)}</span></td><td class="mono">${l.mass == null ? '–' : l.mass.toFixed(3)}</td></tr>`);
+  $('links').innerHTML = '<tr><th>link</th><th>visual</th><th>collision</th><th>kg</th></tr>' + rows.join('');
+  document.querySelectorAll('tr.link').forEach(r => r.onclick = () => { selected = selected === r.dataset.l ? null : r.dataset.l; highlight(); detail(); });
+  const mass = model.links.reduce((a, l) => a + (l.mass || 0), 0);
+  const nm = model.links.filter(l => kindOf(l) === 'mesh').length, nb = model.links.filter(l => ['box', 'mixed'].includes(kindOf(l))).length;
+  $('summary').innerHTML = `${model.links.length} links, total mass <b>${mass.toFixed(3)} kg</b> (URDF values). Collision: <span class="tag t-mesh">${nm} mesh</span> <span class="tag t-box">${nb} box</span> <span class="tag t-none">${model.links.filter(l => kindOf(l) === 'none').length} none</span>`;
+}
+function highlight() {
+  document.querySelectorAll('tr.link').forEach(r => r.classList.toggle('sel', r.dataset.l === selected));
+  if (!S) return;
+  for (const l of model.links) {
+    const on = l.name === selected;
+    S.links[l.name].userData.col.children.forEach(c => { const hex = on ? COL.sel : (COL[c.userData.kind] ?? COL.other); c.material.color.setHex(hex); c.material.opacity = on ? 0.5 : 0.28; if (c.children[0]) c.children[0].material.color.setHex(hex); });
+    S.links[l.name].userData.vis.traverse(o => { if (o.isMesh && o.material && o.material.emissive) { o.material.emissive.setHex(on ? 0x662222 : 0x000000); } });
+  }
+}
+function detail() {
+  const l = selected && S?.byName[selected]; if (!l) { $('detail').innerHTML = ''; return; }
+  const j = model.joints.find(x => x.child === l.name);
+  const pairs = model.disabled_collisions.filter(p => p[0] === l.name || p[1] === l.name).map(p => (p[0] === l.name ? p[1] : p[0]).replace(model.prefix, '') + ` (${p[2]})`);
+  const shapes = (arr) => arr.length ? arr.map(c => c.type === 'mesh' ? `${c.file} ×${c.scale.join(',')}` : c.type === 'box' ? `box ${c.size.map(v => (v * 1000).toFixed(1)).join(' × ')} mm` : c.type).join('<br>') : '–';
+  $('detail').innerHTML = `<h2>${l.name}</h2><table><tr><th>parent joint</th><td class="mono">${j ? `${j.name} (${j.type}) from ${j.parent.replace(model.prefix, '')}<br>xyz ${j.xyz.join(' ')}<br>rpy ${j.rpy.join(' ')}${j.axis ? '<br>axis ' + j.axis.join(' ') : ''}` : 'root'}</td></tr>` +
+    `<tr><th>visual</th><td class="mono">${shapes(l.visual)}</td></tr><tr><th>collision</th><td class="mono">${shapes(l.collision)}</td></tr>` +
+    `<tr><th>mass</th><td class="mono">${l.mass ?? '–'} kg${l.com ? '<br>com ' + l.com.join(' ') : ''}</td></tr>` +
+    `<tr><th>collision off with</th><td>${pairs.length ? pairs.join(', ') : '–'}</td></tr></table>`;
+}
+function buildLimits() {
+  $('limits').innerHTML = '<tr><th>joint</th><th>lower</th><th>upper</th><th>vel</th><th>effort</th></tr>' + motionJoints().concat(model.joints.filter(j => j.mimic)).map(j => {
+    const l = j.limit; return `<tr><td>${j.name.replace(model.prefix, '')}${j.mimic ? ' <span class="dim">mimic</span>' : ''}</td><td class="mono">${l.lower.toFixed(4)}</td><td class="mono">${l.upper.toFixed(4)}</td><td class="mono">${l.velocity}</td><td class="mono">${l.effort}</td></tr>`; }).join('');
+  $('fw').textContent = model.firmware_values; $('srdf').textContent = model.disabled_collisions.map(p => `${p[0].replace(model.prefix, '')} – ${p[1].replace(model.prefix, '')}  (${p[2]})`).join('\n');
+}
+
+// ---------------------------------------------------------------- loading a model from the server
+async function load() {
+  $('err').textContent = '';
+  const o = {camera: $('o-camera').value, gripper: $('o-gripper').value, calibration: $('o-cal').value};
+  const keep = {...q};
+  try {
+    const r = await fetch('api/model?' + new URLSearchParams(o)); const m = await r.json();
+    if (m.error) { $('err').textContent = m.error + '\n' + (m.trace || ''); return; }
+    model = m; selected = null;
+    $('git').textContent = 'workspace ' + m.git;
+    const cal = $('o-cal'); if (cal.options.length === 1) m.calibrations.forEach(c => cal.add(new Option(c, c)));
+    q = Object.keys(keep).length ? keep : {...m.poses.zero};
+    for (const a of m.arm_joints) if (!(a in q)) q[a] = 0;
+    const g = m.prefix + 'gripper'; if (!(g in q)) q[g] = 0.07;
+    buildPanel(); buildLinks(); buildLimits(); detail();
+    await buildRobot();
+    setViewPreset('iso');
+  } catch (e) { $('err').textContent = String(e); }
+}
+['o-camera', 'o-gripper', 'o-cal'].forEach(id => $(id).onchange = load);
+load();
+</script>
+</body>
+</html>

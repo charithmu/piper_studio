@@ -126,6 +126,10 @@ python src/piper_description/tools/piper_arm_macro.py check                     
 
 ## Demo and visual checks
 
+**Model viewer** (browser, Three.js; `tools/viewer/`): `scripts/viewer.sh start` then <http://localhost:8781/> (tailnet: `https://atlas.buri-fence.ts.net:8700/piper-studio/viewer/`); `scripts/viewer.sh stop` stops it.
+It builds the description live from the xacro and SRDF, so reload the page after a change. It shows visual and collision shapes (mesh and box marked apart), joint sliders with limits, the named poses (and the powered-off `slumped` pose, display only),
+gripper width, camera and calibration options, link masses, collision pairs disabled in the SRDF, and the TCP and camera poses. Meshes are read in place from the workspace; the browser loads Three.js from cdn.jsdelivr.net (pinned).
+
 `scripts/run_demo.sh BACKEND OUT/` runs one scripted sequence (planning, straight lines, gripper, direct trajectory, 50 Hz streaming) and records it;
 `tools/demo/build_demo_page.py OUT/ SITE/` builds the comparison page. On atlas it is served at `https://atlas.buri-fence.ts.net:8700/piper-studio/demo/` (tailnet only).
 

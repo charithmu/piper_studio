@@ -9,3 +9,4 @@ for_reference/
 **/MUJOCO_LOG.TXT
 ucode.elf
 *.code-workspace
+tools/viewer/run/

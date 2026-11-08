@@ -23,6 +23,25 @@ artifacts:
     notes: "Built by tools/demo/build_demo_page.py from recorded demo runs; files in ~/data/ml/isaac/piper_studio/site."
     links:
       - {label: Open demo, local: "http://localhost:8780/", tailnet: "https://{ts}:8700/piper-studio/demo/"}
+  - id: piper-model-viewer
+    type: web
+    title: Piper Studio model viewer
+    desc: "3D view of the Piper description as the stack builds it (live from the xacro): visual and collision shapes (mesh / box), joint sliders with limits, named poses, link masses and collision pairs, camera and calibration options. Independent of any other viewer."
+    group: Experiments
+    runtime: python-server
+    workdir: .
+    start: scripts/viewer.sh start
+    stop: scripts/viewer.sh stop
+    port: 8781
+    bind: loopback
+    exposure: tailnet
+    route: /piper-studio/viewer
+    autostart: false
+    data: none
+    probe: {path: /}
+    links:
+      - {label: Open viewer, local: "http://localhost:8781/", tailnet: "https://{ts}:8700/piper-studio/viewer/"}
+    ops_notes: "Loopback only; the :8700 gateway route is the tailnet exposure. Serves only .stl/.dae files under the piper_studio workspace. Three.js is loaded by the browser from cdn.jsdelivr.net (pinned 0.160.0); nothing is installed on this machine."
   - id: piper-run-demo
     type: job
     title: Run the scripted demo on one backend
