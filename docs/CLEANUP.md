@@ -14,25 +14,31 @@ Internal (this repo only): `piper_sim` (Gazebo, MuJoCo, Isaac models, scenes, `p
 
 ## A. Hygiene: stale or misplaced files
 
-- [x] A1 `HANDOFF.md` (generated 2026-10-30 from robosim/handoff, tells agents to ask questions that were answered) stays where it is, because RULES.md names it as the hand-off file and it is regenerated from elsewhere; `AGENTS.md` now points to this tracker as the current state.
+- [x] A1 `HANDOFF.md` (generated 2026-10-30, stale) moved to `docs/archive/legacy-plans/HANDOFF_T1_20261030.md` on the user's decision (pass 2); RULES.md still names a root HANDOFF.md as the machine-wide hand-off convention, which this repo no longer follows: this tracker replaces it.
 - [x] A2 Stray `MUJOCO_LOG.TXT` files deleted (root and `src/piper_py`) and `ucode.elf` (written by the NVIDIA driver when Isaac runs in the repo directory); `.gitignore` ignores both. `piper_studio.code-workspace` appeared at the root during pass 1 and is not ours: left alone.
 - [x] A3 `docs/description/MODEL_AUDIT.md` is a dated snapshot (2026-10-08, compares historical candidates): marked as such instead of regenerated; `model_audit.py` expands our description unprefixed on purpose.
-- [x] A4 `VERSIONS.md` and `docs/ROADMAP.md` updated (qualification table, M8 camera, M9 composition, date).
+- [x] A4 `docs/VERSIONS.md` (moved from the root in pass 2) and `docs/ROADMAP.md` updated (qualification table, M8 camera, M9 composition, date).
 - [x] A5 README re-checked against the code (layout, prefix, camera, tools layout, test commands).
 - [x] A6 `isaac/README.md`: prefix and USD rebuild note.
-- [x] A7 `comms/STATUS.md` milestone entry appended (2026-11-08); `comms/` stays: AGENTS.md and the other threads rely on it.
+- [x] A7 `comms/` (agent protocol files, 25 KB) moved whole to `docs/archive/comms-20261108/` on the user's decision (pass 2); its 2026-11-08 STATUS entry is the last one. State now lives in this tracker and git history.
 - [x] A8 `docs/archive/` (312 KB, three historical sets) kept, with a README saying it is historical and not to be followed.
 - [x] A9 `.claude/settings.json` (project agent permissions, shared by whoever works here) stays tracked; decided to keep.
 
 ## B. Organisation
 
 - [x] B1 `tools/` regrouped by purpose: `tools/real_arm/` (arm_* scripts and `arm_common.py`), `tools/demo/` (demo page, site pages, recording, step analysis, FK reference), `tools/capture/` (stills, video). `make_fk_reference.py` moved to `isaac/` (only used by `isaac.sh check`). References updated (README, docs, `artifacts.yaml`, scripts, tests). Verified: unit tests, `make_fk_reference`, py_compile of all moved scripts. Downstream callers by path (the bake-off overlay uses `tools/record_video.py`) must follow: B7.
-- [ ] B2 Split `piper_sim` out of `piper_description` and `piper_bringup`: simulator model helpers (`mujoco_model`, `physics_model`, `scene.py`, Gazebo world), `config/mujoco`, `scene_objects.yaml`, `isaac/`, and the `backend:=` launch. `piper_description` keeps only xacro, meshes and `robot_description()`.
+- [x] B2 `piper_sim` split out: simulator model helpers (`mujoco_model`, `physics_model`, ...), `scene.py`, `config/mujoco`, `scene_objects.yaml`, `export_urdf.py`, `gz_server.sh`, `wait_for_clock.py` and `piper.launch.py backend:=...` live there; `piper_description` keeps only xacro, meshes, `robot_description()`, `render_config` and the validation tools. `isaac/` stays at the repo root (own environment). Verified: 30 offline tests, launch tests mock, Gazebo, MuJoCo, Isaac (USD rebuilt, check 0.001 mm), real plumbing + resting, `run_demo.sh mock` 11/11.
 - [~] B3 `piper_core`, pure Python without ROS. Done: package `src/piper_core` with `limits_from_urdf`, `check_command` (the guard as one function, now used by `command_guard.py`) and `named_poses_from_srdf`; 8 tests; imports with no ROS; real plumbing and resting launch tests pass with the refactored guard. Open: `RealArm` (direct pyAgxArm driver, firmware-profile handling from `tools/real_arm/arm_common.py`, `execute(trajectory)` for planners such as cuRobo). It moves the real arm, so it is written with the user present and tested on the arm; also let `piper_py` use `piper_core` limits.
-- [ ] B4 `piper_control`: controllers, MoveIt, Servo, guard and `control.launch.py` that run on any controller manager (the real driver, mock, or a downstream simulator). `piper.launch.py backend:=` stays in `piper_sim`.
+- [x] B4 `piper_control` (renamed from `piper_bringup`): controllers, MoveIt, Servo, guard, `piper_control.launch_lib` (builders for other launch files) and `control.launch.py backend:=mock|real|external`. Verified: mock end to end (named pose, planned pose), `external` starts spawners, MoveIt and RViz and waits for a controller manager. Not yet verified: `external` against a real downstream simulator (B5 example).
 - [~] B5 `docs/INTEGRATION.md` written (contract: macros, names, units, controllers, frames, no-ROS use, real-arm rules, versioning). Open: a small example project that uses its own simulator, and one without ROS, to prove it (also checks the snippets in the doc).
 - [~] B6 `piper.repos` written. Open: a tag (after the merge, C12).
 - [x] B7 The downstream overlay `~/projects/ml_tests/.../00_studio_overlay` copies `src/` and uses the old unprefixed names and tool paths: note left in `comms/FOR_OTHERS.md` (not ours to edit).
+
+## D. Root cleanup (pass 2, user decisions)
+
+- [x] D1 Root now holds only `README.md`, `AGENTS.md`, `CLAUDE.md`, `artifacts.yaml`, `piper.repos` and the folders: `HANDOFF.md`, `comms/` and `VERSIONS.md` moved into `docs/` (archive or `docs/VERSIONS.md`).
+- [x] D2 `AGENTS.md` rewritten (current layout, design rules, safety, process hygiene) and `README.md` rewritten for humans (what, quick start, layout, control levels, real arm, tests).
+- [ ] D3 Not ours, dangling now: `~/projects/ros/go2_studio/AGENTS.md` and `demo/pages.py`, and `~/projects/sim/robosim/handoff/` (AGENT_AGREEMENT.md, build_handoffs.py, START_PROMPTS.md, SESSION_LOG.md) still point at `piper_studio/comms/` and `HANDOFF.md`. The user decides whether those projects are updated.
 
 ## C. Functional follow-ups
 
@@ -47,7 +53,7 @@ Internal (this repo only): `piper_sim` (Gazebo, MuJoCo, Isaac models, scenes, `p
 - [ ] C9 Camera calibration override: `config/camera_mounts/<name>.yaml` (measured pose replaces the nominal one on the real arm).
 - [ ] C10 Real arm through the ROS stack (needs the user at the arm): `backend:=real` with the prefix, driver names translated by `command_guard`. Only the fake-driver plumbing is tested so far.
 - [ ] C11 Isaac backend test failed once right after `scripts/isaac.sh check` and passed on rerun (1 of 2 runs): find out whether a leftover process from the check run (`omni.telemetry`) or the pid file is the cause.
-- [ ] C12 Merge `feature/piper-macros` into `main` (after the user has seen the screenshots); push on the user's say-so.
+- [x] C12 `feature/piper-macros` merged into `main` (2026-11-08, user approved). `feature/piper-sim-split` (B2, B4, root cleanup) is merged when its checks are green (log, pass 2). Pushing stays the user's call.
 
 ## Verification record
 
@@ -73,6 +79,7 @@ Screenshots: 01-06 RViz (model, MoveIt, zero and ready pose, wrist close-up), 07
 
 ## Log
 
+- 2026-11-08 pass 2: merged the macros branch; root cleanup (D1, D2); `piper_bringup` replaced by `piper_control` + `piper_sim` (B2, B4); `piper_control.launch_lib` and `control.launch.py backend:=mock|real|external`; `piper_description` is now pure xacro/meshes/`robot_description()`. Re-verified: 30 offline tests, launch tests mock, Gazebo, MuJoCo, Isaac, real plumbing and resting, `run_demo.sh mock` 11/11, `isaac.sh build-usd`/`check`. Launch entry changed: `ros2 launch piper_sim piper.launch.py` (was `piper_bringup`).
 - 2026-11-08 pass 1 (later): A1-A9, B1, B7, C1, C2 done; B3 (guard, limits, poses), B5 (INTEGRATION.md, snippet is a test), B6 (`piper.repos`) partly done. Tests: 31 offline (`piper_description`, `piper_bringup`, `piper_core`), launch tests per backend. Next pass: B2 (`piper_sim` split) and B4 (`piper_control`), then `RealArm` (B3) with the user at the arm, C3-C5, C7-C11, merge (C12).
 
 - 2026-11-08 pass 1: created this tracker; verified the prefix migration on all backends (above); surveyed the repo (see A and B).

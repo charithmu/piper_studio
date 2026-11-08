@@ -3,7 +3,7 @@
     ros2 launch piper_description view.launch.py camera:=d435
     ros2 launch piper_description view.launch.py camera:=d435 camera_mount_mesh:=none gripper:=false sliders:=false
 
-The description arguments are the same names piper_bringup's piper.launch.py passes to the xacro.
+The description arguments are the same names piper_sim's and piper_control's launch files pass to the xacro.
 """
 
 from launch import LaunchDescription

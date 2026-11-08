@@ -34,14 +34,14 @@ case "$cmd" in
     if [ "${1:-}" = d435 ]; then
       rm -rf "${DATA:?}/usd_cam"   # the importer would otherwise write to a numbered sibling
       ( set +u; source "$ws/scripts/env.sh"
-        ros2 run piper_description export_urdf.py --hardware isaac --physics --camera d435 --out "$DATA/piper_isaac_cam.urdf" \
+        ros2 run piper_sim export_urdf.py --hardware isaac --physics --camera d435 --out "$DATA/piper_isaac_cam.urdf" \
           --camera-pose-out "$DATA/camera_pose.json" )
       in_isaac python "$ws/isaac/convert_urdf.py" "$DATA/piper_isaac_cam.urdf" "$DATA/usd_cam" > "$DATA/convert_cam.log" 2>&1
       grep "USD:" "$DATA/convert_cam.log"
     else
       rm -rf "${DATA:?}/usd"   # the importer would otherwise write to usd/piper_isaac_1
       ( set +u; source "$ws/scripts/env.sh"
-        ros2 run piper_description export_urdf.py --hardware isaac --physics --out "$DATA/piper_isaac.urdf" )
+        ros2 run piper_sim export_urdf.py --hardware isaac --physics --out "$DATA/piper_isaac.urdf" )
       in_isaac python "$ws/isaac/convert_urdf.py" "$DATA/piper_isaac.urdf" "$DATA/usd" > "$DATA/convert.log" 2>&1
       grep "USD:" "$DATA/convert.log"
     fi ;;

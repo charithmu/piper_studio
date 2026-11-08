@@ -1,4 +1,4 @@
-"""Static scene objects shared by the simulators (config/scene_objects.yaml in piper_bringup).
+"""Static scene objects shared by the simulators (config/scene_objects.yaml in piper_sim).
 
 One list of boxes/cylinders in the base frame, rendered into each simulator's native format, so a wrist-camera frame
 from Gazebo, MuJoCo and Isaac shows the same world.

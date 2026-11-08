@@ -1,4 +1,4 @@
-"""End-to-end check of piper_bringup + MoveIt + piper_py, identical for every backend.
+"""End-to-end check of piper_sim + piper_control (MoveIt) + piper_py, identical for every backend.
 
 Backends: PIPER_TEST_BACKENDS (comma separated, default "mock,gazebo,mujoco"). "isaac" is opt-in because it
 uses the shared GPU: PIPER_TEST_BACKENDS=isaac (needs scripts/isaac.sh build-usd first).
@@ -28,7 +28,7 @@ BACKENDS = os.environ.get("PIPER_TEST_BACKENDS", "mock,gazebo,mujoco").split(","
 @pytest.mark.launch_test
 @launch_testing.parametrize("backend", BACKENDS)
 def generate_test_description(backend):
-    bringup = os.path.join(get_package_share_directory("piper_bringup"), "launch", "piper.launch.py")
+    bringup = os.path.join(get_package_share_directory("piper_sim"), "launch", "piper.launch.py")
     return launch.LaunchDescription([
         IncludeLaunchDescription(PythonLaunchDescriptionSource(bringup),
                                  launch_arguments={"backend": backend, "rviz": "false",

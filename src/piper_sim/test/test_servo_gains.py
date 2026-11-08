@@ -7,7 +7,7 @@ import mujoco
 import pytest
 from ament_index_python.packages import get_package_share_directory
 
-from piper_description import mujoco_model, robot_description
+from piper_sim import mujoco_model, robot_description
 
 ISAAC = Path(__file__).resolve().parents[3] / "isaac"
 sys.path.insert(0, str(ISAAC))
@@ -17,7 +17,7 @@ from servo_gains import GAINS  # noqa: E402
 def test_isaac_gains_equal_mujoco():
     if not ISAAC.exists():
         pytest.skip("isaac/ not next to the sources")
-    cfg = Path(get_package_share_directory("piper_bringup")) / "config" / "mujoco"
+    cfg = Path(get_package_share_directory("piper_sim")) / "config" / "mujoco"
     scene = mujoco_model(robot_description("mujoco"), cfg / "inputs.xml", cfg / "scene.xml")
     m = mujoco.MjModel.from_xml_path(str(scene))
     for i in range(m.nu):

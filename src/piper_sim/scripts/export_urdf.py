@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Write the Piper description for a backend as a standalone URDF (no ROS needed to read it).
 
-    ros2 run piper_description export_urdf.py --hardware isaac --physics --out piper_isaac.urdf
+    ros2 run piper_sim export_urdf.py --hardware isaac --physics --out piper_isaac.urdf
 
 --physics   apply physics_model(): widened joint limits, no mimic unless --keep-mimic
 Mesh references are rewritten from package:// to absolute file paths so non-ROS tools (Isaac Sim's
@@ -14,7 +14,7 @@ from pathlib import Path
 
 from ament_index_python.packages import get_package_share_directory
 
-from piper_description import physics_model, robot_description
+from piper_sim import physics_model, robot_description
 
 
 def main():
@@ -46,7 +46,11 @@ def main():
     if a.camera != "none" and a.camera_pose_out:
         import json
 
-        import model_audit
+        import sys
+
+        from ament_index_python.packages import get_package_prefix
+        sys.path.insert(0, str(Path(get_package_prefix("piper_description")) / "lib" / "piper_description"))
+        import model_audit  # installed by piper_description
         import numpy as np
         from scipy.spatial.transform import Rotation
 

@@ -11,7 +11,7 @@ set +u; source "$ws/scripts/env.sh"; set -u
 extra=(); cam=0
 case "$backend" in gazebo|mujoco|isaac) [ -z "${PIPER_NO_CAMERA:-}" ] && { extra+=("camera:=d435"); cam=1; } ;; esac
 [ "$backend" = isaac ] && [ -z "${PIPER_NO_VIDEO:-}" ] && extra+=("isaac_video:=$out/isaac.mp4")
-setsid ros2 launch piper_bringup piper.launch.py "backend:=$backend" "${extra[@]}" > "$out/$backend.launch.log" 2>&1 < /dev/null &
+setsid ros2 launch piper_sim piper.launch.py "backend:=$backend" "${extra[@]}" > "$out/$backend.launch.log" 2>&1 < /dev/null &
 lpid=$!
 rpid=""
 trap '[ -n "$rpid" ] && kill -TERM "$rpid" 2>/dev/null; kill -INT -- -"$lpid" 2>/dev/null; sleep 8; kill -KILL -- -"$lpid" 2>/dev/null' EXIT

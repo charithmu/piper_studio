@@ -2,7 +2,7 @@
 
     python isaac/convert_urdf.py piper_isaac.urdf out_dir
 
-The URDF comes from `ros2 run piper_description export_urdf.py --hardware isaac --physics`, so the USD
+The URDF comes from `ros2 run piper_sim export_urdf.py --hardware isaac --physics`, so the USD
 is generated from the same single description as every other backend.
 """
 

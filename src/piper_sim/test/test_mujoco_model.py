@@ -7,8 +7,8 @@ import numpy as np
 import pytest
 from ament_index_python.packages import get_package_share_directory, get_package_prefix
 
-import piper_description
-from piper_description import robot_description
+import piper_sim
+from piper_sim import robot_description
 
 sys.path.insert(0, str(Path(get_package_prefix("piper_description")) / "lib" / "piper_description"))
 import model_audit  # noqa: E402
@@ -22,8 +22,8 @@ OFFICIAL = (Path(get_package_share_directory("agx_arm_description"))
 def test_generated_mujoco_model_matches_official(tmp_path):
     """MJCF from mujoco_ros2_control's converter + our inputs: exact kinematics, coupled fingers."""
     mujoco = pytest.importorskip("mujoco")
-    cfg = Path(get_package_share_directory("piper_bringup")) / "config" / "mujoco"
-    scene = piper_description.mujoco_model(robot_description("mujoco"), cfg / "inputs.xml", cfg / "scene.xml",
+    cfg = Path(get_package_share_directory("piper_sim")) / "config" / "mujoco"
+    scene = piper_sim.mujoco_model(robot_description("mujoco"), cfg / "inputs.xml", cfg / "scene.xml",
                                            cache_dir=tmp_path)
     mj = model_audit.load_mjcf("mjcf", scene)
     ref = model_audit.load_urdf("official", OFFICIAL)

@@ -13,10 +13,10 @@ import imageio.v2 as imageio
 import mujoco
 import numpy as np
 
-from piper_description import mujoco_model, robot_description
+from piper_sim import mujoco_model, robot_description
 
 run = json.loads(Path(sys.argv[1]).read_text())
-share = Path(__import__("ament_index_python.packages", fromlist=["x"]).get_package_share_directory("piper_bringup"))
+share = Path(__import__("ament_index_python.packages", fromlist=["x"]).get_package_share_directory("piper_sim"))
 scene = mujoco_model(robot_description("mujoco"), share / "config/mujoco/inputs.xml", share / "config/mujoco/scene.xml")
 m = mujoco.MjModel.from_xml_path(str(scene))
 m.vis.global_.offwidth, m.vis.global_.offheight = 1280, 720

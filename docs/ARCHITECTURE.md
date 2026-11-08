@@ -1,7 +1,6 @@
 # Architecture: one Piper, several ways in
 
-Status: target design agreed 2026-11-08. Migration steps are in the table at the end; until they land, the code is still the
-older layout (`piper_bringup` holds the control stack and the simulators; `piper_description` holds simulator model helpers).
+Status: target design agreed 2026-11-08; migration steps 1-5 are done (table at the end), step 6 (example projects) is open.
 
 ## Goals
 
@@ -61,7 +60,7 @@ The official AgileX URDF has no prefix and is rooted at `world -> base_link`. **
 planned:** the macro is generated once by `tools/piper_arm_macro.py` and *committed* (not built on the fly), with the source commit,
 date and file hashes in its header. `check` validates it against the official files (links, joints, limits, inertials, meshes, mimic;
 with and without prefix, with and without gripper) and runs in the tests, so a submodule bump fails until `generate` is rerun and the
-diff reviewed. The same tool generates the prefixed official SRDF (`piper_bringup/config/moveit/piper_official.srdf.xacro`). The
+diff reviewed. The same tool generates the prefixed official SRDF (`piper_control/config/moveit/piper_official.srdf.xacro`). The
 real driver keeps the official names: `command_guard` translates the prefix at that one boundary. Config templates
 (`controllers.yaml`, MoveIt yaml, MuJoCo inputs) use a `${prefix}` token that the launch fills in (`piper_description.render_config`).
 The two options not taken are recorded so we can change later:
@@ -78,7 +77,7 @@ The two options not taken are recorded so we can change later:
 |---|---|---|
 | 1 | Manifest dependencies, camera-mount regression test, this document | done 2026-11-08 |
 | 2 | `piper_arm` macro with prefix and mount (option A, committed and validated), camera model/mount split, prefix through controllers, MoveIt, MuJoCo, Isaac runner, guard and `piper_py` | done 2026-11-08 (Isaac not yet run) |
-| 3 | `piper_core`: limits, guard, named poses, `RealArm` (from `tools/real_arm/arm_common.py`, `command_guard.py`, `piper_py` rules) | |
-| 4 | Split `piper_sim` from `piper_bringup` and `piper_description` (scenes, simulator model helpers, `isaac/`) | |
-| 5 | `piper_control`: runs on any controller manager; `piper.launch.py backend:=` stays in `piper_sim` | |
+| 3 | `piper_core`: limits, guard, named poses done 2026-11-08 (`command_guard` uses it); `RealArm` (from `tools/real_arm/arm_common.py`) open: it moves the real arm | partly |
+| 4 | `piper_sim` split from `piper_bringup` and `piper_description` (simulator models, scenes, `backend:=` launch, export script) | done 2026-11-08 |
+| 5 | `piper_control` (renamed from `piper_bringup`): `control.launch.py backend:=mock|real|external` runs on any controller manager; `piper.launch.py backend:=` is in `piper_sim` | done 2026-11-08 |
 | 6 | `docs/INTEGRATION.md` (contract: names, units, controllers, frames) plus an example project using its own simulator and one without ROS | |
