@@ -26,7 +26,7 @@ from piper_core.backend import (ARM_JOINTS, MAX_STEP, ArmState, BackendError, Ex
                                 resample)
 from piper_core.guard import GuardConfig, check_command
 
-CHUNK = 25                                          # control steps per request (50 ms at 500 Hz): the guard sees the measured state at every chunk start
+CHUNK = 25                                          # control steps per request (100 ms at 250 Hz): the guard sees the measured state at every chunk start
 SETTLE_S, SETTLE_TOL, SETTLE_VEL = 3.0, 1e-4, 1e-3  # after the last setpoint: hold it until within 0.1 mrad and slower than 1 mrad/s, at most 3 s (as PiperSim)
 
 
@@ -51,7 +51,7 @@ def usd_path() -> Path:
 class PiperIsaacSim:
     joint_names = list(ARM_JOINTS)
 
-    def __init__(self, scene: str = "empty", gripper_width: float = 0.07, ctrl_hz: float = 500.0, physics_hz: float = 1000.0, render: bool = False,
+    def __init__(self, scene: str = "empty", gripper_width: float = 0.07, ctrl_hz: float = 250.0, physics_hz: float = 250.0, render: bool = False,
                  usd: str | Path | None = None, isaac_env: str | Path | None = None, connect: str | Path | None = None, startup_timeout: float = 240.0):
         """Starts the Isaac server (one process per instance, through gpu-run) and connects. `connect` attaches to an already running server instead
         (tests). `isaac_env` is the script that activates Isaac's environment (default $ISAAC_ENV_SH, else ~/projects/sim/robosim/env.sh).

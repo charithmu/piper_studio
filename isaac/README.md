@@ -54,7 +54,7 @@ setpoints in chunks of 25 control steps; the server holds no rules. Differences 
 | | `run_piper.py` (ROS) | `run_server.py` (no ROS) |
 |---|---|---|
 | Time | paced to wall clock, `/clock` | simulation time only: the world advances only while a command runs; as fast as the GPU allows (about 150 control steps/s here with 2 physics substeps each) |
-| Rates | frame rate 240 Hz (90 Hz with a camera), physics >= 240 Hz | control 500 Hz, physics 1000 Hz (as `PiperSim`) |
+| Rates | frame rate 240 Hz (90 Hz with a camera), physics >= 240 Hz | control 250 Hz, physics 250 Hz (each PhysX step costs about 2 ms whatever its size, so 500/1000 Hz runs at 0.3x real time and 250/250 at 1.0x; accuracy is the same, 0.021 rad on the parity plan; `ctrl_hz=500, physics_hz=1000` as `PiperSim` is still available; note the guard's 0.15 rad step limit is per control step) |
 | Scene objects | static colliders | free bodies, mass 0.05 kg, friction 1.0 (larger of the two bodies wins), like the MuJoCo `table` scene; table top at z = 0, ground plane 0.5 m lower |
 | Output | joint states on a topic | measured joints per control step and arm contacts (penetrations of an arm link with the table, an object or another link) |
 

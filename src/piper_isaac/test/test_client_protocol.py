@@ -90,7 +90,7 @@ def make():
         dirs.append(d)
         srv = FakeServer(str(Path(d) / "s"), **kw)
         srv.start()
-        sim = PiperIsaacSim("table", connect=str(Path(d) / "s"))
+        sim = PiperIsaacSim("table", ctrl_hz=500.0, physics_hz=1000.0, connect=str(Path(d) / "s"))
         made.append(sim)
         return sim, srv
 
@@ -177,3 +177,9 @@ def test_command_set_gripper_and_move_to(make):
     with pytest.raises(BackendError):
         sim.set_gripper(0.2)
     assert sim.move_to(Z + [0.2, 0, 0, 0, 0, 0], duration=1.0).ok and sim.stop().ok
+
+
+def test_defaults_are_the_real_time_rates():
+    import inspect
+    p = inspect.signature(PiperIsaacSim.__init__).parameters
+    assert p["ctrl_hz"].default == 250.0 and p["physics_hz"].default == 250.0

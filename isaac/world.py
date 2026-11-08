@@ -8,7 +8,7 @@ Runs inside Isaac Sim's own Python environment (never in .venv). Import this mod
 inside a method. Nothing Piper-specific is installed into Isaac's environment: the caller passes plain data (paths, lists).
 
     app = SimulationApp({...})
-    world = World(app, usd, prefix="piper_", ctrl_hz=500, physics_hz=1000, ground_z=-0.5)
+    world = World(app, usd, prefix="piper_", ctrl_hz=250, physics_hz=250, ground_z=-0.5)
     world.add_scene(objects, table, dynamic=True)
     world.start(zero, gripper_width)
     world.set_targets(arm=q); world.step(); q = world.q()
@@ -29,7 +29,7 @@ OBJECT_FRICTION = 1.0
 
 
 class World:
-    def __init__(self, app, usd, *, prefix="piper_", ctrl_hz=500.0, physics_hz=1000.0, ground_z=0.0, contacts=False):
+    def __init__(self, app, usd, *, prefix="piper_", ctrl_hz=250.0, physics_hz=250.0, ground_z=0.0, contacts=False):
         import carb.settings
         import omni.usd
         import isaacsim.core.experimental.utils.stage as stage_utils

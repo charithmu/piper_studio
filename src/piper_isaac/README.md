@@ -22,3 +22,5 @@ no-camera USD are inside the wheel (built by `tools/release/build_isaac.py` from
 
 **Provisional:** the servo gains are the same stand-ins as MuJoCo's (not the identified firmware loop), so tracking error and lag say nothing about the real arm. Self-contacts are
 not reported (self-collision is off in the USD). `margin_percent` is accepted and ignored. The table is a PLACEHOLDER (unmeasured). The real arm has never run `RealArm.execute`.
+
+Rates: the defaults are `ctrl_hz=250, physics_hz=250`: a PhysX step costs about 2 ms whatever its size, so this runs at real time on this machine (500/1000 Hz, `PiperSim`'s rates, runs at 0.3x) with the same accuracy (0.021 rad on the parity plan). The guard's step limit (0.15 rad) is per control step, so it is looser per step at 250 Hz. Pass `ctrl_hz=500, physics_hz=1000` to match `PiperSim`.
