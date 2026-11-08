@@ -4,6 +4,7 @@
     ros2 run piper_sim export_urdf.py --hardware isaac --physics --out piper_isaac.urdf
 
 --physics   apply physics_model(): widened joint limits, no mimic unless --keep-mimic
+--gripper-width W   hold the gripper at W metres (0 to 0.07): the gripper and finger joints become fixed (for planners such as cuRobo)
 Mesh references are rewritten from package:// to absolute file paths so non-ROS tools (Isaac Sim's
 URDF importer) can resolve them.
 """
@@ -14,6 +15,7 @@ from pathlib import Path
 
 from ament_index_python.packages import get_package_share_directory
 
+from piper_description import fixed_gripper
 from piper_sim import physics_model, robot_description
 
 
@@ -24,6 +26,7 @@ def main():
     p.add_argument("--physics", action="store_true")
     p.add_argument("--keep-mimic", action="store_true", help="with --physics: keep URDF mimic joints")
     p.add_argument("--no-gripper", action="store_true")
+    p.add_argument("--gripper-width", type=float, default=None, help="fix the gripper at this opening in metres (0 closed, 0.07 open)")
     p.add_argument("--camera", default="none", help="none | d435 (wrist RealSense)")
     p.add_argument("--camera-mount", default="agilex_mid_stand", help="camera mount (urdf/mounts/<name>.xacro)")
     p.add_argument("--prefix", default="piper_", help="prefix of every link, joint and frame name")
@@ -33,6 +36,8 @@ def main():
     a = p.parse_args()
     cam = {"camera": a.camera, "camera_mount": a.camera_mount} if a.camera != "none" else {}
     urdf = robot_description(a.hardware, gripper=not a.no_gripper, prefix=a.prefix, **cam)
+    if a.gripper_width is not None:
+        urdf = fixed_gripper(urdf, a.gripper_width, a.prefix)
     if a.physics:
         urdf = physics_model(urdf, keep_mimic=a.keep_mimic)
 

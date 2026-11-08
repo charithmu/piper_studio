@@ -216,3 +216,21 @@ def test_description_matches_the_arms_firmware_read_out(tmp_path):
     assert model.joints["gripper"].upper == pytest.approx(arm["gripper_params"]["max_range_config"])
     assert FIRMWARE["arm_joint_max_velocity"] == pytest.approx(arm["limits"]["1"]["angle_vel"]["max_joint_spd"])
     assert FIRMWARE["gripper_stroke"] == pytest.approx(arm["gripper_params"]["max_range_config"])
+
+
+@pytest.mark.parametrize("width", [0.0, 0.035, 0.07])
+def test_fixed_gripper_puts_the_fingers_where_the_joints_would(width):
+    """fixed_gripper(): same finger poses as the original joints at that width, but no moving or mimic joints left."""
+    from piper_description import fixed_gripper, robot_description
+
+    urdf = robot_description("mock", prefix="")
+    fixed = ET.fromstring(fixed_gripper(urdf, width, ""))
+    for name in ("gripper", "gripper_joint1", "gripper_joint2"):
+        j = fixed.find(f"joint[@name='{name}']")
+        assert j.get("type") == "fixed" and j.find("mimic") is None and j.find("limit") is None
+    for name, expected_y in (("gripper_joint1", -width / 2), ("gripper_joint2", width / 2)):
+        xyz = [float(v) for v in fixed.find(f"joint[@name='{name}']/origin").get("xyz").split()]
+        assert xyz == pytest.approx([0.0, expected_y, 0.138], abs=1e-7)           # fingers open along -y / +y of gripper_base
+    assert [float(v) for v in fixed.find("joint[@name='gripper']/origin").get("xyz").split()] == pytest.approx([0, 0, width])
+    with pytest.raises(ValueError):
+        fixed_gripper(urdf, 0.08, "")
