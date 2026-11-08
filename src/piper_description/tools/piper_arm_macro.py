@@ -264,7 +264,7 @@ def main() -> int:
         problems = check()
         for p in problems:
             print("FAIL:", p)
-        print("OK: piper_arm.xacro matches the official model" if not problems else f"{len(problems)} problem(s)")
+        print("OK: piper_arm.xacro and piper_official.srdf.xacro match the official files" if not problems else f"{len(problems)} problem(s)")
         return 1 if problems else 0
     print(__doc__)
     return 2

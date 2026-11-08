@@ -50,7 +50,7 @@ Do not edit `external/agx_arm_ros`. If a vendor bug blocks us, work around it in
 ## Working style
 
 - One bounded step at a time, with evidence (commands, test output). Run the offline tests after every change
-  (`python -m pytest src/piper_description src/piper_control src/piper_core src/piper_sim -q`) and the launch tests of the backends you touched.
+  (`scripts/test_all.sh`) and the launch tests of the backends you touched (`scripts/test_all.sh mock gazebo mujoco`).
 - Start long processes with a PID file and stop them by PID (never `pkill -f`): background jobs start with SIGINT ignored, so launch them via
   `python3 -c 'signal.signal(SIGINT, SIG_DFL); os.execvp(...)'` or send SIGTERM, and check for orphans (`ros2 launch` children survive a killed parent).
 - Keep `docs/CLEANUP.md` current: tick items only when done and verified, add a log line per pass. Update `docs/VERSIONS.md` when a qualification changes.

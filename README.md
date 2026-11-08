@@ -114,6 +114,8 @@ Without ROS, the scripts in `tools/real_arm/` (info, zero, joints, stop) talk to
 ## Tests
 
 ```bash
+scripts/test_all.sh                       # offline tests + generated-macro check
+scripts/test_all.sh mock gazebo mujoco    # + launch tests per backend, the real-arm plumbing and the carrier example (add isaac: GPU)
 python -m pytest src/piper_description src/piper_control src/piper_core src/piper_sim -q       # offline
 PIPER_TEST_BACKENDS=mock,gazebo,mujoco python -m pytest src/piper_py/test src/piper_examples -q   # launch tests per backend, and the carrier example (add isaac: GPU, needs scripts/isaac.sh build-usd d435)
 python src/piper_description/tools/piper_arm_macro.py check                                     # generated macros still equal the pinned official files

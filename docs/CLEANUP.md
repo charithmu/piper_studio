@@ -34,17 +34,11 @@ Internal (this repo only): `piper_sim` (Gazebo, MuJoCo, Isaac models, scenes, `p
 - [~] B6 `piper.repos` written. Open: a tag (after the merge, C12).
 - [x] B7 The downstream overlay `~/projects/ml_tests/.../00_studio_overlay` copies `src/` and uses the old unprefixed names and tool paths: note left in `comms/FOR_OTHERS.md` (not ours to edit).
 
-## D. Root cleanup (pass 2, user decisions)
-
-- [x] D1 Root now holds only `README.md`, `AGENTS.md`, `CLAUDE.md`, `artifacts.yaml`, `piper.repos` and the folders: `HANDOFF.md`, `comms/` and `VERSIONS.md` moved into `docs/` (archive or `docs/VERSIONS.md`).
-- [x] D2 `AGENTS.md` rewritten (current layout, design rules, safety, process hygiene) and `README.md` rewritten for humans (what, quick start, layout, control levels, real arm, tests).
-- [ ] D3 Not ours, dangling now: `~/projects/ros/go2_studio/AGENTS.md` and `demo/pages.py`, and `~/projects/sim/robosim/handoff/` (AGENT_AGREEMENT.md, build_handoffs.py, START_PROMPTS.md, SESSION_LOG.md) still point at `piper_studio/comms/` and `HANDOFF.md`. The user decides whether those projects are updated.
-
 ## C. Functional follow-ups
 
 - [x] C1 Stand collision box vs fingers in MoveIt: start state valid at zero and ready for gripper 0 to 0.1 m (`GetStateValidity`, 2026-11-08). Not yet a test (see C2).
 - [x] C2 C1 is now a launch test, `test_10_camera_stand_does_not_collide` (two poses x three gripper widths via `GetStateValidity`; runs on the simulator backends with the camera; verified on MuJoCo).
-- [x] C3 Gazebo GUI on a virtual display (Xvfb 1600x900 with GLX) now brings the arm up: the controller spawners gave up after the default 10 s service timeout while the software-rendered GUI loaded the machine; `piper_control.launch_lib.SPAWNER_TIMEOUTS` raises `--service-call-timeout` and `--switch-timeout` to 30 s. Verified: Gazebo GUI + `piper named ready` succeeds; mock, Gazebo and real-plumbing launch tests still pass. Left over (new, small): the GUI's default camera is far from the arm (arm is a speck in `13_gazebo_gui_arm_far.png`); set a `<gui><camera>` pose in the generated world.
+- [x] C3 Gazebo GUI on a virtual display (Xvfb 1600x900 with GLX) now brings the arm up: the controller spawners gave up after the default 10 s service timeout while the software-rendered GUI loaded the machine; `piper_control.launch_lib.SPAWNER_TIMEOUTS` raises `--service-call-timeout` and `--switch-timeout` to 30 s. Verified: Gazebo GUI + `piper named ready` succeeds; mock, Gazebo and real-plumbing launch tests still pass. Left over, cosmetic: the GUI opens with a camera far from the arm (`13_gazebo_gui_ready.png`); a `<gui><camera>` pose in the world SDF is ignored by Gazebo, so it needs a GUI config file (not done).
 - [ ] C4 Gazebo shows the camera stand white (the mesh's dark material is not applied). MuJoCo drops mesh colours (collision meshes are used as visuals); the arm is white there.
 - [ ] C5 4.5 mm ambiguity: AgileX's flat URDF puts `gripper_base` at link6, the official model 4.5 mm further out; the stand is mounted relative to link6. Measure on the real mount.
 - [ ] C6 `piper_py` sometimes exits with a harmless "cannot use Destroyable because destruction was requested" message (seen once after `pose` + `gripper`, reported by the bake-off as `InvalidHandle`). Not reproduced in 7 CLI runs (state, named, pose, joints, gripper x3): intermittent; likely a pending future when the node is destroyed in `Piper.close()`.
@@ -54,6 +48,17 @@ Internal (this repo only): `piper_sim` (Gazebo, MuJoCo, Isaac models, scenes, `p
 - [ ] C10 Real arm through the ROS stack (needs the user at the arm): `backend:=real` with the prefix, driver names translated by `command_guard`. Only the fake-driver plumbing is tested so far.
 - [ ] C11 Isaac backend test failed once right after `scripts/isaac.sh check` and passed on rerun (1 of 2 runs): find out whether a leftover process from the check run (`omni.telemetry`) or the pid file is the cause.
 - [x] C12 `feature/piper-macros` merged into `main` (2026-11-08, user approved). `feature/piper-sim-split` (B2, B4, root cleanup) merged too, after all checks were green. Pushing stays the user's call.
+
+
+## D. Root cleanup (pass 2, user decisions)
+
+- [x] D1 Root now holds only `README.md`, `AGENTS.md`, `CLAUDE.md`, `artifacts.yaml`, `piper.repos` and the folders: `HANDOFF.md`, `comms/` and `VERSIONS.md` moved into `docs/` (archive or `docs/VERSIONS.md`).
+- [x] D2 `AGENTS.md` rewritten (current layout, design rules, safety, process hygiene) and `README.md` rewritten for humans (what, quick start, layout, control levels, real arm, tests).
+- [ ] D3 Not ours, dangling now: `~/projects/ros/go2_studio/AGENTS.md` and `demo/pages.py`, and `~/projects/sim/robosim/handoff/` (AGENT_AGREEMENT.md, build_handoffs.py, START_PROMPTS.md, SESSION_LOG.md) still point at `piper_studio/comms/` and `HANDOFF.md`. The user decides whether those projects are updated.
+
+## E. Tooling
+
+- [x] E1 `scripts/test_all.sh [backends...]`: one command for the offline tests, the generated-macro check, launch tests per backend, the real-arm plumbing and the carrier example, each in its own ROS domain with the daemon stopped afterwards. Verified with `mock` (all PASS).
 
 ## Verification record
 
