@@ -95,5 +95,4 @@ Anything that can move the real arm needs the user present and approving.
 
 ## 5. Versioning
 
-This file is the contract. Renaming a controller, topic, frame, macro parameter or macro file is a breaking change: record it in `docs/CLEANUP.md` and
-`comms/FOR_OTHERS.md`. Adding a macro parameter with a default, a camera or a mount is not. The names changed once, on 2026-11-08 (the `piper_` prefix).
+This file is the contract. Renaming a controller, topic, frame, macro parameter or macro file is a breaking change: record it in `docs/CLEANUP.md` and tell the projects that use the contract. Adding a macro parameter with a default, a camera or a mount is not. The names changed once, on 2026-11-08 (the `piper_` prefix).

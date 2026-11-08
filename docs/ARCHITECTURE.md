@@ -118,4 +118,4 @@ The two options not taken are recorded so we can change later:
 | 3 | `piper_core`: limits, guard, named poses done 2026-11-08 (`command_guard` uses it); `RealArm` (from `tools/real_arm/arm_common.py`) open: it moves the real arm | partly |
 | 4 | `piper_sim` split from `piper_bringup` and `piper_description` (simulator models, scenes, `backend:=` launch, export script) | done 2026-11-08 |
 | 5 | `piper_control` (renamed from `piper_bringup`): `control.launch.py backend:=mock|real|external` runs on any controller manager; `piper.launch.py backend:=` is in `piper_sim` | done 2026-11-08 |
-| 6 | `docs/INTEGRATION.md` (contract: names, units, controllers, frames) plus an example project using its own simulator and one without ROS | |
+| 6 | `docs/INTEGRATION.md` (contract: names, units, controllers, frames) plus a tested example project with its own controller manager (`src/piper_examples`); the no-ROS use is covered by `piper_core` tests and the doc snippet | done 2026-11-08 |
