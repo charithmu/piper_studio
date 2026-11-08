@@ -14,6 +14,7 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 
 SIMULATORS = ("gazebo", "mujoco", "isaac")
+DEFAULT_PREFIX = "piper_"  # prefix of every link, joint and frame name (piper.urdf.xacro `prefix`; "" gives the official names)
 # Placeholder inertia for links that are virtual in the official model (e.g. gripper_link, the
 # child of the commanded `gripper` width joint). Physics engines drop massless moving links.
 VIRTUAL_LINK_MASS = 0.01  # kg
@@ -31,7 +32,21 @@ def robot_description(hardware: str = "mock", **mappings) -> str:
     args = {"hardware": hardware, **{k: str(v).lower() if isinstance(v, bool) else str(v)
                                       for k, v in mappings.items()}}
     urdf = xacro.process_file(str(xacro_file()), mappings=args).toxml()
-    return fix_camera_inertia(add_virtual_inertials(urdf)) if hardware in SIMULATORS else urdf
+    return fix_camera_inertia(add_virtual_inertials(urdf), args.get("prefix", DEFAULT_PREFIX)) if hardware in SIMULATORS else urdf
+
+
+def apply_prefix(text: str, prefix: str = DEFAULT_PREFIX) -> str:
+    """Fill the `${prefix}` placeholder of a config template (controllers.yaml, moveit yaml, MuJoCo inputs)."""
+    return text.replace("${prefix}", prefix)
+
+
+def render_config(path: str | Path, prefix: str = DEFAULT_PREFIX) -> Path:
+    """Write the template at `path` with the prefix filled in to a temp file (content-addressed, so repeated launches reuse it)."""
+    text = apply_prefix(Path(path).read_text(), prefix)
+    out = Path(tempfile.gettempdir()) / "piper_studio_config" / hashlib.sha256(text.encode()).hexdigest()[:16] / Path(path).name
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(text)
+    return out
 
 
 # realsense2_description's D435 model declares ixx = 3.9e-3 kg m^2 for a 72 g body (about 70x too large), which would
@@ -41,9 +56,9 @@ _D435_INERTIA = {"ixx": _D435_MASS / 12 * (0.09**2 + 0.025**2), "iyy": _D435_MAS
                  "izz": _D435_MASS / 12 * (0.09**2 + 0.025**2)}
 
 
-def fix_camera_inertia(urdf: str) -> str:
+def fix_camera_inertia(urdf: str, prefix: str = DEFAULT_PREFIX) -> str:
     root = ET.fromstring(urdf)
-    link = next((l for l in root.findall("link") if l.get("name") == "camera_link"), None)
+    link = next((l for l in root.findall("link") if l.get("name") == prefix + "camera_link"), None)
     inertia = None if link is None else link.find("inertial/inertia")
     if inertia is not None:
         for k, v in _D435_INERTIA.items():
@@ -60,7 +75,7 @@ PHYSICS_LIMIT_MARGIN = {"revolute": 0.01, "prismatic": 0.002}  # rad, m
 
 
 def mujoco_model(urdf: str, inputs: str | Path, scene: str | Path, cache_dir: str | Path | None = None,
-                 camera: dict | None = None) -> Path:
+                 camera: dict | None = None, prefix: str = DEFAULT_PREFIX) -> Path:
     """Generate the MuJoCo scene for a description with mujoco_ros2_control's URDF converter.
 
     `inputs` adds actuators, equality constraints and solver options; `scene` is a world file that
@@ -71,12 +86,12 @@ def mujoco_model(urdf: str, inputs: str | Path, scene: str | Path, cache_dir: st
     from ament_index_python.packages import get_package_prefix
     physics = collision_meshes_as_visuals(_without_ros2_control(urdf))
     inputs, scene = Path(inputs).resolve(), Path(scene).resolve()
-    inputs_text = inputs.read_text()
+    inputs_text = apply_prefix(inputs.read_text(), prefix)
     if camera:  # fixed MJCF camera on the colour optical frame; fovy is the vertical field of view
         import math
         w, h, hfov = camera["width"], camera["height"], camera["hfov_deg"]
         fovy = math.degrees(2 * math.atan(math.tan(math.radians(hfov) / 2) * h / w))
-        tag = (f'<camera site="camera_color_optical_frame" name="camera" fovy="{fovy:.3f}" mode="fixed" '
+        tag = (f'<camera site="{prefix}camera_color_optical_frame" name="camera" fovy="{fovy:.3f}" mode="fixed" '
                f'resolution="{w} {h}"/>')
         inputs_text = inputs_text.replace("<processed_inputs>", "<processed_inputs>\n    " + tag, 1)
     digest = hashlib.sha256("\0".join(

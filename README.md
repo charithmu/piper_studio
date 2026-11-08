@@ -11,13 +11,17 @@ The legacy implementation is preserved at tag `legacy-final-20261008`.
 
 ```
 external/agx_arm_ros      official AgileX ROS 2 stack (driver, description, MoveIt config, msgs), pinned, unmodified
-src/piper_description     our robot model: official URDF + TCP/mount frames + ros2_control backend switch; model audit tool
+src/piper_description     the robot model as xacro macros (`piper_arm` generated from the official URDF, TCP frame, camera = model + mount,
+                          ros2_control backend switch), meshes, model audit and macro validation tools
 src/piper_bringup         one launch file for every backend; shared controllers; MoveIt config; command guard (real arm)
 src/piper_py              Python API + `piper` CLI: state, joint/trajectory/streaming/gripper/MoveIt motion, demo recorder
 isaac/                    Isaac Sim runner and USD conversion (own environment; see isaac/README.md)
 tools/                    demo page builder, MuJoCo replay renderer
 env/                      pinned Python environment (uv)
-scripts/                  bootstrap.sh (rebuild from clean clone), env.sh (source before anything)
+scripts/                  bootstrap.sh (rebuild from clean clone), env.sh (source before anything), session.sh (env + display + domain per terminal)
+docs/ARCHITECTURE.md      layers, interfaces (ROS and non-ROS), mounting and prefix, migration plan
+comms/                    machine-wide agent protocol files (status, inbox)
+for_reference/            (not in git, ~3 GB) cloned vendor and community repos used for comparison: AgileX agx_arm_sim and piper_isaac_sim, realsense-ros
 docs/description/         model audit and description decisions
 docs/real_arm/            real-arm knowledge (REAL_ARM.md: vendor docs, firmware gates, modes, safety) and per-arm files (arms/<arm-id>.md)
 ```
@@ -46,7 +50,8 @@ ros2 launch piper_bringup piper.launch.py rviz:=true      # with RViz
 ros2 launch piper_bringup piper.launch.py backend:=gazebo [gui:=true]   # Gazebo Harmonic
 ros2 launch piper_bringup piper.launch.py backend:=mujoco [gui:=true]   # MuJoCo (model generated at launch)
 ros2 launch piper_bringup piper.launch.py backend:=isaac    # Isaac Sim, own process on the GPU; see isaac/README.md
-ros2 launch piper_description view.launch.py              # model only, joint sliders
+ros2 launch piper_description view.launch.py              # model only, joint sliders; same description options as piper.launch.py
+ros2 launch piper_description view.launch.py camera:=d435 camera_mount:=custom camera_xyz:="0.05 0 0.03"   # try a camera pose
 ros2 launch piper_bringup piper.launch.py backend:=gazebo camera:=d435   # simulated wrist D435 on /camera/color/image_raw etc. (also mujoco, isaac)
 ```
 
@@ -66,6 +71,18 @@ with Piper() as arm:
     r = arm.move_pose([0.25, 0.0, 0.10], [0, 1, 0, 0])
     print(r.success, r.code)        # success only if execution succeeded
 ```
+
+### Names, prefix and the camera
+
+Every link, joint and frame carries a prefix, `piper_` by default (`piper_link1`, `piper_joint1`, `piper_gripper`, `piper_tcp_link`,
+`piper_camera_color_optical_frame`); `prefix:=""` gives the official AgileX names. `piper_py.Piper(prefix=...)` and `piper --prefix` follow it.
+The wrist camera is a model (`urdf/cameras/<name>.xacro`: d435) on a mount (`urdf/mounts/<name>.xacro`: `agilex_mid_stand`, `custom`);
+select with `camera:=` and `camera_mount:=`. To add a camera or a mount (a CAD-exported bracket), add one file with the same macro
+interface (see `urdf/piper_camera.xacro`).
+
+`urdf/piper_arm.xacro` and `config/moveit/piper_official.srdf.xacro` are generated from the pinned official AgileX files and committed;
+`python src/piper_description/tools/piper_arm_macro.py check` validates them (it runs in the tests), `generate` rewrites them after a
+submodule bump. See docs/ARCHITECTURE.md.
 
 ### Demo
 

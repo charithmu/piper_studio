@@ -80,8 +80,18 @@ def _floats(text, default):
 def _expand(path: Path) -> str:
     if path.suffix == ".xacro" or path.name.endswith(".urdf.xacro"):
         import xacro  # from /opt/ros/jazzy
-        return xacro.process_file(str(path)).toxml()
+        # the audit compares against the official names, so expand our own description unprefixed
+        return xacro.process_file(str(path), mappings={"prefix": ""} if path.name == "piper.urdf.xacro" else {}).toxml()
     return path.read_text()
+
+
+def name_prefix(names) -> str:
+    """The prefix of a model whose links are named <prefix>base_link, <prefix>link1, ... ("" for the official model)."""
+    for tail in ("base_link", "link1"):  # a simulator model may have the fixed base fused into the world
+        found = [n for n in names if n and n.endswith(tail) and not n.endswith("gripper_" + tail)]
+        if found:
+            return found[0][: -len(tail)]
+    return ""
 
 
 def load_urdf(name: str, path: Path) -> Model:
@@ -92,6 +102,7 @@ def load_urdf(name: str, path: Path) -> Model:
         if m is not None:
             model.masses[link.get("name")] = float(m.get("value"))
     chain = {}  # child link -> (joint element)
+    prefix = name_prefix(model.masses)
     for j in root.findall("joint"):
         lim = j.find("limit")
         mim = j.find("mimic")
@@ -106,9 +117,9 @@ def load_urdf(name: str, path: Path) -> Model:
         model.joints[jt.name] = jt
         chain[j.find("child").get("link")] = j
 
-    def fk(q, target=FK_LINK):
+    def fk(q, target=None):
         T = np.eye(4)
-        link, joints = target, []
+        link, joints = target or prefix + FK_LINK, []
         while link in chain:
             j = chain[link]
             joints.append(j)
@@ -129,7 +140,7 @@ def load_urdf(name: str, path: Path) -> Model:
                 T = T @ R
         return T
 
-    model.fk = fk if FK_LINK in chain else None
+    model.fk = fk if prefix + FK_LINK in chain else None
     return model
 
 
@@ -154,8 +165,9 @@ def load_mjcf(name: str, path: Path) -> Model:
             jn = mujoco.mj_id2name(m, mujoco.mjtObj.mjOBJ_JOINT, m.actuator_trnid[a, 0])
             if jn in model.joints and m.actuator_forcelimited[a]:
                 model.joints[jn].effort = float(m.actuator_forcerange[a, 1])
-    body = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_BODY, FK_LINK)
-    base = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_BODY, "base_link")
+    prefix = name_prefix(model.masses)
+    body = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_BODY, prefix + FK_LINK)
+    base = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_BODY, prefix + "base_link")
 
     def fk(q):
         d.qpos[:] = m.qpos0

@@ -19,7 +19,7 @@ JOINTS = [f"joint{i}" for i in range(1, 7)]
 def srdf_pose(name):
     text = SRDF.read_text()
     block = re.search(rf'<group_state name="{name}" group="arm">(.*?)</group_state>', text, re.S).group(1)
-    vals = dict(re.findall(r'<joint name="(\w+)" value="([-0-9.]+)"', block))
+    vals = dict(re.findall(r'<joint name="\$\{prefix\}(\w+)" value="([-0-9.]+)"', block))
     return [float(vals[j]) for j in JOINTS]
 
 

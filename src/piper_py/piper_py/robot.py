@@ -41,7 +41,8 @@ from std_msgs.msg import Float64MultiArray
 from std_srvs.srv import SetBool
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 
-ARM_JOINTS = [f"joint{i}" for i in range(1, 7)]
+DEFAULT_PREFIX = "piper_"  # prefix of every joint and frame name (see piper_description, piper.urdf.xacro `prefix`)
+ARM_JOINTS = [f"joint{i}" for i in range(1, 7)]  # official names; the robot's are prefix + these
 
 
 def _code_names(cls) -> dict[int, str]:
@@ -71,14 +72,18 @@ class Piper:
     """Blocking client; owns a node spun on a background thread."""
 
     def __init__(self, namespace: str = "", node_name: str = "piper_py",
-                 group: str = "arm", tcp_link: str = "tcp_link", base_frame: str = "base_link",
-                 wait: float = 30.0, use_sim_time: bool = False):
+                 group: str = "arm", tcp_link: str | None = None, base_frame: str | None = None,
+                 wait: float = 30.0, use_sim_time: bool = False, prefix: str = DEFAULT_PREFIX):
         if not rclpy.ok():
             rclpy.init()
             self._owns_context = True
         else:
             self._owns_context = False
-        self.group, self.tcp_link, self.base_frame = group, tcp_link, base_frame
+        # Every joint and frame of the robot carries `prefix` (launch/xacro argument of the same name).
+        self.name_prefix = prefix
+        self.arm_joints = [prefix + j for j in ARM_JOINTS]
+        self.gripper_joint = prefix + "gripper"
+        self.group, self.tcp_link, self.base_frame = group, tcp_link or prefix + "tcp_link", base_frame or prefix + "base_link"
         ns = namespace.strip("/")
         self._prefix = f"/{ns}" if ns else ""
         # use_sim_time: node.get_clock() follows /clock, so client-side pacing (streaming loops) is in
@@ -172,7 +177,7 @@ class Piper:
 
     def joint_positions(self) -> list[float]:
         js = self.joint_state()
-        return [js[j] for j in ARM_JOINTS]
+        return [js[j] for j in self.arm_joints]
 
     def _on_servo_status(self, msg: ServoStatus):
         self._servo_code = msg.code
@@ -220,11 +225,11 @@ class Piper:
                 fb = self._feedback
             if fb is None or time.monotonic() - fb[0] > max_feedback_age:
                 return Result(False, "STALE_FEEDBACK", "no fresh feedback/joint_states from the driver")
-            measured = dict(zip(fb[1].name, fb[1].position))
+            measured = {self.name_prefix + n: p for n, p in zip(fb[1].name, fb[1].position)}  # the driver uses the official names
             reported = self.joint_state()
-            diff = {j: abs(measured[j] - reported[j]) for j in ARM_JOINTS if j in measured}
+            diff = {j: abs(measured[j] - reported[j]) for j in self.arm_joints if j in measured}
             # NaN compares false with everything, so test for agreement rather than disagreement.
-            if len(diff) != len(ARM_JOINTS) or not all(math.isfinite(d) and d <= tolerance
+            if len(diff) != len(self.arm_joints) or not all(math.isfinite(d) and d <= tolerance
                                                        for d in diff.values()):
                 return Result(False, "STATE_MISMATCH", "ros2_control state differs from driver feedback",
                               {"diff": diff})
@@ -280,10 +285,10 @@ class Piper:
         return Result(True, "SENT")
 
     def _out_of_limits(self, positions) -> dict[str, float]:
-        if len(positions) != len(ARM_JOINTS):
-            raise ValueError(f"expected {len(ARM_JOINTS)} joint values")
+        if len(positions) != len(self.arm_joints):
+            raise ValueError(f"expected {len(self.arm_joints)} joint values")
         limits = self.joint_limits()
-        return {j: p for j, p in zip(ARM_JOINTS, positions) if not limits[j][0] <= p <= limits[j][1]}
+        return {j: p for j, p in zip(self.arm_joints, positions) if not limits[j][0] <= p <= limits[j][1]}
 
     # ------------------------------------------------------------------ actions
     def _run(self, client: ActionClient, goal, timeout: float):
@@ -315,9 +320,9 @@ class Piper:
             limits = self.joint_limits()
             return Result(False, "OUT_OF_LIMITS", f"outside URDF limits: {bad}",
                           {j: limits[j] for j in bad})
-        traj = JointTrajectory(joint_names=ARM_JOINTS, points=[
+        traj = JointTrajectory(joint_names=self.arm_joints, points=[
             JointTrajectoryPoint(positions=list(map(float, positions)),
-                                 velocities=[0.0] * len(ARM_JOINTS),
+                                 velocities=[0.0] * len(self.arm_joints),
                                  time_from_start=_duration(duration))])
         res, err = self._run(self._trajectory, FollowJointTrajectory.Goal(trajectory=traj), duration + 10.0)
         if err:
@@ -332,8 +337,8 @@ class Piper:
         Succeeds if the width is reached, or if the fingers stall while *closing* (code GRASPED:
         something is between them). A stall while opening, or without moving, is a failure.
         """
-        start = self.joint_state().get("gripper")
-        cmd = JointState(name=["gripper"], position=[float(width)])
+        start = self.joint_state().get(self.gripper_joint)
+        cmd = JointState(name=[self.gripper_joint], position=[float(width)])
         if max_effort > 0:
             cmd.effort = [float(max_effort)]
         res, err = self._run(self._gripper, ParallelGripperCommand.Goal(command=cmd), timeout)
@@ -375,7 +380,7 @@ class Piper:
         """Collision-aware plan to a joint configuration, then execute."""
         c = Constraints(joint_constraints=[
             JointConstraint(joint_name=j, position=float(p), tolerance_above=1e-3,
-                            tolerance_below=1e-3, weight=1.0) for j, p in zip(ARM_JOINTS, positions)])
+                            tolerance_below=1e-3, weight=1.0) for j, p in zip(self.arm_joints, positions)])
         return self._plan_and_execute(c, velocity_scaling)
 
     def _get_string_param(self, node: str, name: str) -> str:
@@ -413,7 +418,7 @@ class Piper:
         poses = self.named_poses()
         if name not in poses:
             return Result(False, "UNKNOWN_NAME", f"{name!r} not in {sorted(poses)}")
-        return self.move_to_joints([poses[name][j] for j in ARM_JOINTS], velocity_scaling)
+        return self.move_to_joints([poses[name][j] for j in self.arm_joints], velocity_scaling)
 
     def move_rest(self, velocity_scaling: float = 0.2) -> Result:
         """Park the real arm: go to 'zero', then lower joint 5 to 'rest' (disabling the motors there drops the arm only a few mm)."""

@@ -18,6 +18,7 @@ import isaacsim.core.experimental.utils.stage as stage_utils  # noqa: E402
 from pxr import Gf, UsdGeom, UsdPhysics  # noqa: E402
 
 usd, ref_file = sys.argv[1], Path(sys.argv[2])
+PREFIX = sys.argv[3] if len(sys.argv) > 3 else "piper_"  # the description's name prefix
 ref = json.loads(ref_file.read_text())
 stage_utils.create_new_stage()
 stage = omni.usd.get_context().get_stage()
@@ -51,7 +52,7 @@ for cfg in ref["configs"]:
         robot.set_dof_positions(q)
         robot.set_dof_position_targets(q)
         app.update()
-    T = np.linalg.inv(world(byname["base_link"])) @ world(byname["tcp_link"])
+    T = np.linalg.inv(world(byname[PREFIX + "base_link"])) @ world(byname[PREFIX + "tcp_link"])
     perr.append(np.linalg.norm(T[:3, 3] - np.array(cfg["pos"])) * 1000)
     c = (np.trace(T[:3, :3].T @ np.array(cfg["rot"])) - 1) / 2
     rerr.append(np.degrees(np.arccos(np.clip(c, -1, 1))))

@@ -13,16 +13,23 @@ from piper_description import PHYSICS_LIMIT_MARGIN, physics_model, robot_descrip
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
 import model_audit  # noqa: E402
+import piper_arm_macro  # noqa: E402
 
 PKG = Path(get_package_share_directory("piper_description"))
 OFFICIAL = (Path(get_package_share_directory("agx_arm_description"))
             / "agx_arm_urdf/piper/urdf/piper_with_gripper_description.xacro")
 ARM = [f"joint{i}" for i in range(1, 7)]
+P = "piper_"  # default name prefix
 
 
 def expand(**args):
     mappings = {k: str(v).lower() if isinstance(v, bool) else str(v) for k, v in args.items()}
     return xacro.process_file(str(PKG / "urdf/piper.urdf.xacro"), mappings=mappings).toxml()
+
+
+def expand_official(**args):
+    """The description with prefix:="" , whose names are the official ones."""
+    return expand(prefix="", **args)
 
 
 def write(tmp_path, xml, name="piper.urdf"):
@@ -35,9 +42,28 @@ def write(tmp_path, xml, name="piper.urdf"):
 def test_expands(hardware):
     root = ET.fromstring(expand(hardware=hardware))
     joints = {j.get("name") for j in root.iter("joint")}
-    assert {*ARM, "gripper", "tcp_joint"} <= joints
+    assert {*(P + j for j in ARM), P + "gripper", P + "tcp_joint", P + "mount_joint"} <= joints
     rc = root.find("ros2_control")
-    assert [j.get("name") for j in rc.iter("joint")] == [*ARM, "gripper"]
+    assert [j.get("name") for j in rc.iter("joint")] == [*(P + j for j in ARM), P + "gripper"]
+
+
+def test_every_name_has_the_prefix():
+    """Links, joints and frames all carry the prefix (only `world`, the caller's frame, does not)."""
+    root = ET.fromstring(expand(camera="d435"))
+    bad = [e.get("name") for e in root.findall("link") + root.findall("joint")
+           if not e.get("name").startswith(P) and e.get("name") != "world"]
+    assert bad == []
+    assert {j.get("name") for j in root.find("ros2_control").iter("joint")} <= {j.get("name") for j in root.findall("joint")}
+
+
+def test_empty_prefix_gives_official_names():
+    root = ET.fromstring(expand_official())
+    assert root.find("joint[@name='joint1']") is not None and root.find("link[@name='base_link']") is not None
+
+
+def test_arm_macro_is_the_official_model():
+    """urdf/piper_arm.xacro and config/moveit/piper_official.srdf.xacro are generated from the pinned official files (DECISIONS D12)."""
+    assert piper_arm_macro.check() == []
 
 
 def test_unknown_hardware_fails():
@@ -47,10 +73,10 @@ def test_unknown_hardware_fails():
 
 def test_official_model_unmodified(tmp_path):
     """Limits, masses and kinematics must equal the official model exactly."""
-    ours = model_audit.load_urdf("ours", write(tmp_path, expand()))
+    ours = model_audit.load_urdf("ours", write(tmp_path, expand_official()))
     ref = model_audit.load_urdf("official", OFFICIAL)
     for name, j in ref.joints.items():
-        o = ours.joints[name]
+        o = ours.joints["mount_joint" if name == "world_to_base_link" else name]  # the macro's mount joint replaces the world joint
         assert (o.type, o.lower, o.upper, o.effort, o.velocity, o.mimic) == \
             (j.type, j.lower, j.upper, j.effort, j.velocity, j.mimic), name
     assert ours.masses == ref.masses
@@ -60,7 +86,7 @@ def test_official_model_unmodified(tmp_path):
 
 def test_tcp_at_fingertips(tmp_path):
     """Default TCP sits 0.1425 m along the flange z axis (4.5 mm base offset + 138 mm fingers)."""
-    model = model_audit.load_urdf("ours", write(tmp_path, expand()))
+    model = model_audit.load_urdf("ours", write(tmp_path, expand_official()))
     zero = {j: 0.0 for j in ARM}
     tcp, flange = model.fk(zero, "tcp_link"), model.fk(zero, "link6")
     offset = (abs(flange[:3, :3].T @ (tcp[:3, 3] - flange[:3, 3])))
@@ -69,29 +95,46 @@ def test_tcp_at_fingertips(tmp_path):
 
 
 def test_fixed_base():
-    """The official model is rooted at `world`, fixed to base_link (simulators rely on this)."""
+    """The arm is rooted at `world`, fixed to the base link (simulators rely on this)."""
     root = ET.fromstring(expand())
-    j = root.find("joint[@name='world_to_base_link']")
+    j = root.find(f"joint[@name='{P}mount_joint']")
     assert j.get("type") == "fixed"
-    assert j.find("parent").get("link") == "world" and j.find("child").get("link") == "base_link"
+    assert j.find("parent").get("link") == "world" and j.find("child").get("link") == P + "base_link"
+
+
+def test_mount_pose_and_parent():
+    """The macro mounts the arm on any link at any pose (a carrier robot's trunk, say)."""
+    import tempfile
+
+    import xacro
+    text = ('<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="carrier"><link name="trunk"/>'
+            f'<xacro:include filename="{PKG}/urdf/piper_arm.xacro"/>'
+            '<xacro:piper_arm parent="trunk" prefix="arm_" xyz="0.1 0 0.2" rpy="0 0 1.5"/></robot>')
+    with tempfile.NamedTemporaryFile("w", suffix=".xacro", delete=False) as f:
+        f.write(text)
+    root = ET.fromstring(xacro.process_file(f.name).toxml())
+    j = root.find("joint[@name='arm_mount_joint']")
+    assert j.find("parent").get("link") == "trunk" and j.find("child").get("link") == "arm_base_link"
+    assert j.find("origin").attrib == {"xyz": "0.1 0 0.2", "rpy": "0 0 1.5"}
+    assert root.find("joint[@name='arm_joint6']") is not None
 
 
 def test_without_gripper():
     root = ET.fromstring(expand(gripper=False))
     names = {j.get("name") for j in root.iter("joint")}
-    assert "gripper" not in names and "tcp_joint" in names
-    assert root.find("joint[@name='tcp_joint']/parent").get("link") == "flange_link"
+    assert P + "gripper" not in names and P + "tcp_joint" in names
+    assert root.find(f"joint[@name='{P}tcp_joint']/parent").get("link") == P + "flange_link"
 
 
 def test_simulator_model_keeps_official_limits():
     """The ROS-side simulator description differs from the official model only by virtual inertials."""
     root = ET.fromstring(robot_description("gazebo", controllers_file="/tmp/controllers.yaml"))
-    official = ET.fromstring(expand())
+    official = ET.fromstring(expand_official())
     lim = lambda r, n: r.find(f"joint[@name='{n}']/limit").attrib  # noqa: E731
     for name in [*ARM, "gripper", "gripper_joint1", "gripper_joint2"]:
-        assert lim(root, name) == lim(official, name), name
-    assert root.find("link[@name='gripper_link']/inertial/mass") is not None
-    assert root.find("joint[@name='gripper_joint1']/mimic") is not None
+        assert lim(root, P + name) == lim(official, name), name
+    assert root.find(f"link[@name='{P}gripper_link']/inertial/mass") is not None
+    assert root.find(f"joint[@name='{P}gripper_joint1']/mimic") is not None
 
 
 def test_physics_model_widens_limits_and_drops_mimic():
@@ -138,9 +181,9 @@ def test_wrist_camera_mount(stand):
     Regression guard: the pose once came from a description whose link6 frame was rotated 90 deg, which put the camera in line
     with one finger. The camera must sit behind the gripper, on -x of link6, looking along the gripper (+x of link6 tilted to +z).
     """
-    extra = {"camera_bracket_mesh": "none"} if stand == "none" else {}
+    extra = {"camera_mount_mesh": "none"} if stand == "none" else {}
     root = ET.fromstring(expand(camera="d435", **extra))
-    pose = _fixed_chain(root, "camera_link", "link6")
+    pose = _fixed_chain(root, P + "camera_link", P + "link6")
     assert pose[:3, 3] == pytest.approx([-0.0731, -0.0115, 0.0381], abs=5e-4)
     assert pose[:3, 0] == pytest.approx([0.344, 0.0, 0.939], abs=2e-3)          # viewing direction
     assert abs(pose[1, 3]) < 0.02, "camera must sit near the plane between the fingers (they open along +-y of link6)"

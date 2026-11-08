@@ -28,6 +28,7 @@ ap.add_argument("--gui", action="store_true", help="open a window (default: head
 ap.add_argument("--video", type=Path, help="record the camera view to this mp4 (needs ffmpeg)")
 ap.add_argument("--video-fps", type=float, default=30.0)
 ap.add_argument("--camera", default="none", help="none | d435: publish the wrist camera topics (USD must contain the camera)")
+ap.add_argument("--prefix", default="piper_", help="prefix of every joint and link name in the USD (the description's prefix)")
 ap.add_argument("--camera-pose", type=Path, help="camera pose in link6 (JSON from export_urdf.py --camera-pose-out); needed with --camera")
 ap.add_argument("--scene", type=Path, help="JSON list of static objects (same file content as piper_bringup/config/scene_objects.yaml)")
 ap.add_argument("--frame-hz", type=float, default=float(os.environ.get("PIPER_ISAAC_FRAME_HZ", "0")),
@@ -62,9 +63,10 @@ from pxr import PhysxSchema, UsdPhysics  # noqa: E402
 
 FRAME_HZ = float(args.frame_hz)
 PHYSICS_HZ = FRAME_HZ * max(1, round(240.0 / FRAME_HZ))  # a whole number of physics substeps per frame (>= 240 Hz)  # app updates (and ROS publishing) per second; PHYSICS_HZ / FRAME_HZ substeps each
-ARM = [f"joint{i}" for i in range(1, 7)]
+PREFIX = args.prefix
+ARM = [f"{PREFIX}joint{i}" for i in range(1, 7)]
 from servo_gains import GAINS  # noqa: E402  (same directory; kept equal to MuJoCo's servos)
-INITIAL = {"joint2": 0.01, "joint3": -0.01}  # config/initial_positions.yaml
+INITIAL = {PREFIX + "joint2": 0.01, PREFIX + "joint3": -0.01}  # config/initial_positions.yaml
 
 stage_utils.create_new_stage()
 stage = omni.usd.get_context().get_stage()
@@ -93,10 +95,10 @@ px.CreateTimeStepsPerSecondAttr().Set(int(PHYSICS_HZ))
 
 joints = {p.GetName(): p for p in stage.Traverse()
           if p.GetTypeName() in ("PhysicsRevoluteJoint", "PhysicsPrismaticJoint")}
-missing = [n for n in GAINS if n not in joints]
+missing = [PREFIX + n for n in GAINS if PREFIX + n not in joints]  # GAINS is keyed by the official joint names
 assert not missing, f"USD lacks joints {missing}; has {sorted(joints)}"
 for name, (kp, kd, fmax) in GAINS.items():
-    j = joints[name]
+    j = joints[PREFIX + name]
     drive = UsdPhysics.DriveAPI.Get(j, "angular" if j.GetTypeName() == "PhysicsRevoluteJoint" else "linear")
     drive.CreateStiffnessAttr().Set(float(kp))
     drive.CreateDampingAttr().Set(float(kd))
@@ -189,7 +191,7 @@ if args.camera != "none":
     cam_prim.GetClippingRangeAttr().Set(Gf.Vec2f(cfg["near"], cfg["far"]))
     wrist_rp = rep.create.render_product(cam_path, (cfg["width"], cfg["height"]))
     create_ros2_camera_graph(Ros2CameraGraphConfig(
-        graph_path="/ROS_Camera", camera_prim=cam_path, frame_id="camera_color_optical_frame",
+        graph_path="/ROS_Camera", camera_prim=cam_path, frame_id=f"{PREFIX}camera_color_optical_frame",
         camera_info_topic="/camera/color/camera_info", rgb_topic="/camera/color/image_raw",
         publish_depth=True, depth_topic="/camera/aligned_depth_to_color/image_raw",
         render_product_prim=wrist_rp.path))
@@ -232,8 +234,8 @@ print("[piper_isaac] ready: publishing /clock, /isaac/joint_states; listening /i
 
 # URDF mimic (gripper_joint1 = +0.5 * gripper, gripper_joint2 = -0.5 * gripper) is applied here: the importer's
 # PhysX variant carries no mimic, and PhysX mimic joints authored by hand did not couple the fingers.
-FINGER_RATIO = {"gripper_joint1": 0.5, "gripper_joint2": -0.5}
-i_grip = names.index("gripper")
+FINGER_RATIO = {PREFIX + "gripper_joint1": 0.5, PREFIX + "gripper_joint2": -0.5}
+i_grip = names.index(PREFIX + "gripper")
 i_fingers = [names.index(f) for f in FINGER_RATIO]
 ratios = np.array([FINGER_RATIO[f] for f in FINGER_RATIO], dtype=np.float32)
 

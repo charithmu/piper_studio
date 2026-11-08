@@ -1,0 +1,12 @@
+<?xml version="1.0"?>
+<!-- Tool frames of the Piper: the TCP (tool centre point). Parent is the gripper base, or the flange without a gripper. -->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+  <xacro:macro name="piper_tool_frames" params="prefix gripper tcp_xyz tcp_rpy">
+    <link name="${prefix}tcp_link" />
+    <joint name="${prefix}tcp_joint" type="fixed">
+      <parent link="${prefix + ('gripper_base' if gripper else 'flange_link')}" />
+      <child link="${prefix}tcp_link" />
+      <origin xyz="${tcp_xyz}" rpy="${tcp_rpy}" />
+    </joint>
+  </xacro:macro>
+</robot>

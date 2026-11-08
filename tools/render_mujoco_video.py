@@ -25,6 +25,7 @@ adr = {m.joint(i).name: m.jnt_qposadr[i] for i in range(m.njnt)}
 t = np.array(run["t"]) - run["steps"][0]["t_start"]
 q = np.array([[v if v is not None else 0.0 for v in row] for row in run["q"]])
 names = run["joints"]
+pfx = names[0][: -len("joint1")]  # the run was recorded with the description's name prefix
 cam = mujoco.MjvCamera()
 cam.lookat[:] = (0.12, 0.0, 0.2)
 cam.distance, cam.azimuth, cam.elevation = 1.35, 130, -18
@@ -34,8 +35,8 @@ with mujoco.Renderer(m, 720, 1280) as renderer, imageio.get_writer(sys.argv[2], 
         row = q[min(np.searchsorted(t, tt), len(t) - 1)]
         for n, v in zip(names, row):
             d.qpos[adr[n]] = v
-        d.qpos[adr["gripper_joint1"]] = 0.5 * row[names.index("gripper")]
-        d.qpos[adr["gripper_joint2"]] = -0.5 * row[names.index("gripper")]
+        d.qpos[adr[pfx + "gripper_joint1"]] = 0.5 * row[names.index(pfx + "gripper")]
+        d.qpos[adr[pfx + "gripper_joint2"]] = -0.5 * row[names.index(pfx + "gripper")]
         mujoco.mj_forward(m, d)
         renderer.update_scene(d, camera=cam)
         w.append_data(renderer.render())

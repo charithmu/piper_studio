@@ -1,0 +1,22 @@
+<?xml version="1.0"?>
+<!--
+  Wrist camera = a camera model on a mount. Two independent choices, each a file that defines one macro with a fixed interface:
+    cameras/<model>.xacro   piper_camera_model(prefix, parent, hardware, width, height, hfov_deg, update_rate, *origin)   (d435)
+    mounts/<mount>.xacro    piper_camera_mount(prefix, parent, mesh, xyz, rpy)                                           (agilex_mid_stand, custom)
+  The caller includes one of each, then calls piper_camera, which chains them:
+    parent -> ${prefix}camera_mount_link -> ${prefix}camera_link (+ color/depth/infra frames)
+
+  Independent of the arm: `parent` can be any link of any robot. To add a camera or a mount (for example a ZED or an OAK-D Pro on a
+  CAD-exported bracket), add one file with the same macro and select it with camera:= / camera_mount:=.
+  Frames (names as published by the realsense2_camera driver when started with camera_name:=<prefix>camera):
+  camera_link, camera_color_frame, camera_color_optical_frame (z forward), camera_depth_optical_frame.
+-->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+  <xacro:macro name="piper_camera" params="prefix parent hardware mount_mesh width height hfov_deg update_rate mount_xyz mount_rpy">
+    <xacro:piper_camera_mount prefix="${prefix}" parent="${parent}" mesh="${mount_mesh}" xyz="${mount_xyz}" rpy="${mount_rpy}" />
+    <xacro:piper_camera_model prefix="${prefix}" parent="${prefix}camera_mount_link" hardware="${hardware}"
+                              width="${width}" height="${height}" hfov_deg="${hfov_deg}" update_rate="${update_rate}">
+      <origin xyz="${piper_mount_camera_xyz}" rpy="${piper_mount_camera_rpy}" />
+    </xacro:piper_camera_model>
+  </xacro:macro>
+</robot>

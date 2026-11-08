@@ -52,7 +52,9 @@ def load_runs(demo: Path) -> dict:
 
 
 def tcp_model():
-    urdf = xacro.process_file(str(Path(get_package_share_directory("piper_description")) / "urdf/piper.urdf.xacro")).toxml()
+    # official names (prefix ""): the recorded joint values are positional, and ARM below uses the official names
+    urdf = xacro.process_file(str(Path(get_package_share_directory("piper_description")) / "urdf/piper.urdf.xacro"),
+                              mappings={"prefix": ""}).toxml()
     tmp = Path("/tmp/piper_demo_tcp.urdf")
     tmp.write_text(urdf)
     return model_audit.load_urdf("tcp", tmp)

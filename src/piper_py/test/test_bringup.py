@@ -91,7 +91,7 @@ class TestBringup(unittest.TestCase):
         r = self.arm.move_named("ready", velocity_scaling=1.0)
         self.assertTrue(r, r)
         q = self.arm.named_poses()["ready"]
-        self.assert_joints([q[f"joint{i}"] for i in range(1, 7)])
+        self.assert_joints([q[f"piper_joint{i}"] for i in range(1, 7)])
 
     def test_4_pose_goal(self):
         r = self.arm.move_pose([0.25, 0.0, 0.10], DOWN, velocity_scaling=1.0)
@@ -112,7 +112,7 @@ class TestBringup(unittest.TestCase):
         for width in (0.06, 0.0, 0.05, 0.0):
             r = self.arm.gripper(width)
             self.assertTrue(r, r)
-            self.assertTrue(math.isclose(self.arm.joint_state()["gripper"], width, abs_tol=0.003))
+            self.assertTrue(math.isclose(self.arm.joint_state()[self.arm.gripper_joint], width, abs_tol=0.003))
 
     def test_8_servo_tcp_motion(self):
         """Cartesian (TCP-frame) motion through MoveIt Servo and the streaming controller."""
@@ -144,8 +144,8 @@ class TestBringup(unittest.TestCase):
         self.assertEqual(color.shape, (480, 640, 3))
         self.assertEqual(depth.shape, (480, 640))
         self.assertEqual((info.width, info.height), (640, 480))
-        self.assertEqual(hc.frame_id, "camera_color_optical_frame")
-        self.assertEqual(hd.frame_id, "camera_color_optical_frame")
+        self.assertEqual(hc.frame_id, "piper_camera_color_optical_frame")
+        self.assertEqual(hd.frame_id, "piper_camera_color_optical_frame")
         self.assertGreater(float(color.std()), 5.0, "colour image is blank")
         valid = np.isfinite(depth) & (depth > 0)
         self.assertGreater(float(valid.mean()), 0.2, "depth image is mostly empty")

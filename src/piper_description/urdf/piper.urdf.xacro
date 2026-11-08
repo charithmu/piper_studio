@@ -1,26 +1,35 @@
 <?xml version="1.0"?>
 <!--
-  Piper Studio robot description.
+  Piper Studio robot description, standalone: the Piper at the world origin, assembled from the pieces below. A carrier robot
+  (a Go2, a table, a cell) does not use this file; it includes the pieces it needs and calls them with its own parent link:
 
-  Geometry, limits and inertials come unmodified from the official AgileX
-  agx_arm_urdf model (see docs/description/DECISIONS.md). The official model is rooted at a
-  fixed `world` link (world -> base_link). This file only adds
-  workspace frames (tcp_link) and the ros2_control block
-  that selects the hardware backend.
+    urdf/piper_arm.xacro            piper_arm(parent, prefix, xyz, rpy, gripper)  arm + gripper, generated from the official AgileX
+                                    model and validated against it (tools/piper_arm_macro.py; docs/ARCHITECTURE.md, D12)
+    urdf/piper.tool.xacro           piper_tool_frames                             TCP frame
+    urdf/piper_camera.xacro         piper_camera + one cameras/<model>.xacro and one mounts/<mount>.xacro
+    urdf/piper.ros2_control.xacro   piper_ros2_control                            hardware block (backend switch)
+
+  Geometry, limits and inertials come unmodified from the official AgileX model (docs/description/DECISIONS.md).
+  Every link, joint and frame name starts with `prefix` (default piper_); prefix:="" gives the official names.
 -->
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="piper">
   <!-- mock | real | gazebo | mujoco | isaac -->
   <xacro:arg name="hardware" default="mock" />
+  <xacro:arg name="prefix" default="piper_" />
   <xacro:arg name="gripper" default="true" />
   <xacro:arg name="initial_positions_file" default="$(find piper_description)/config/initial_positions.yaml" />
   <!-- TCP offset from gripper_base (gripper) or flange_link (no gripper). The default is the
        fingertip centre: the finger meshes end at z = 0.138 m in gripper_base. -->
   <xacro:arg name="tcp_xyz" default="0 0 0.138" />
   <xacro:arg name="tcp_rpy" default="0 0 0" />
-  <!-- Wrist camera: none | d435 (RealSense D435 at AgileX's mount pose; see piper.camera.xacro). Simulated size/FOV
-       follow the D435 colour stream at 640x480 (69.4 deg horizontal). -->
+  <!-- Wrist camera: a model (cameras/) on a mount (mounts/). camera: none | d435. camera_mount: agilex_mid_stand | custom.
+       camera_mount_mesh: other stand mesh path, or 'none' for a box. camera_xyz/camera_rpy: pose in link6 for camera_mount:=custom.
+       Simulated size/FOV follow the D435 colour stream at 640x480 (69.4 deg horizontal). -->
   <xacro:arg name="camera" default="none" />
-  <xacro:arg name="camera_bracket_mesh" default="$(find piper_description)/meshes/realsense_mid_stand.dae" />
+  <xacro:arg name="camera_mount" default="agilex_mid_stand" />
+  <xacro:arg name="camera_mount_mesh" default="" />
+  <xacro:arg name="camera_xyz" default="0 0 0" />
+  <xacro:arg name="camera_rpy" default="0 0 0" />
   <xacro:arg name="camera_width" default="640" />
   <xacro:arg name="camera_height" default="480" />
   <xacro:arg name="camera_hfov_deg" default="69.4" />
@@ -30,38 +39,29 @@
   <xacro:arg name="mujoco_model" default="" />
   <xacro:arg name="mujoco_headless" default="true" />
 
+  <xacro:property name="prefix" value="$(arg prefix)" />
   <xacro:property name="use_gripper" value="$(arg gripper)" />
 
-  <xacro:if value="${use_gripper}">
-    <xacro:include filename="$(find agx_arm_description)/agx_arm_urdf/piper/urdf/piper_with_gripper_description.xacro" />
-  </xacro:if>
-  <xacro:unless value="${use_gripper}">
-    <xacro:include filename="$(find agx_arm_description)/agx_arm_urdf/piper/urdf/piper_description.urdf" />
-    <!-- The gripper xacro adds flange_link; mirror it so tcp/mount frames have the same parent. -->
-    <link name="flange_link" />
-    <joint name="flange_joint" type="fixed">
-      <parent link="link6" />
-      <child link="flange_link" />
-      <origin xyz="0 0 0" rpy="0 0 0" />
-    </joint>
-  </xacro:unless>
+  <xacro:include filename="$(find piper_description)/urdf/piper_arm.xacro" />
+  <link name="world" />
+  <xacro:piper_arm parent="world" prefix="${prefix}" gripper="${use_gripper}" />
 
-  <link name="tcp_link" />
-  <joint name="tcp_joint" type="fixed">
-    <parent link="${'gripper_base' if use_gripper else 'flange_link'}" />
-    <child link="tcp_link" />
-    <origin xyz="$(arg tcp_xyz)" rpy="$(arg tcp_rpy)" />
-  </joint>
+  <xacro:include filename="$(find piper_description)/urdf/piper.tool.xacro" />
+  <xacro:piper_tool_frames prefix="${prefix}" gripper="${use_gripper}" tcp_xyz="$(arg tcp_xyz)" tcp_rpy="$(arg tcp_rpy)" />
 
-  <xacro:if value="${'$(arg camera)' == 'd435'}">
-    <xacro:include filename="$(find piper_description)/urdf/piper.camera.xacro" />
-    <xacro:piper_camera parent="link6" hardware="$(arg hardware)" bracket_mesh="$(arg camera_bracket_mesh)"
+  <xacro:if value="${'$(arg camera)' != 'none'}">
+    <xacro:include filename="$(find piper_description)/urdf/cameras/$(arg camera).xacro" />
+    <xacro:include filename="$(find piper_description)/urdf/mounts/$(arg camera_mount).xacro" />
+    <xacro:include filename="$(find piper_description)/urdf/piper_camera.xacro" />
+    <xacro:piper_camera prefix="${prefix}" parent="${prefix}link6" hardware="$(arg hardware)"
+                        mount_mesh="$(arg camera_mount_mesh)" mount_xyz="$(arg camera_xyz)" mount_rpy="$(arg camera_rpy)"
                         width="$(arg camera_width)" height="$(arg camera_height)"
                         hfov_deg="$(arg camera_hfov_deg)" update_rate="$(arg camera_rate)" />
   </xacro:if>
 
   <xacro:include filename="$(find piper_description)/urdf/piper.ros2_control.xacro" />
   <xacro:piper_ros2_control
+    prefix="${prefix}"
     hardware="$(arg hardware)"
     gripper="${use_gripper}"
     initial_positions_file="$(arg initial_positions_file)"

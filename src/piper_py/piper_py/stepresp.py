@@ -14,7 +14,7 @@ import time
 from pathlib import Path
 
 from piper_py.demo import Recorder, stamp_now
-from piper_py.robot import ARM_JOINTS, Piper
+from piper_py.robot import Piper
 
 # (joint index, step in rad). Moderate steps from the 'ready' pose, inside limits.
 TESTS = [(0, 0.20), (1, -0.20), (2, 0.20), (3, 0.30), (4, -0.30), (5, 0.40)]
@@ -56,14 +56,14 @@ def main(namespace: str, backend: str, out: Path) -> int:
             _hold(arm, rec, q1, HOLD)
             t_down = stamp_now(rec)
             _hold(arm, rec, q0, HOLD)
-            events.append({"joint": ARM_JOINTS[j], "index": j, "delta": delta, "t_up": t_up, "t_down": t_down,
+            events.append({"joint": arm.arm_joints[j], "index": j, "delta": delta, "t_up": t_up, "t_down": t_down,
                            "t_end": stamp_now(rec)})
-            print(f"[stepresp:{backend}] {ARM_JOINTS[j]} {delta:+.2f} rad", flush=True)
+            print(f"[stepresp:{backend}] {arm.arm_joints[j]} {delta:+.2f} rad", flush=True)
         arm.use_trajectories()
         samples = rec.snapshot()
         rec.close()
     result = {"backend": backend, "ready": READY, "events": events,
-              "t": [s[0] for s in samples], "q": [[s[1].get(n) for n in ARM_JOINTS] for s in samples]}
+              "t": [s[0] for s in samples], "q": [[s[1].get(n) for n in arm.arm_joints] for s in samples]}
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(result))
     print(f"[stepresp:{backend}] wrote {out}")

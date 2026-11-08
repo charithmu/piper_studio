@@ -51,12 +51,20 @@ Rules for the shared parts:
 
 ### Mounting and prefix (decision D12)
 
-`piper_description` exposes one macro, `piper_arm(prefix, parent, xyz, rpy, hardware, gripper, camera, ...)`, so the arm can be
-mounted on a Go2 trunk or placed in any scene, with every link, joint and controller name carrying the prefix.
+`piper_description` exposes the arm as the macro `piper_arm(parent, prefix, xyz, rpy, gripper)`, so it can be mounted on a Go2
+trunk or placed in any scene. Every link, joint and frame name carries `prefix` (default `piper_`; `""` gives the official names),
+so the arm cannot clash with a carrier robot's names. The pieces are separate macros a carrier includes as it needs:
+`piper_arm`, `piper_tool_frames`, `piper_camera` (a camera model from `cameras/` on a mount from `mounts/`), `piper_ros2_control`.
+`piper.urdf.xacro` is the standalone assembly (the arm at the world origin).
 
-The official AgileX URDF has no prefix and is rooted at `world -> base_link`. **Option A (chosen):** a build step turns the
-unmodified official file into the prefixed macro, and `test_description.py` checks the result against it (same links, joints,
-limits, inertials, mesh paths). The two options not taken are recorded so we can change later:
+The official AgileX URDF has no prefix and is rooted at `world -> base_link`. **Option A (chosen), done differently from first
+planned:** the macro is generated once by `tools/piper_arm_macro.py` and *committed* (not built on the fly), with the source commit,
+date and file hashes in its header. `check` validates it against the official files (links, joints, limits, inertials, meshes, mimic;
+with and without prefix, with and without gripper) and runs in the tests, so a submodule bump fails until `generate` is rerun and the
+diff reviewed. The same tool generates the prefixed official SRDF (`piper_bringup/config/moveit/piper_official.srdf.xacro`). The
+real driver keeps the official names: `command_guard` translates the prefix at that one boundary. Config templates
+(`controllers.yaml`, MoveIt yaml, MuJoCo inputs) use a `${prefix}` token that the launch fills in (`piper_description.render_config`).
+The two options not taken are recorded so we can change later:
 
 | | Option | Why not now | Switch when |
 |---|---|---|---|
@@ -69,7 +77,7 @@ limits, inertials, mesh paths). The two options not taken are recorded so we can
 | # | Step | Status |
 |---|---|---|
 | 1 | Manifest dependencies, camera-mount regression test, this document | done 2026-11-08 |
-| 2 | `piper_arm` macro with prefix and mount (option A generator) | |
+| 2 | `piper_arm` macro with prefix and mount (option A, committed and validated), camera model/mount split, prefix through controllers, MoveIt, MuJoCo, Isaac runner, guard and `piper_py` | done 2026-11-08 (Isaac not yet run) |
 | 3 | `piper_core`: limits, guard, named poses, `RealArm` (from `tools/arm_common.py`, `command_guard.py`, `piper_py` rules) | |
 | 4 | Split `piper_sim` from `piper_bringup` and `piper_description` (scenes, simulator model helpers, `isaac/`) | |
 | 5 | `piper_control`: runs on any controller manager; `piper.launch.py backend:=` stays in `piper_sim` | |
