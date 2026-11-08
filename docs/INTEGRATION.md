@@ -19,7 +19,7 @@ meshes and the SRDF are generated from it). Pin a commit or tag; see `piper.repo
 
 ## 1. The model, mounted on your robot
 
-`piper_description` provides xacro macros. All names start with `prefix` (default `piper_`), so they cannot clash with your robot.
+`piper_description` provides xacro macros. All names start with `prefix` (default `piper_`; `prefix:=none` in launch files for no prefix), so they cannot clash with your robot.
 
 ```xml
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="my_robot">
@@ -42,6 +42,7 @@ meshes and the SRDF are generated from it). Pin a commit or tag; see `piper.repo
 - Root: the macro attaches `${prefix}base_link` to `parent` with a fixed joint `${prefix}mount_joint`.
 - ros2_control: `piper_ros2_control` (`urdf/piper.ros2_control.xacro`) adds the hardware block; `hardware` is `mock | real | gazebo | mujoco | isaac`. For **your own
   simulator**, write your hardware plugin into that block (or your own `<ros2_control>`) with the same joint names and one `position` command interface per joint.
+- A complete example, tested: `src/piper_examples` (carrier robot with its own controller manager, prefix `arm_`, mounted at an offset, with the camera). Its launch shows the three steps: expand your own description, run your own controller manager with `piper_control.launch_lib.controllers_file(prefix)`, include `piper_control control.launch.py backend:=external prefix:=arm_ robot_name:=<your robot name> robot_description_file:=<your URDF> camera:=d435` (MoveIt needs the URDF of your whole robot, its name in the SRDF, and `camera:=` to know the camera links).
 - Standalone (the arm at the world origin): `piper_description/urdf/piper.urdf.xacro`, or `ros2 launch piper_description view.launch.py`.
 - Another camera or mount (ZED, OAK-D Pro, a CAD-exported bracket): add `urdf/cameras/<model>.xacro` defining `piper_camera_model(prefix, parent, hardware, width, height, hfov_deg, update_rate, *origin)`
   or `urdf/mounts/<mount>.xacro` defining `piper_camera_mount(prefix, parent, mesh, xyz, rpy)` and properties `piper_mount_camera_xyz/rpy`, then select with `camera:=` / `camera_mount:=`.

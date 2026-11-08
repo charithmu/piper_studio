@@ -1,0 +1,42 @@
+<?xml version="1.0"?>
+<!--
+  Example carrier robot: a flat base ("trunk") with the Piper mounted on it, written the way INTEGRATION.md describes. It owns its ros2_control
+  block (mock hardware here: stand in for your simulator or hardware) and uses a non-default prefix, arm_, so every Piper name is arm_*.
+  The trunk has no collision geometry on purpose: MoveIt would otherwise need a collision-matrix entry for trunk vs arm base.
+-->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="carrier">
+  <xacro:arg name="prefix" default="arm_" />
+  <xacro:property name="prefix" value="$(arg prefix)" />
+
+  <link name="world" />
+  <link name="trunk">
+    <visual>
+      <geometry><box size="0.45 0.30 0.08" /></geometry>
+      <material name="trunk_grey"><color rgba="0.35 0.38 0.42 1" /></material>
+    </visual>
+  </link>
+  <joint name="trunk_joint" type="fixed">
+    <parent link="world" />
+    <child link="trunk" />
+    <origin xyz="0 0 0.04" rpy="0 0 0" />
+  </joint>
+
+  <!-- the Piper, 0.12 m forward of the trunk centre and turned 90 degrees -->
+  <xacro:include filename="$(find piper_description)/urdf/piper_arm.xacro" />
+  <xacro:piper_arm parent="trunk" prefix="${prefix}" xyz="0.12 0 0.04" rpy="0 0 1.5707963" gripper="true" />
+  <xacro:include filename="$(find piper_description)/urdf/piper.tool.xacro" />
+  <xacro:piper_tool_frames prefix="${prefix}" gripper="true" tcp_xyz="0 0 0.138" tcp_rpy="0 0 0" />
+
+  <!-- wrist camera: one model on one mount -->
+  <xacro:include filename="$(find piper_description)/urdf/cameras/d435.xacro" />
+  <xacro:include filename="$(find piper_description)/urdf/mounts/agilex_mid_stand.xacro" />
+  <xacro:include filename="$(find piper_description)/urdf/piper_camera.xacro" />
+  <xacro:piper_camera prefix="${prefix}" parent="${prefix}link6" hardware="mock" mount_mesh="" mount_xyz="0 0 0" mount_rpy="0 0 0"
+                      width="640" height="480" hfov_deg="69.4" update_rate="30" />
+
+  <!-- the carrier's own hardware: mock here; your simulator's plugin in a real project -->
+  <xacro:include filename="$(find piper_description)/urdf/piper.ros2_control.xacro" />
+  <xacro:piper_ros2_control prefix="${prefix}" hardware="mock" gripper="true"
+                            initial_positions_file="$(find piper_description)/config/initial_positions.yaml"
+                            controllers_file="" mujoco_model="" mujoco_headless="true" camera="none" />
+</robot>

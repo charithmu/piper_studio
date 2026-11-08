@@ -1,0 +1,22 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>piper_examples</name>
+  <version>0.1.0</version>
+  <description>Example of using the Piper from another project: a made-up carrier robot with its own ros2_control node, the Piper mounted on it with a non-default prefix, and the Piper control stack on top.</description>
+  <maintainer email="mung@zhaw.ch">Charith Munasinghe</maintainer>
+  <license>Apache-2.0</license>
+
+  <exec_depend>piper_description</exec_depend>
+  <exec_depend>piper_control</exec_depend>
+  <exec_depend>piper_py</exec_depend>
+  <exec_depend>robot_state_publisher</exec_depend>
+  <exec_depend>controller_manager</exec_depend>
+
+  <test_depend>launch_testing</test_depend>
+  <test_depend>launch_testing_ros</test_depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>

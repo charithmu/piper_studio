@@ -18,6 +18,7 @@ src/piper_description   the robot as xacro macros: arm (generated from the offic
 src/piper_core          rules without ROS: joint limits, command guard, named poses
 src/piper_control       controllers (one config for every backend), MoveIt, Servo, command guard node; control.launch.py (mock | real | external)
 src/piper_py            Python client and `piper` CLI: state, trajectories, streaming, gripper, MoveIt, Servo, camera
+src/piper_examples      example of using the Piper from another project: a carrier robot with its own controller manager (tested)
 src/piper_sim           simulators (Gazebo, MuJoCo), scenes, and piper.launch.py: one launch file for every backend (internal to this repo)
 isaac/                  Isaac Sim runner and USD conversion (own environment, see isaac/README.md)
 tools/                  real_arm/ (direct scripts, no ROS), demo/ (demo page), capture/ (stills and video)
@@ -69,7 +70,7 @@ with Piper() as arm:
 ## Names, prefix and the camera
 
 Every link, joint and frame carries a prefix, `piper_` by default (`piper_link1`, `piper_joint1`, `piper_gripper`, `piper_tcp_link`,
-`piper_camera_color_optical_frame`); `prefix:=""` gives the official AgileX names. `Piper(prefix=...)` and `piper --prefix` follow it.
+`piper_camera_color_optical_frame`); `prefix:=none` gives the official AgileX names (`""` in the Python API and xacro). `Piper(prefix=...)` and `piper --prefix` follow it.
 The wrist camera is a model (`urdf/cameras/<name>.xacro`: d435) on a mount (`urdf/mounts/<name>.xacro`: `agilex_mid_stand`, `custom`), chosen with
 `camera:=` and `camera_mount:=`. A new camera or a CAD-exported bracket is one more file with the same macro interface (`urdf/piper_camera.xacro`).
 
@@ -114,7 +115,7 @@ Without ROS, the scripts in `tools/real_arm/` (info, zero, joints, stop) talk to
 
 ```bash
 python -m pytest src/piper_description src/piper_control src/piper_core src/piper_sim -q       # offline
-PIPER_TEST_BACKENDS=mock,gazebo,mujoco python -m pytest src/piper_py/test -q                    # launch tests per backend (add isaac: GPU, needs scripts/isaac.sh build-usd d435)
+PIPER_TEST_BACKENDS=mock,gazebo,mujoco python -m pytest src/piper_py/test src/piper_examples -q   # launch tests per backend, and the carrier example (add isaac: GPU, needs scripts/isaac.sh build-usd d435)
 python src/piper_description/tools/piper_arm_macro.py check                                     # generated macros still equal the pinned official files
 ```
 

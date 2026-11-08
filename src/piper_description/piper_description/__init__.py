@@ -15,6 +15,11 @@ from pathlib import Path
 DEFAULT_PREFIX = "piper_"  # prefix of every link, joint and frame name (piper.urdf.xacro `prefix`; "" gives the official names)
 
 
+def normalize_prefix(prefix: str) -> str:
+    """`ros2 launch` rejects an empty value (`prefix:=`), so the launch files accept `none` for "no prefix" (the official names)."""
+    return "" if prefix.strip().lower() in ("none", '""', "''") else prefix
+
+
 def xacro_file() -> Path:
     from ament_index_python.packages import get_package_share_directory
     return Path(get_package_share_directory("piper_description")) / "urdf" / "piper.urdf.xacro"
