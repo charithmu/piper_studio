@@ -1,6 +1,7 @@
 """Static checks of the Piper Studio description against the official AgileX model."""
 
 import math
+import yaml
 import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -71,14 +72,28 @@ def test_unknown_hardware_fails():
         expand(hardware="nonexistent")
 
 
-def test_official_model_unmodified(tmp_path):
-    """Limits, masses and kinematics must equal the official model exactly."""
+FIRMWARE = yaml.safe_load((Path(__file__).resolve().parents[1] / "config/firmware_values.yaml").read_text())
+READOUT = Path(__file__).resolve().parents[3] / "docs/real_arm/arms/piper-01.readout.json"
+
+
+def test_official_model_plus_firmware_values(tmp_path):
+    """Limits, masses and kinematics equal the official model, except the declared firmware overrides
+    (arm joint velocity, gripper stroke; config/firmware_values.yaml)."""
     ours = model_audit.load_urdf("ours", write(tmp_path, expand_official()))
     ref = model_audit.load_urdf("official", OFFICIAL)
+    stroke = FIRMWARE["gripper_stroke"]
     for name, j in ref.joints.items():
         o = ours.joints["mount_joint" if name == "world_to_base_link" else name]  # the macro's mount joint replaces the world joint
-        assert (o.type, o.lower, o.upper, o.effort, o.velocity, o.mimic) == \
-            (j.type, j.lower, j.upper, j.effort, j.velocity, j.mimic), name
+        want = [j.type, j.lower, j.upper, j.effort, j.velocity, j.mimic]
+        if name in ARM:
+            want[4] = FIRMWARE["arm_joint_max_velocity"]
+        if name == "gripper":
+            want[2] = stroke
+        elif name == "gripper_joint1":
+            want[2] = stroke / 2
+        elif name == "gripper_joint2":
+            want[1] = -stroke / 2
+        assert [o.type, o.lower, o.upper, o.effort, o.velocity, o.mimic] == want, name
     assert ours.masses == ref.masses
     q = dict(zip(ARM, [0.3, 1.2, -1.0, 0.4, -0.5, 0.7]))
     assert (abs(ours.fk(q) - ref.fk(q)) < 1e-12).all()
@@ -180,3 +195,20 @@ def test_integration_doc_snippet_expands(tmp_path):
     root = ET.fromstring(xacro.process_file(str(path)).toxml())
     assert root.find("joint[@name='piper_mount_joint']/parent").get("link") == "trunk"
     assert root.find("link[@name='piper_camera_color_optical_frame']") is not None
+
+
+@pytest.mark.skipif(not READOUT.exists(), reason="no saved arm read-out")
+def test_description_matches_the_arms_firmware_read_out(tmp_path):
+    """The arm's own read-out (firmware S-V1.9-1) is the reference: position limits and speed of the six joints, gripper stroke.
+    A difference here is a discrepancy between the vendor URDF and the arm: report it, do not hide it."""
+    import json
+    arm = json.loads(READOUT.read_text())
+    model = model_audit.load_urdf("ours", write(tmp_path, expand_official()))
+    for i, joint in enumerate(ARM, start=1):
+        fw = arm["limits"][str(i)]["angle_vel"]
+        j = model.joints[joint]
+        assert (j.lower, j.upper) == pytest.approx((fw["min_angle_limit"], fw["max_angle_limit"]), abs=1e-6), joint
+        assert j.velocity == pytest.approx(fw["max_joint_spd"]), joint
+    assert model.joints["gripper"].upper == pytest.approx(arm["gripper_params"]["max_range_config"])
+    assert FIRMWARE["arm_joint_max_velocity"] == pytest.approx(arm["limits"]["1"]["angle_vel"]["max_joint_spd"])
+    assert FIRMWARE["gripper_stroke"] == pytest.approx(arm["gripper_params"]["max_range_config"])

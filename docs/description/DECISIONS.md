@@ -1,7 +1,9 @@
 # Robot description decisions
 
 Status 2026-11-08 (D1-D10 from 2026-10-08; D11-D13 added). Evidence: [MODEL_AUDIT.md](MODEL_AUDIT.md) (all sources compared with `model_audit.py`).
-Every value used by Piper Studio has a stated provenance. **Provisional** values must not be used
+**Rule (user, 2026-11-08): the arm is on the latest firmware it supports and is calibrated, so the values its firmware reports win.** Next come the latest vendor URDF values
+(`agx_arm_urdf`). Where the two differ, the firmware value is used (`piper_description/config/firmware_values.yaml`, applied by the generator, `piper_arm_macro.py report` lists
+the differences) and the difference is told to the user. Older firmware values and old URDF values are not kept. Every value used by Piper Studio has a stated provenance. **Provisional** values must not be used
 as physical ratings (for safety limits, torque budgets or actuator identification).
 
 ## Single source of truth
@@ -24,12 +26,12 @@ robot's are `piper_` + these.
 
 | # | Item | Decision | Provenance / status |
 |---|---|---|---|
-| D1 | Kinematics | Official agx_arm_urdf@983788b | Vendor CAD export. Isaac description agrees within 0.05 mm. Stable since the previous pin (3080af4). |
-| D2 | Joint position limits | Official: J1 ±2.618, J2 [0, 3.1416], J3 [−2.967, 0], J4 ±1.745, J5 ±1.222, J6 ±2.094 rad | Vendor. Consistent with the published ±150/180/170/100/70/120°. To confirm: firmware-enforced limits (read-only query on the real arm). |
-| D3 | Velocity limits | 5 rad/s all joints (MoveIt scaling 0.1 by default) | **Provisional** (vendor placeholder; Isaac uses 3 rad/s for J6). |
-| D4 | Effort limits | 100 N·m in the URDF | **Provisional placeholder.** Not a rating. Simulators use position actuators. |
-| D5 | Masses/inertias | Official (total 4.70 kg incl. gripper; end-link fix of 2026-10-08) | Vendor CAD estimate. Unmeasured. |
-| D6 | Gripper model | One `gripper` joint = opening width in metres, 0–0.1; fingers are mimic joints (±0.05 each) | Vendor (June 2026 model). **Open:** the real stroke is a gripper firmware setting (`max_range_config` 0.07 or 0.1 m). Read it from the arm before relying on widths > 0.07 m. |
+| D1 | Kinematics | Official agx_arm_urdf@680fa92 | Vendor CAD export. Isaac description agrees within 0.05 mm. Stable since the previous pin (3080af4). |
+| D2 | Joint position limits | J1 ±2.618, J2 [0, 3.1416], J3 [−2.967, 0], J4 ±1.745, J5 ±1.222, J6 ±2.967 rad (±150/180/170/100/70/170°) | **Firmware and vendor URDF agree** (read from the arm, firmware S-V1.9-1, 2026-10-14). The vendor URDF said J6 ±120° until 2026-10-13, when AgileX changed it to ±170°. |
+| D3 | Velocity and acceleration limits | **3.0 rad/s** and **5.0 rad/s²** on all six joints (MoveIt scaling 0.1 by default) | **Firmware** (`max_joint_spd`, `max_joint_acc`). **Differs from the vendor URDF** (5 rad/s; no acceleration). Jerk: no source. |
+| D4 | Effort limits | 100 N·m in the URDF | **Provisional placeholder**, not in the firmware, not a rating. Simulators use position actuators. The SDK's MIT feed-forward range (±16 N·m joints 1-3, ±13.0 N·m joints 4-6) is only a command encoding range. |
+| D5 | Masses/inertias | Vendor URDF (total 4.71 kg arm + gripper; link6 corrected from CAD on 2026-10-16: 16.6 g) | Vendor CAD estimate, not in the firmware, unmeasured. Per-link table with sources: [MASSES.md](MASSES.md). |
+| D6 | Gripper model | One `gripper` joint = opening width in metres, **0–0.07**; fingers are mimic joints (±0.035 each) | **Firmware** `max_range_config` 0.07 m (confirmed by the user, about 70 mm). **Differs from the vendor URDF** (0.1 m, ±0.05). |
 | D7 | TCP | `tcp_link` = gripper_base + 0.138 m z (fingertip plane centre) = flange + 0.1425 m | Derived from the finger meshes (tips end at z = 0.138 m in gripper_base). Overridable via `tcp_xyz`. |
 | D8 | MuJoCo Menagerie / legacy `agx_arm_mjsim` model | **Not used** | Legacy MJCF is an exact copy of Menagerie. link6 FK differs by up to 11.3 mm (configuration dependent, so a real kinematic difference). Total mass 2.37 kg. J3/J4/J6 limits differ (−2.697 looks like a digit swap of −2.967). Independent 35 mm fingers. Kept as a contact-parameter reference only. |
 | D9 | AgileX Isaac description (Dec 2025) | Reference only; regenerate USD from D1 | J1 upper 2.168 is a digit swap of 2.618. J6 velocity 3. Old two-finger gripper. |

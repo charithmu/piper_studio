@@ -147,7 +147,7 @@ pluggy==1.6.0
     # via
     #   pytest
     #   pytest-cov
-pyagxarm @ git+https://github.com/agilexrobotics/pyAgxArm.git@841a625f5f4920e776f20b934eb13048b747e6d0
+pyagxarm @ git+https://github.com/agilexrobotics/pyAgxArm.git@d90e234ba8e408cfa964b38aa9120b3131fc9f85
     # via -r env/requirements.in
 pycollada==0.9.3
     # via -r env/requirements.in

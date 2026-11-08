@@ -1,13 +1,13 @@
-# MoveIt time-parameterisation limits. Velocities equal the official URDF (5 rad/s), which is
-# provisional (see docs/description/DECISIONS.md); the default scaling keeps motion slow.
+# MoveIt time-parameterisation limits. Arm velocity (3.0 rad/s) and acceleration (5.0 rad/s^2) are what the arm's firmware
+# reports (piper-01.readout.json); the default scaling keeps motion slow. Gripper values are provisional (not in the firmware).
 default_velocity_scaling_factor: 0.1
 default_acceleration_scaling_factor: 0.1
 
 joint_limits:
-  ${prefix}joint1: {has_velocity_limits: true, max_velocity: 5.0, has_acceleration_limits: true, max_acceleration: 5.0}
-  ${prefix}joint2: {has_velocity_limits: true, max_velocity: 5.0, has_acceleration_limits: true, max_acceleration: 5.0}
-  ${prefix}joint3: {has_velocity_limits: true, max_velocity: 5.0, has_acceleration_limits: true, max_acceleration: 5.0}
-  ${prefix}joint4: {has_velocity_limits: true, max_velocity: 5.0, has_acceleration_limits: true, max_acceleration: 5.0}
-  ${prefix}joint5: {has_velocity_limits: true, max_velocity: 5.0, has_acceleration_limits: true, max_acceleration: 5.0}
-  ${prefix}joint6: {has_velocity_limits: true, max_velocity: 5.0, has_acceleration_limits: true, max_acceleration: 5.0}
+  ${prefix}joint1: {has_velocity_limits: true, max_velocity: 3.0, has_acceleration_limits: true, max_acceleration: 5.0}
+  ${prefix}joint2: {has_velocity_limits: true, max_velocity: 3.0, has_acceleration_limits: true, max_acceleration: 5.0}
+  ${prefix}joint3: {has_velocity_limits: true, max_velocity: 3.0, has_acceleration_limits: true, max_acceleration: 5.0}
+  ${prefix}joint4: {has_velocity_limits: true, max_velocity: 3.0, has_acceleration_limits: true, max_acceleration: 5.0}
+  ${prefix}joint5: {has_velocity_limits: true, max_velocity: 3.0, has_acceleration_limits: true, max_acceleration: 5.0}
+  ${prefix}joint6: {has_velocity_limits: true, max_velocity: 3.0, has_acceleration_limits: true, max_acceleration: 5.0}
   ${prefix}gripper: {has_velocity_limits: true, max_velocity: 1.0, has_acceleration_limits: true, max_acceleration: 1.0}

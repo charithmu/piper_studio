@@ -1,6 +1,6 @@
 # Architecture: one Piper, several ways in
 
-Status: target design agreed 2026-11-08; migration steps 1-5 are done (table at the end), step 6 (example projects) is open.
+Status: target design agreed 2026-11-08; all six migration steps are done (table at the end).
 
 ## Goals
 
@@ -70,7 +70,7 @@ Dependency direction (arrows read "may use"): `piper_sim`, `piper_examples` -> `
 
 | Interface | Needs ROS | Use | Implemented by |
 |---|---|---|---|
-| Joint trajectories, direct | no | cuRobo and other planners that produce joint trajectories | `piper_core.RealArm.execute(trajectory)` (real arm), `piper_core` guard on every point |
+| Joint trajectories, direct | no | cuRobo and other planners that produce joint trajectories | `arm_controller` (FollowJointTrajectory) in simulation today; `piper_core.RealArm.execute(trajectory)` for the real arm is planned (B3), with the `piper_core` guard on every point |
 | State and gripper, direct | no | scripts, logging | `piper_core.RealArm` (wraps pyAgxArm and the firmware-profile handling now in `tools/real_arm/arm_common.py`) |
 | Streaming joint targets | yes | teleop, policies | `arm_position_controller` via `piper_py` |
 | FollowJointTrajectory | yes | scripted motion | `arm_controller` via `piper_py` |
@@ -114,7 +114,7 @@ The two options not taken are recorded so we can change later:
 | # | Step | Status |
 |---|---|---|
 | 1 | Manifest dependencies, camera-mount regression test, this document | done 2026-11-08 |
-| 2 | `piper_arm` macro with prefix and mount (option A, committed and validated), camera model/mount split, prefix through controllers, MoveIt, MuJoCo, Isaac runner, guard and `piper_py` | done 2026-11-08 (Isaac not yet run) |
+| 2 | `piper_arm` macro with prefix and mount (option A, committed and validated), camera model/mount split, prefix through controllers, MoveIt, MuJoCo, Isaac runner, guard and `piper_py` | done 2026-11-08 (verified on every backend including Isaac) |
 | 3 | `piper_core`: limits, guard, named poses done 2026-11-08 (`command_guard` uses it); `RealArm` (from `tools/real_arm/arm_common.py`) open: it moves the real arm | partly |
 | 4 | `piper_sim` split from `piper_bringup` and `piper_description` (simulator models, scenes, `backend:=` launch, export script) | done 2026-11-08 |
 | 5 | `piper_control` (renamed from `piper_bringup`): `control.launch.py backend:=mock|real|external` runs on any controller manager; `piper.launch.py backend:=` is in `piper_sim` | done 2026-11-08 |

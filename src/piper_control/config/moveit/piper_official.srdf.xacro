@@ -6,8 +6,8 @@
   every link and joint name prefixed by `prefix` (default piper_). Group and end-effector names are unchanged.
   Included by piper.srdf.xacro, which adds Piper Studio's named poses.
 
-  source:    agx_arm_ros @ e4ccec1
-  generated: 2026-11-08 by tools/piper_arm_macro.py (generator version 1)
+  source:    agx_arm_ros @ 286633e
+  generated: 2026-11-08 by tools/piper_arm_macro.py (generator version 2)
   sha256 agx_arm.srdf.xacro: a9fbd8a83f57e4e75687cba6c746bf7344a2ae03c4f83e82da4c23bed3a1418e
 -->
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro">
@@ -26,13 +26,13 @@
       <passive_joint name="${prefix}gripper_joint2" />
       <end_effector group="gripper" name="gripper_eef" parent_group="arm" parent_link="${prefix}tcp_link" />
       <group_state group="gripper" name="gripper_open">
-        <joint name="${prefix}gripper" value="0.1" />
+        <joint name="${prefix}gripper" value="0.07" />
       </group_state>
       <group_state group="gripper" name="gripper_half">
-        <joint name="${prefix}gripper" value="0.05" />
+        <joint name="${prefix}gripper" value="0.035" />
       </group_state>
       <group_state group="gripper" name="gripper_close">
-        <joint name="${prefix}gripper" value="0.0" />
+        <joint name="${prefix}gripper" value="0" />
       </group_state>
       <disable_collisions link1="${prefix}gripper_base" link2="${prefix}gripper_link1" reason="Adjacent" />
       <disable_collisions link1="${prefix}gripper_base" link2="${prefix}gripper_link2" reason="Adjacent" />

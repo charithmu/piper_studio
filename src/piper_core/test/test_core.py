@@ -54,7 +54,7 @@ def test_limits_from_the_real_urdf():
     pd = pytest.importorskip("piper_description")
     limits = limits_from_urdf(pd.robot_description("mock"))
     assert limits["piper_joint1"] == pytest.approx((-2.618, 2.618), abs=1e-3)
-    assert limits["piper_gripper"] == pytest.approx((0.0, 0.1))
+    assert limits["piper_gripper"] == pytest.approx((0.0, 0.07))  # firmware stroke
     assert limits["piper_joint3"][1] == 0.0
 
 

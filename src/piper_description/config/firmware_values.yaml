@@ -1,0 +1,10 @@
+# Values reported by the arm's own firmware win over the vendor URDF where the two differ (user decision, 2026-11-08).
+# piper_arm_macro.py applies them when it generates urdf/piper_arm.xacro and the SRDF, and `check` compares the macro with
+# the official model plus exactly these overrides. `python tools/piper_arm_macro.py report` lists every difference from the
+# vendor files. A test compares this file with the arm's saved read-out.
+#
+# source:   docs/real_arm/arms/piper-01.readout.json (tools/real_arm/arm_info.py, read-only), firmware S-V1.9-1, 2026-10-14,
+#           after the upgrade to the latest firmware the arm supports and the user's calibration
+# not in the firmware: joint effort (URDF 100 N.m is a placeholder), link masses and inertias (URDF/CAD, unmeasured)
+arm_joint_max_velocity: 3.0    # rad/s, joints 1-6 (firmware max_joint_spd; vendor URDF: 5)
+gripper_stroke: 0.07           # m, gripper opening (firmware max_range_config; vendor URDF: 0.1)

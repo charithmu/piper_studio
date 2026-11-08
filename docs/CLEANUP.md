@@ -32,7 +32,7 @@ Internal (this repo only): `piper_sim` (Gazebo, MuJoCo, Isaac models, scenes, `p
 - [x] B4 `piper_control` (renamed from `piper_bringup`): controllers, MoveIt, Servo, guard, `piper_control.launch_lib` (builders for other launch files) and `control.launch.py backend:=mock|real|external`. Verified: mock end to end (named pose, planned pose), `external` starts spawners, MoveIt and RViz and waits for a controller manager. Not yet verified: `external` against a real downstream simulator (B5 example).
 - [x] B5 `docs/INTEGRATION.md` (contract: macros, names, units, controllers, frames, no-ROS use, real-arm rules, versioning); its xacro snippet is a test, and `src/piper_examples` (a carrier robot with its own controller manager, non-default prefix `arm_`, mount transform, camera; `control.launch.py backend:=external`) is a launch test that drives the arm through `piper_py` and checks the TCP lands where the mount puts it. Building the example found and fixed a real bug: MoveIt ignores an SRDF whose `<robot name>` differs from the URDF's, so `control.launch.py` now has `robot_name` and `robot_description_file`. The no-ROS use is covered by the `piper_core` tests and the doc snippet; a separate no-ROS example script is not needed.
 - [x] B6 `piper.repos` (vcstool import list) pins `v0.2.0`; the tag is pushed (2026-11-08, user approved).
-- [x] B7 The downstream overlay `~/projects/ml_tests/.../00_studio_overlay` copies `src/` and uses the old unprefixed names and tool paths: note left in `comms/FOR_OTHERS.md` (not ours to edit).
+- [x] B7 The downstream overlay `~/projects/ml_tests/.../00_studio_overlay` copies `src/` and uses the old unprefixed names and tool paths: note left in `FOR_OTHERS.md` (now `docs/archive/comms-20261108/`; not ours to edit).
 
 ## C. Functional follow-ups
 
@@ -71,6 +71,17 @@ Generated, ignored: `build/`, `install/`, `log/` (older colcon logs deleted), `.
 - [x] F4 Per-file reference check of every script and module: all are used or documented; `tools/capture/capture_stills.py` and `tools/demo/step_analysis.py` are manual tools with no caller, now described in the README. Nothing dead found.
 - [x] F3 `docs/STATE.md` written for fresh sessions (orientation, verified state, gotchas, where data lives); `AGENTS.md` and `README.md` point to it.
 
+## G. Firmware-first bump (pass 4, 2026-11-08, branch `feature/firmware-priority-bump`)
+
+The arm runs the latest firmware it supports (S-V1.9-1) and is calibrated; its reported values win over the vendor URDF (`docs/description/DECISIONS.md`).
+
+- [x] G1 Submodule `agx_arm_ros` bumped `e4ccec1` to `286633e` (nested `agx_arm_urdf` `680fa92`), `pyAgxArm` `841a625` to `d90e234`; reference clones fast-forwarded. Vendor changes: joint 6 limit ±120° to ±170°, link6 inertia from CAD (6.1 g to 16.6 g), driver status topics (`arm_status`, `gripper_status`) are now `diagnostic_msgs/DiagnosticArray` plus new `feedback/motor_status` (we consume none of them).
+- [x] G2 `config/firmware_values.yaml` + generator v2: arm joint velocity 3.0 rad/s and gripper stroke 0.07 m (fingers ±0.035, SRDF open/half scaled) follow the firmware; `piper_arm_macro.py report` lists the differences from the vendor URDF; a test compares the description with `piper-01.readout.json`.
+- [x] G3 MoveIt limits 3.0 rad/s / 5.0 rad/s² (firmware); demo and tests use widths up to 60-70 mm; INTEGRATION gripper range 0 to 0.07 (**contract change**, noted here and in INTEGRATION).
+- [x] G4 Stale values removed: S-V1.7-3 history and its numbers, J6 ±120°, 5 rad/s, 0.1 m gripper, "stroke unmeasured". Docs for ARCHITECTURE step 6 / Isaac and B7 pointer fixed. `docs/description/MASSES.md` (per-link masses with sources) and `tools/mass_table.py` added.
+- [x] G5 Verified: 31 offline tests, `check`, launch tests mock, Gazebo, MuJoCo, Isaac (USD rebuilt with and without camera, `isaac.sh check` 0.001 mm, mass 4.7196 = URDF), real plumbing, carrier example. Not on the real arm.
+- [ ] G6 Open (needs the user): joint torque limits and jerk (not in the firmware), masses (weigh), camera and stand, the 4.5 mm gripper_base ambiguity (C5), whether the firmware accepts joint 2/3 targets slightly past zero.
+
 ## Verification record
 
 ### Pass 1, 2026-11-08 (prefix and macro migration)
@@ -95,6 +106,7 @@ Screenshots: 01-06 RViz (model, MoveIt, zero and ready pose, wrist close-up), 07
 
 ## Log
 
+- 2026-11-08 pass 4: firmware-first bump (section G).
 - 2026-11-08 pass 2 (later): `piper_examples` carrier example (tested), `control.launch.py` `robot_name`/`robot_description_file`, `prefix:=none`, spawner timeouts (Gazebo GUI works on a virtual display, C3), `scripts/test_all.sh`; main pushed and tagged `v0.2.0` (user approved); robosim handoff references fixed (D3). Open and why: B3 `RealArm` and C10 (need the user at the arm), C5 (measure on the mount), C9 (needs real calibration data), C4, C6, C7, C11 (small, intermittent or cosmetic; see each).
 
 - 2026-11-08 pass 2: merged the macros branch; root cleanup (D1, D2); `piper_bringup` replaced by `piper_control` + `piper_sim` (B2, B4); `piper_control.launch_lib` and `control.launch.py backend:=mock|real|external`; `piper_description` is now pure xacro/meshes/`robot_description()`. Re-verified: 30 offline tests, launch tests mock, Gazebo, MuJoCo, Isaac, real plumbing and resting, `run_demo.sh mock` 11/11, `isaac.sh build-usd`/`check`. Launch entry changed: `ros2 launch piper_sim piper.launch.py` (was `piper_bringup`).

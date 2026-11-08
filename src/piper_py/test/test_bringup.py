@@ -163,7 +163,7 @@ class TestBringup(unittest.TestCase):
         self.assertTrue(client.wait_for_service(timeout_sec=30.0))
         p = self.arm.name_prefix
         for q in ([0, 0.01, -0.01, 0, 0, 0], [0, 1.0, -1.0, 0, 1.0, 0]):
-            for width in (0.0, 0.05, 0.1):
+            for width in (0.0, 0.035, 0.07):  # 0 to the firmware stroke (70 mm)
                 state = RobotState()
                 state.joint_state.name = [*self.arm.arm_joints, self.arm.gripper_joint, p + "gripper_joint1", p + "gripper_joint2"]
                 state.joint_state.position = [*map(float, q), width, 0.5 * width, -0.5 * width]

@@ -95,14 +95,14 @@ def run(arm: Piper, backend: str) -> dict:
 
     step("move to named pose 'zero'", "planning", lambda: arm.move_named("zero", 1.0))
     step("move to named pose 'ready'", "planning", lambda: arm.move_named("ready", 1.0))
-    step("open gripper to 80 mm", "gripper", lambda: arm.gripper(0.08))
+    step("open gripper to 60 mm", "gripper", lambda: arm.gripper(0.06))
     step("pose goal above target (z=0.10)", "planning", lambda: arm.move_pose([0.25, 0.0, 0.10], DOWN, velocity_scaling=1.0))
     step("straight-line down to z=0.06", "planning (Pilz LIN)",
          lambda: arm.move_pose([0.25, 0.0, 0.06], DOWN, linear=True, velocity_scaling=0.5))
     step("close gripper to 20 mm", "gripper", lambda: arm.gripper(0.02))
     step("straight-line up to z=0.10", "planning (Pilz LIN)",
          lambda: arm.move_pose([0.25, 0.0, 0.10], DOWN, linear=True, velocity_scaling=0.5))
-    step("open gripper to 80 mm", "gripper", lambda: arm.gripper(0.08))
+    step("open gripper to 60 mm", "gripper", lambda: arm.gripper(0.06))
     step("direct trajectory to joint goal", "trajectory (no MoveIt)",
          lambda: arm.move_joints([0.5, 1.0, -1.1, 0.0, 0.8, 0.0], duration=2.5))
 

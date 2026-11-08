@@ -5,10 +5,12 @@
   Piper arm and AgileX gripper as the xacro macro `piper_arm`, derived from the official AgileX model (agx_arm_urdf), which has no
   prefix and a fixed world root. Names get `prefix` (default piper_), the world joint becomes a mount joint from `parent`.
 
-  source:    agx_arm_ros @ e4ccec1, agx_arm_urdf @ 983788b
-  generated: 2026-11-08 by tools/piper_arm_macro.py (generator version 1)
-  sha256 piper_description.urdf:            8c910f07d14652dc0c50e91f3b8834723e1a465855d2c7fe59f503a7655c3cf4
+  source:    agx_arm_ros @ 286633e, agx_arm_urdf @ 680fa92
+  generated: 2026-11-08 by tools/piper_arm_macro.py (generator version 2)
+  sha256 piper_description.urdf:            d9e97fec40ae47d12cf482417acec48706ce4a1398b31b91f328d5b3d75f6183
   sha256 piper_with_gripper_description.xacro: 374013965d83e80923196598c0bfbba2b0703b9f412ed9ec255c82b5c50e0f53
+
+  firmware overrides (config/firmware_values.yaml): joint velocity and gripper stroke follow the arm's firmware, not the vendor URDF.
 
   Macro parameters: parent (link to mount on), prefix (default piper_; "" gives the official names), xyz, rpy (mount pose in
   `parent`), gripper (true|false). Meshes stay in the official agx_arm_description package.
@@ -63,7 +65,7 @@
       <parent link="${prefix}base_link" />
       <child link="${prefix}link1" />
       <axis xyz="0 0 1" />
-      <limit lower="-2.6179938" upper="2.6179938" effort="100" velocity="5" />
+      <limit lower="-2.6179938" upper="2.6179938" effort="100" velocity="3.0" />
     </joint>
     <link name="${prefix}link2">
       <inertial>
@@ -89,7 +91,7 @@
       <parent link="${prefix}link1" />
       <child link="${prefix}link2" />
       <axis xyz="0 0 1" />
-      <limit lower="0" upper="3.1415926" effort="100" velocity="5" />
+      <limit lower="0" upper="3.1415926" effort="100" velocity="3.0" />
     </joint>
     <link name="${prefix}link3">
       <inertial>
@@ -115,7 +117,7 @@
       <parent link="${prefix}link2" />
       <child link="${prefix}link3" />
       <axis xyz="0 0 1" />
-      <limit lower="-2.9670597" upper="0" effort="100" velocity="5" />
+      <limit lower="-2.9670597" upper="0" effort="100" velocity="3.0" />
     </joint>
     <link name="${prefix}link4">
       <inertial>
@@ -141,7 +143,7 @@
       <parent link="${prefix}link3" />
       <child link="${prefix}link4" />
       <axis xyz="0 0 1" />
-      <limit lower="-1.7453292" upper="1.7453292" effort="100" velocity="5" />
+      <limit lower="-1.7453292" upper="1.7453292" effort="100" velocity="3.0" />
     </joint>
     <link name="${prefix}link5">
       <inertial>
@@ -167,13 +169,13 @@
       <parent link="${prefix}link4" />
       <child link="${prefix}link5" />
       <axis xyz="0 0 1" />
-      <limit lower="-1.2217304" upper="1.2217304" effort="100" velocity="5" />
+      <limit lower="-1.2217304" upper="1.2217304" effort="100" velocity="3.0" />
     </joint>
     <link name="${prefix}link6">
       <inertial>
-        <origin xyz="-0.00003 0.00006 -0.002" rpy="0 0 0" />
-        <mass value="0.00613114124" />
-        <inertia ixx="5.9675161577e-07" ixy="0.0" ixz="0.0" iyy="5.6193081438e-07" iyz="0.0" izz="1.02183419594e-06" />
+        <origin xyz="0.00134940815 0 -0.00344975303" rpy="0 0 0" />
+        <mass value="0.01655408133" />
+        <inertia ixx="1.52476803967e-6" ixy="0" ixz="1.0017156778e-7" iyy="1.51721319881e-6" iyz="0" izz="2.84541364481e-6" />
       </inertial>
       <visual>
         <origin xyz="0 0 0" rpy="0 0 0" />
@@ -193,7 +195,7 @@
       <parent link="${prefix}link5" />
       <child link="${prefix}link6" />
       <axis xyz="0 0 1" />
-      <limit lower="-2.0943951" upper="2.0943951" effort="100" velocity="5" />
+      <limit lower="-2.9670597" upper="2.9670597" effort="100" velocity="3.0" />
     </joint>
     <xacro:if value="${gripper}">
       <link name="${prefix}flange_link">
@@ -250,7 +252,7 @@
         <parent link="${prefix}gripper_base" />
         <child link="${prefix}gripper_link" />
         <axis xyz="0 0 1" />
-        <limit lower="0" upper="0.1" effort="10" velocity="3" />
+        <limit lower="0" upper="0.07" effort="10" velocity="3" />
       </joint>
       <link name="${prefix}gripper_link1">
         <inertial>
@@ -276,7 +278,7 @@
         <parent link="${prefix}gripper_base" />
         <child link="${prefix}gripper_link1" />
         <axis xyz="0 0 1" />
-        <limit lower="0" upper="0.05" effort="10" velocity="3" />
+        <limit lower="0" upper="0.035" effort="10" velocity="3" />
         <mimic joint="${prefix}gripper" multiplier="0.5" offset="0.0" />
       </joint>
       <link name="${prefix}gripper_link2">
@@ -303,7 +305,7 @@
         <parent link="${prefix}gripper_base" />
         <child link="${prefix}gripper_link2" />
         <axis xyz="0 0 -1" />
-        <limit lower="-0.05" upper="0" effort="10" velocity="3" />
+        <limit lower="-0.035" upper="0" effort="10" velocity="3" />
         <mimic joint="${prefix}gripper" multiplier="-0.5" offset="0.0" />
       </joint>
     </xacro:if>

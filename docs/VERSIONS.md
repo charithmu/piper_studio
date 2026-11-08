@@ -7,9 +7,9 @@ The tested combination. Source revisions are authoritative in git (submodule pin
 
 | Component | Revision | Notes |
 |---|---|---|
-| agilexrobotics/agx_arm_ros | `e4ccec1` (ros2) | submodule `external/agx_arm_ros`, unmodified |
-| agilexrobotics/agx_arm_urdf | `983788b` (main) | nested in agx_arm_ros |
-| agilexrobotics/pyAgxArm | `841a625` (master) | installed into `.venv` from git |
+| agilexrobotics/agx_arm_ros | `286633e` (ros2, 2026-10-21) | submodule `external/agx_arm_ros`, unmodified |
+| agilexrobotics/agx_arm_urdf | `680fa92` (main, 2026-10-16) | nested in agx_arm_ros |
+| agilexrobotics/pyAgxArm | `d90e234` (master, 2026-10-15) | installed into `.venv` from git |
 
 ## System
 

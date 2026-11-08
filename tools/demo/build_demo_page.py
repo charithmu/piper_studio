@@ -277,7 +277,7 @@ servo models of MuJoCo and Isaac are provisional and equal; Gazebo's position co
 <h2>What this does and does not show</h2>
 <ul>
 <li><b>Shows:</b> the same ROS interfaces (controllers, MoveIt, <code>piper_py</code>) work on four backends, the simulator models are generated from one official description, and failures are reported as failures.</li>
-<li><b>Does not show:</b> real-arm behaviour. Simulator actuator models are provisional (not identified on the arm), joint efforts in the URDF are placeholders, and the gripper stroke on the real arm is unmeasured. Nothing here has moved the real Piper.</li>
+<li><b>Does not show:</b> real-arm behaviour. Simulator actuator models are provisional (not identified on the arm), joint efforts in the URDF are placeholders, and the gripper stroke is the arm firmware's 70 mm. Nothing here has moved the real Piper.</li>
 <li>The 14 automated checks (description vs. official model, generated MuJoCo kinematics, end-to-end on each backend, real-arm plumbing with a stand-in driver) pass; Isaac's end-to-end test is opt-in because it uses the shared GPU.</li>
 </ul>
 

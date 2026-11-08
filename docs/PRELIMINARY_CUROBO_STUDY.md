@@ -2,6 +2,10 @@
 
 Written 2026-11-08 by a reading-and-checking pass, **before any test was run**. Nothing here was executed on the GPU. It is the starting point for the study at `~/projects/ml_tests/experiments/curobo_piper_study` (cuRobo clone and papers are there). Where something is my reading rather than a verified fact it is marked *(verify)*. Treat the whole document as hypotheses to check, and correct it as you learn.
 
+> **Update (2026-11-08, later):** the arm is on its latest firmware and calibrated; firmware values now win over the vendor URDF (see `DECISIONS.md`, `CLEANUP.md` G). Resolved since this was written:
+> joint 6 is ±170° (firmware and vendor URDF agree), velocity 3.0 rad/s and acceleration 5.0 rad/s² are firmware values and in the description, the gripper stroke is 0.07 m, per-link masses
+> are in `docs/description/MASSES.md`. Still open: torque limits, jerk, measured masses, camera and stand. Read the numbers below with that in mind.
+
 ## 1. Decision and organisation
 
 - cuRobo is a **test and planning environment**, not a dependency of Piper Studio. Piper Studio keeps offering ROS-based and direct interfaces to downstream users.

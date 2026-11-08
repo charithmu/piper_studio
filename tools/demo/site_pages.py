@@ -98,7 +98,7 @@ exercised only against a stand-in driver. ✓ = passed in the automated test or 
 <li><b>Firmware-level modes</b> of the arm (Cartesian PTP/line/arc, per-joint MIT impedance, unsmoothed joint streaming, CPV, limits/payload/protection) are not exposed by our API. Details and the recommendation on the <a href="control.html">control levels</a> page.</li>
 <li><b>Fault reporting:</b> the driver publishes <code>feedback/arm_status</code> (errors, motion state); we do not consume it yet.</li>
 <li><b>Recording and policy interfaces</b> (LeRobot, VLA adapters), <b>Go2 composition</b>, a real RealSense driver launch: not started. Waiting for the discussion you asked for.</li>
-<li><b>Simulator actuator parameters</b> (MuJoCo/Isaac servo gains, URDF effort limits, gripper stroke) are provisional until identified on the real arm.</li>
+<li><b>Simulator actuator parameters</b> (MuJoCo/Isaac servo gains, URDF effort limits) are provisional until identified on the real arm.</li>
 </ul>
 
 <h2>Bugs found and fixed in this round</h2>

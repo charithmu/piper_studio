@@ -5,7 +5,7 @@
 <circle cx="456" cy="48" r="6" fill="#0969da"/><text x="466" y="52">rest (park pose: zero + j5 16.82°)</text>
 <circle cx="26" cy="66" r="6" fill="#d1242f"/><text x="36" y="70">recorded by hand (arm_poses.log)</text>
 <circle cx="456" cy="66" r="6" fill="#9a6700"/><text x="466" y="70">resting on the stops (power off)</text>
-<text x="20" y="100" font-weight="bold">A. Full range (black bars = stored limit = URDF limit; j6 stored ±170°, URDF ±120°)</text>
+<text x="20" y="100" font-weight="bold">A. Full range (black bars = limit stored in the arm = limit in the vendor URDF, all six joints; j6 ±170° since the vendor URDF update of 2026-10-13)</text>
 <text x="20" y="134" font-weight="bold">j1</text>
 <rect x="172.5" y="121" width="625.0" height="18" fill="#eaeef2" stroke="#8c959f"/>
 <line x1="110.0" x2="110.0" y1="139" y2="144" stroke="#57606a"/><text x="110.0" y="156" text-anchor="middle" fill="#57606a" font-size="10">-180</text>

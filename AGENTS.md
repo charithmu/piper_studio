@@ -36,6 +36,9 @@ Do not edit `external/agx_arm_ros`. If a vendor bug blocks us, work around it in
 
 ## Design rules
 
+- **Firmware first.** The arm is on the latest firmware it supports and is calibrated. Values its firmware reports (`docs/real_arm/arms/piper-01.readout.json`) win over the vendor URDF; next come the latest vendor values.
+  Where they differ, use the firmware value (`piper_description/config/firmware_values.yaml`; `piper_arm_macro.py report` lists the differences) and tell the user. Do not keep values from older firmware or older URDFs.
+
 - One robot description. The official URDF/SRDF are never hand-edited: `piper_arm.xacro` and `piper_official.srdf.xacro` are generated and committed;
   after a submodule bump run `python src/piper_description/tools/piper_arm_macro.py generate`, review the diff, and `check` must pass (it is a test).
 - Every link, joint and frame carries the prefix (default `piper_`). Code that names joints takes the prefix; the real driver keeps the official names and `command_guard` is the only translator.

@@ -96,7 +96,7 @@ activating from the stops therefore lifts joints 2/3 by about 2.7 deg.
 
 Limits come from four places that must agree: the arm's stored limits (`get_joint_angle_vel_limits`), the official URDF (`piper_description.urdf`, used by MoveIt and all simulators), the SDK's model preset
 (`pyAgxArm/api/constants.py`, used only if `set_joint_limits_enabled(True)`) and our `command_guard` (URDF minus 0.01 rad). Piper values (deg): j1 ±150, j2 0..180, j3 -170..0, j4 ±100, j5 ±70 in all three;
-j6 is ±120 in the URDF and SDK preset and ±170 stored on the arm of firmware S-V1.9-1 (S-V1.7-3 stored ±180). Speed: URDF/MoveIt 5 rad/s, arm 3.0.
+j6 is ±170 in the arm (S-V1.9-1), the vendor URDF (since 2026-10-13) and the SDK preset. Speed: the arm stores 3.0 rad/s, which we use everywhere (the vendor URDF says 5; see `config/firmware_values.yaml`).
 
 The zero point lives in the joint motors, not on the host. `calibrate_joint(n)` (CAN 0x475 byte 1 = 0xAE) stores the joint's present angle as its zero; for one joint the joint must be disabled and moved by hand to its
 hardware zero mark first (index 255 = all joints "with offset", the SDK docstring refers to an official tutorial for the pre-calibration poses, not found in the sources we hold). The GUI `Piper_sdk_ui` has Set Zero /

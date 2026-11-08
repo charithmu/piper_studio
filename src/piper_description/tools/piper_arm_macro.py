@@ -2,6 +2,7 @@
 """Generate and validate urdf/piper_arm.xacro, the Piper arm (and gripper) as a mountable, prefixed xacro macro.
 
     python piper_arm_macro.py generate     # rewrite urdf/piper_arm.xacro from the official AgileX model
+    python piper_arm_macro.py report       # read-only: where the firmware values (config/firmware_values.yaml) differ from the vendor URDF
     python piper_arm_macro.py check        # read-only: is the committed macro still the official model? (exit 1 if not)
 
 The macro file is committed and is NOT generated at build or launch time. `check` runs in the test suite, so bumping the
@@ -30,7 +31,8 @@ SRDF_SRC = WS / "external/agx_arm_ros/src/agx_arm_moveit/config/agx_arm.srdf.xac
 SRDF_OUT = WS / "src/piper_control/config/moveit/piper_official.srdf.xacro"
 LINK_ATTRS = ("base_link", "tip_link", "parent_link", "link1", "link2")   # SRDF attributes that name a link
 NAME_TAGS = ("link", "joint", "passive_joint")                           # SRDF elements whose `name` is a link or joint
-GENERATOR_VERSION = 1
+FIRMWARE = PKG / "config/firmware_values.yaml"
+GENERATOR_VERSION = 2
 P = "${prefix}"
 
 
@@ -43,6 +45,42 @@ def git_rev(path: Path) -> str:
         return subprocess.check_output(["git", "-C", str(path), "rev-parse", "--short", "HEAD"], text=True).strip()
     except Exception:  # noqa: BLE001
         return "unknown"
+
+
+def firmware_values() -> dict:
+    """Overrides from config/firmware_values.yaml (values the arm's firmware reports; they win over the vendor URDF)."""
+    import yaml
+
+    return yaml.safe_load(FIRMWARE.read_text())
+
+
+def apply_firmware(root: ET.Element, values: dict | None = None) -> ET.Element:
+    """Apply the firmware overrides to an official (unprefixed) URDF tree, in place: arm joint velocity, gripper stroke (fingers are +-stroke/2)."""
+    v = values or firmware_values()
+    stroke = float(v["gripper_stroke"])
+    for j in root.iter("joint"):
+        lim, name = j.find("limit"), j.get("name")
+        if lim is None:
+            continue
+        if re.fullmatch(r"joint[1-6]", name):
+            lim.set("velocity", str(v["arm_joint_max_velocity"]))
+        elif name == "gripper":
+            lim.set("upper", str(stroke))
+        elif name == "gripper_joint1":
+            lim.set("upper", str(stroke / 2))
+        elif name == "gripper_joint2":
+            lim.set("lower", str(-stroke / 2))
+    return root
+
+
+def scale_gripper_states(srdf: ET.Element, values: dict | None = None) -> ET.Element:
+    """The official SRDF's gripper_open/half/close values assume a 0.1 m stroke; scale them to the firmware's stroke."""
+    k = float((values or firmware_values())["gripper_stroke"]) / 0.1
+    for st in srdf.iter("group_state"):
+        if st.get("group") == "gripper":
+            for jn in st.findall("joint"):
+                jn.set("value", f"{float(jn.get('value')) * k:g}")
+    return srdf
 
 
 def prefixed(root: ET.Element) -> list[ET.Element]:
@@ -69,8 +107,8 @@ def prefixed(root: ET.Element) -> list[ET.Element]:
 
 
 def build() -> str:
-    arm = ET.parse(ARM).getroot()
-    grip = ET.parse(GRIPPER).getroot()
+    arm = apply_firmware(ET.parse(ARM).getroot())
+    grip = apply_firmware(ET.parse(GRIPPER).getroot())
     world_joint = next(j for j in arm.findall("joint") if j.find("parent").get("link") == "world")
     base = world_joint.find("child").get("link")
 
@@ -111,6 +149,8 @@ def build() -> str:
   sha256 piper_description.urdf:            {sha(ARM)}
   sha256 piper_with_gripper_description.xacro: {sha(GRIPPER)}
 
+  firmware overrides (config/firmware_values.yaml): joint velocity and gripper stroke follow the arm's firmware, not the vendor URDF.
+
   Macro parameters: parent (link to mount on), prefix (default piper_; "" gives the official names), xyz, rpy (mount pose in
   `parent`), gripper (true|false). Meshes stay in the official agx_arm_description package.
 -->
@@ -129,7 +169,12 @@ def prefix_srdf(el: ET.Element, prefix: str) -> ET.Element:
     return el
 
 
-def official_srdf(gripper: bool) -> ET.Element:
+def official_srdf(gripper: bool, firmware: bool = False) -> ET.Element:
+    root = _official_srdf(gripper)
+    return scale_gripper_states(root) if firmware else root
+
+
+def _official_srdf(gripper: bool) -> ET.Element:
     return expand(f'<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="x"><xacro:include filename="{SRDF_SRC}"/></robot>',
                   mappings={"effector_type": "agx_gripper" if gripper else "none"})
 
@@ -138,7 +183,7 @@ def build_srdf() -> str:
     macro = ET.Element("xacro:macro", {"name": "piper_official_srdf", "params": "prefix:=piper_ gripper:=true"})
     for gripper, tag in ((True, "xacro:if"), (False, "xacro:unless")):
         block = ET.SubElement(macro, tag, {"value": "${gripper}"})
-        block.extend(list(prefix_srdf(official_srdf(gripper), P)))
+        block.extend(list(prefix_srdf(official_srdf(gripper, firmware=True), P)))
     robot = ET.Element("robot", {"xmlns:xacro": "http://www.ros.org/wiki/xacro"})
     robot.append(macro)
     ET.indent(robot, space="  ")
@@ -203,7 +248,12 @@ def expand(xacro_text: str, mappings: dict | None = None) -> ET.Element:
         Path(f.name).unlink()
 
 
-def official(gripper: bool) -> ET.Element:
+def official(gripper: bool, firmware: bool = True) -> ET.Element:
+    root = _official(gripper)
+    return apply_firmware(root) if firmware else root
+
+
+def _official(gripper: bool) -> ET.Element:
     if gripper:
         return expand(f'<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="x"><xacro:include filename="{GRIPPER}"/></robot>')
     root = expand(f'<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="x"><xacro:include filename="{ARM}"/></robot>')
@@ -237,7 +287,7 @@ def check() -> list[str]:
     if re.search(r"sha256 agx_arm.srdf.xacro:\s+(\w+)", srdf_text).group(1) != sha(SRDF_SRC):
         problems.append("source changed since generation: agx_arm.srdf.xacro (run `generate` and review the diff)")
     for gripper in (True, False):
-        want = [ET.tostring(e) for e in official_srdf(gripper)]
+        want = [ET.tostring(e) for e in official_srdf(gripper, firmware=True)]
         for prefix in ("piper_", ""):
             root = expand('<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="x">'
                           f'<xacro:include filename="{SRDF_OUT}"/><xacro:piper_official_srdf prefix="{prefix}" gripper="{str(gripper).lower()}"/></robot>')
@@ -253,8 +303,25 @@ def check() -> list[str]:
     return problems
 
 
+def report() -> list[str]:
+    """Every place where the firmware values differ from the vendor URDF (for the user to review)."""
+    out = []
+    for gripper in (True,):
+        a, b = canonical(official(gripper, firmware=False), ""), canonical(official(gripper, firmware=True), "")
+        for k in sorted(a):
+            if a[k] != b[k]:
+                out.append(k)
+    return out
+
+
 def main() -> int:
     cmd = sys.argv[1] if len(sys.argv) > 1 else ""
+    if cmd == "report":
+        for k in report():
+            print("firmware differs from vendor URDF:", k)
+        v = firmware_values()
+        print(f"overrides: arm joint velocity {v['arm_joint_max_velocity']} rad/s, gripper stroke {v['gripper_stroke']} m")
+        return 0
     if cmd == "generate":
         OUT.write_text(build())
         SRDF_OUT.write_text(build_srdf())

@@ -54,7 +54,7 @@ Names below are for the default prefix; with another prefix, joints and frames f
 | Item | Name | Notes |
 |---|---|---|
 | Arm joints | `piper_joint1..6` | radians; limits come from the URDF (`piper_core.limits_from_urdf`) |
-| Gripper | `piper_gripper` | opening **width in metres**, 0 to 0.1; the fingers (`piper_gripper_joint1/2`) are mimic joints |
+| Gripper | `piper_gripper` | opening **width in metres**, 0 to 0.07 (the firmware-reported stroke); the fingers (`piper_gripper_joint1/2`) are mimic joints |
 | Frames | `world` (caller's), `piper_base_link`, `piper_link1..6`, `piper_tcp_link`, camera: `piper_camera_link`, `piper_camera_color_optical_frame`, `piper_camera_depth_optical_frame` | the TCP is the fingertip centre, `piper_gripper_base` + 0.138 m z |
 | State | `/joint_states` | |
 | Trajectories | action `/arm_controller/follow_joint_trajectory` | `joint_trajectory_controller` |

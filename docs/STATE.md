@@ -26,6 +26,7 @@ plumbing with a fake driver. Simulated D435 wrist camera on the RealSense topic 
 - Can be done alone: small issues C4 (stand white in Gazebo, MuJoCo drops colours), C6, C7, C11; pruning `for_reference/` (F1); the next development (ML endpoints: pick and place, Go2 mount).
 
 ## Gotchas that cost time
+- **Firmware first (2026-11-08):** the arm runs the latest supported firmware (S-V1.9-1), calibrated. Firmware-reported values (joint speed 3.0 rad/s, acceleration 5.0, gripper stroke 70 mm) win over the vendor URDF; the differences are in `docs/real_arm/arms/piper-01.md` and `piper_arm_macro.py report`. Masses: `docs/description/MASSES.md`.
 - **Processes:** `ros2 launch` children survive a killed parent, and background jobs start with SIGINT ignored. Start with a PID file via `python3 -c 'signal.signal(SIGINT, SIG_DFL); os.execvp(...)'`, stop by PID, then look for orphans of your ROS_DOMAIN_ID. `ros2 daemon stop` per domain afterwards. Never `pkill -f`.
 - **Display:** TurboVNC (`:2`) has no GLX. For RViz, the MuJoCo viewer/camera and Gazebo GUI use `Xvfb :96 -screen 0 1600x900x24 +extension GLX` and `DISPLAY=:96 import -window root x.png`. Isaac and Gazebo cameras need no display.
 - **GPU:** one RTX 4090 shared with other agents (an Isaac testbed may be running): Isaac only through `gpu-run` / `scripts/isaac.sh`, never touch another agent's process. Running Isaac in the repo directory drops `ucode.elf` there (git-ignored, delete it). The USD must be rebuilt after any description or prefix change: `scripts/isaac.sh build-usd [d435]`.

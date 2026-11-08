@@ -2,26 +2,42 @@
 
 `piper-01` is a placeholder label: rename it when you choose a real one. Raw read-out: `piper-01.readout.json` (`tools/real_arm/arm_info.py`, 2026-10-14, nothing moved).
 
+**This arm runs the latest firmware it supports (S-V1.9-1, upgraded 2026-10-14) and has been calibrated by the user.** The firmware-reported values below are the
+reference for this arm; where the vendor URDF differs, the firmware value is used and the difference is listed in "Firmware vs vendor URDF". Older firmware
+values are not kept.
+
 | Item | Value |
 |---|---|
 | Label serial | **to record by hand from the arm's label** |
-| Model / gripper | Piper standard / AgileX gripper, stored stroke 70 mm (teaching range 100, friction 1) |
-| Mounting | not recorded |
+| Model / gripper | Piper standard / AgileX gripper, firmware-reported stroke **70 mm** (`max_range_config` 0.07 m; teaching range 100, friction 1) |
+| Mounting | normal flat position (installation setting: flat). Payload setting: none (empty). Neither can be read back from the arm; both were set by the user. |
 | USB-CAN adapter | candleLight (gs_usb), serial `002000295631511920313857`, appears as `can0` (1 Mbit/s) |
-| Firmware / hardware | **S-V1.9-1** / H-V1.2-1, motor ratio/batch 10, node ARM_MC #15, date field 261014 (reads the day of the upgrade), unparsed 4-char field `30AH` |
+| Firmware / hardware | **S-V1.9-1** (latest supported) / H-V1.2-1, motor ratio/batch 10, node ARM_MC #15, date field 261014 (the day of the upgrade), unparsed 4-char field `30AH` |
 | SDK profile | `v189` |
 
-## Current state (2026-10-14, after upgrade and calibration)
+## Firmware vs vendor URDF (vendor URDF = `agx_arm_urdf` @ 680fa92, 2026-10-16)
+
+| Value | Firmware (used) | Vendor URDF | Status |
+|---|---|---|---|
+| Joint 1-6 position limits | same as the URDF; j6 ±170° | j6 ±170° (changed from ±120° on 2026-10-13) | agree since the vendor update |
+| Joint max speed | **3.0 rad/s** | 5 rad/s | **differ**: we use 3.0 (`config/firmware_values.yaml`) |
+| Joint max acceleration | **5.0 rad/s^2** | not in the URDF | MoveIt uses 5.0 |
+| Gripper stroke | **0.07 m** | 0.1 m (fingers 0.05 each) | **differ**: we use 0.07 (fingers 0.035 each) |
+| Joint effort | not reported | 100 N.m (placeholder) | unknown, kept as placeholder |
+| Link masses/inertias | not reported | CAD estimates | unmeasured, see `docs/description/MASSES.md` |
+
+## Current state (2026-10-14, after the upgrade and the calibration)
 
 - Role slave/feedback, CAN control, MOVE_J, teach off, error 0, all joints disabled, `motion_status` = "reach target failed" (0x1) with no error code (leftover flag).
 - Rest pose (deg) 0.10, -2.25, 2.21, -0.43, 22.72, 0.00; gripper width 0.14 mm. Drivers 23-24 V, 31-34 C, no fault bits.
-- Stored limits: joints 1-5 angle limits equal the official URDF; joint 6 stores +-170 deg (URDF +-120); speed 3.0 rad/s, acceleration 5.0 rad/s^2 per joint;
+- Stored limits: joint angle limits equal the vendor URDF (joint 6 +-170 deg); speed 3.0 rad/s, acceleration 5.0 rad/s^2 per joint;
   flange 1.0 m/s, 0.25 rad/s, 1.5 m/s^2, 0.3 rad/s^2.
 - Crash protection **0 on every joint (no collision detection)**; assistance rating 0 on every joint.
 - Bus: status/pose/joints/gripper 200 Hz, motor 100 Hz, driver 20 Hz; extra frames 0x1C0-0x1C3 (20-40 Hz; the SDK's Revo2 hand ids) and 0x212 (1 Hz, undocumented).
   Whether a Revo2 hand is attached or the firmware emits them is not established.
-- Joints 2 and 3 rest about -2 deg and +2 deg, outside their stored ranges, also after calibration. The vendor `piper_ros` README says the DH parameters after S-V1.6-3 offset those
-  two joint frames by 2 degrees, so this is plausibly by design (not confirmed with AgileX).
+- Joints 2 and 3 rest about -2 deg and +2 deg, outside their stored ranges, also after calibration: the arm sags a little when the motors go off (the user's explanation, 2026-11-08).
+  The vendor `piper_ros` README also says the DH parameters after S-V1.6-3 offset those two joint frames by 2 degrees (not confirmed with AgileX). Either way it is accepted: the guard
+  allows a small slack outside the limits, and after a reset the arm goes to the normal zero pose (tested after the calibration, see the first-motion entry below).
 - Enable test on S-V1.9-1 (2026-10-14): all six joints enabled, max drift 0.08 deg over 2.5 s, currents <= 0.08 A, status normal, clean disable. No motion has been commanded on the real arm yet.
 - **First motion (2026-10-14, `tools/real_arm/arm_zero.py`, 50 % speed):** from the resting pose (0.1, -2.2, 2.3, 0.0, 22.0, 0.0 deg) to the zero pose in 0.6 s (joint 5 moved 22 deg), final error 0.06 deg,
   final pose 0.0, +0.48, -0.44, 0.0, 0.0, 0.0 deg (joints 2/3 are aimed 0.5 deg inside their stored limit), no fault, clean disable. The path used was the SDK directly: CAN control + MOVE_J read back, speed 50 %, one `move_j`.
@@ -39,18 +55,12 @@ The SRDF `rest` therefore is zero with joint 5 = 0.2936 rad (16.82 deg), about 2
 To check on the arm: whether the firmware accepts a slightly negative joint 2 / positive joint 3 target (then `rest` could use the recorded values and the guard margin could shrink).
 
 Joint ranges and where each pose sits: ![joint ranges](piper-01.joint_ranges.svg). Limit sources: the arm's stored limits (`get_joint_angle_vel_limits`, saved in `piper-01.readout.json`),
-the official URDF `external/agx_arm_ros/.../piper/urdf/piper_description.urdf` (joints 1-5 identical, joint 6 ±120 vs stored ±170). Joint 5 has room to ±70°, so the park pose is not a limit: the wrist drops
+the official URDF `external/agx_arm_ros/.../piper/urdf/piper_description.urdf` (all six joints identical since the vendor update of 2026-10-13). Joint 5 has room to ±70°, so the park pose is not a limit: the wrist drops
 from 16.8° to its resting position at 22.7° when the motors go off.
 
 ## Decisions pending (nothing applied to the code base)
 
-1. MoveIt/controller max joint speed is 5 rad/s, the arm's limit is 3.0; acceleration matches (5.0).
-2. `speed_percent` for `backend:=real` is now a launch argument (default 20); the value used for real runs is yours to set.
-3. Crash-protection level (a write to the arm, user's decision).
-4. Whether the arm has a Revo2 hand or another device on the bus.
-
-## History
-
-- 2026-10-12: first sessions on S-V1.7-3 (hardware H-V1.2-1, date 250809): standby, no faults, speed 2.5 rad/s, accel 3.5, joint 6 +-180, crash protection 1, assistance rating unsupported,
-  gripper -4.27 mm, rest pose 3.06 / -1.85 / 2.32 / -4.69 / 16.11 / 0.48 deg. Enable/disable test clean. The arm was later found in teach playback (flashing light) and the adapter dropped off USB.
-- 2026-10-14: firmware upgraded to S-V1.9-1 and calibrated by the user (procedure and tool not recorded).
+1. `speed_percent` for `backend:=real` is a launch argument (default 20); the value used for real runs is the user's to set. What 100 % corresponds to in rad/s is not documented.
+2. Crash-protection level is 0 (no detection); changing it is a write to the arm, the user's decision.
+3. Whether the arm has a Revo2 hand or another device on the bus (extra frames 0x1C0-0x1C3 are seen).
+4. Joint torque limits: not reported by the firmware. The SDK's `move_mit` feed-forward range at firmware >= S-V1.8-8 is +-16 N.m (joints 1-3) and +-13.0 N.m (joints 4-6) (pyAgxArm `firmware_reference.md`): a command encoding range, not a rating.
