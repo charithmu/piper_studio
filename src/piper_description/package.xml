@@ -12,7 +12,6 @@
 
   <exec_depend>agx_arm_description</exec_depend>
   <exec_depend>xacro</exec_depend>
-  <exec_depend>piper_core</exec_depend> <!-- fixed_gripper() -->
   <exec_depend>robot_state_publisher</exec_depend>
   <exec_depend>joint_state_publisher</exec_depend>
   <exec_depend>joint_state_publisher_gui</exec_depend>

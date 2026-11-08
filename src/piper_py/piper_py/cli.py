@@ -13,6 +13,7 @@
     piper named ready
     piper pose 0.25 0 0.10 [--quat 0 1 0 0] [--linear]   # tool-down reach is limited to z < ~0.12 m
     piper gripper 0.05
+    piper execute trajectory.json --result result.json   # a planner trajectory (piper.trajectory/1) as given; also: piper-ros-execute
     piper demo --backend NAME --out run.json    # scripted sequence over every control level, recorded
 """
 
@@ -44,6 +45,9 @@ def main(argv=None):
     dis = sub.add_parser("disable", help="low level, real arm: count down, then disable the motors where the arm is (use stop; hold the arm!)")
     dis.add_argument("--countdown", type=int, default=5, help="seconds to get a hand on the arm (default 5)")
     sub.add_parser("zero", help="move to the 'zero' pose, from anywhere inside the limits: the start and end pose of every session")
+    ex = sub.add_parser("execute", help="run a piper.trajectory/1 JSON file on arm_controller as given and write the piper.exec_result/1 JSON")
+    ex.add_argument("trajectory", type=Path)
+    ex.add_argument("--result", type=Path, default=None, help="write the ExecResult here (default: print a summary only)")
     j = sub.add_parser("joints", help="move to six joint values (rad)")
     j.add_argument("q", type=float, nargs=6)
     j.add_argument("--duration", type=float, default=3.0, help="direct trajectory duration")
@@ -116,6 +120,13 @@ def main(argv=None):
             r = arm.start(a.speed)
         elif a.cmd == "stop":
             r = arm.stop(a.speed)
+        elif a.cmd == "execute":
+            from piper_core.backend import Trajectory
+            res = arm.execute_trajectory(Trajectory.from_json(a.trajectory.read_text()))
+            if a.result:
+                a.result.write_text(res.to_json())
+            print(f"{'OK' if res else 'FAILED'} {res.reason} {res.detail}".strip(), f"({len(res.t)} samples)")
+            return 0 if res else 1
         elif a.cmd == "joints":
             r = arm.move_to_joints(a.q, a.speed) if a.plan else arm.move_joints(a.q, a.duration)
         elif a.cmd == "named":
@@ -129,6 +140,11 @@ def main(argv=None):
             r = arm.gripper(a.width, a.effort)
         print(f"{'OK' if r else 'FAILED'} {r.code} {r.message} {r.details or ''}".strip())
         return 0 if r else 1
+
+
+def execute_main(argv=None):
+    """`piper-ros-execute trajectory.json [--result result.json]`: the same as `piper execute`."""
+    return main(["execute", *(sys.argv[1:] if argv is None else argv)])
 
 
 if __name__ == "__main__":

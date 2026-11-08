@@ -70,7 +70,7 @@ Dependency direction (arrows read "may use"): `piper_sim`, `piper_examples` -> `
 
 | Interface | Needs ROS | Use | Implemented by |
 |---|---|---|---|
-| Joint trajectories, direct | no | cuRobo and other planners that produce joint trajectories | `arm_controller` (FollowJointTrajectory) in simulation today; `piper_core.RealArm.execute(trajectory)` for the real arm is planned (B3), with the `piper_core` guard on every point |
+| Joint trajectories, direct | no | cuRobo and other planners that produce joint trajectories | `piper_core.backend.Trajectory` through `Piper.execute_trajectory` (`arm_controller`, any ROS backend), `piper_mujoco.PiperSim` (MuJoCo without ROS) or `piper_core.RealArm.execute` (real arm, never run on it); every point goes through the `piper_core` rules (CLEANUP G12, INTEGRATION section 0) |
 | State and gripper, direct | no | scripts, logging | `piper_core.RealArm` (wraps pyAgxArm and the firmware-profile handling now in `tools/real_arm/arm_common.py`) |
 | Streaming joint targets | yes | teleop, policies | `arm_position_controller` via `piper_py` |
 | FollowJointTrajectory | yes | scripted motion | `arm_controller` via `piper_py` |

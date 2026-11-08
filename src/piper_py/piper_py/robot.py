@@ -107,6 +107,7 @@ class Piper:
         self._lock = threading.Lock()
         self._joint_state: JointState | None = None
         self._joint_state_time = 0.0
+        self._joint_log: list | None = None     # (time, positions) while execute_trajectory runs
         # State monitors take the newest sample only (depth 1) in their own callback group, so a
         # backlog or a long-running action callback can never hand the caller a stale state.
         state_group = ReentrantCallbackGroup()
@@ -191,6 +192,10 @@ class Piper:
         with self._lock:
             self._joint_state = msg
             self._joint_state_time = time.monotonic()
+            if self._joint_log is not None:
+                by_name = dict(zip(msg.name, msg.position))
+                if all(j in by_name for j in self.arm_joints):
+                    self._joint_log.append((msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9, [by_name[j] for j in self.arm_joints]))   # the backend's own clock
 
     def state_age(self) -> float:
         """Seconds since the last joint state arrived (inf if none yet)."""
@@ -459,6 +464,53 @@ class Piper:
         return Result(code == FollowJointTrajectory.Result.SUCCESSFUL,
                       _FJT_CODES.get(code, str(code)), res.result.error_string)
 
+    def execute_trajectory(self, traj, timeout: float | None = None):
+        """Run a planner trajectory (`piper_core.backend.Trajectory`, prefix-free joint names) on `arm_controller`, as given, and log it.
+
+        Same rules as every backend (`check_trajectory`: limits, 0.01 rad margin, step, velocity; start within 0.05 rad of the present pose), checked
+        whole before anything is sent; nothing is clamped or rescaled. All points go to the controller as one multi-point goal with their times, and
+        with their velocities when `traj.dq` is given (the controller's own cubic spline is the Hermite interpolation). Returns an `ExecResult`
+        (measured joints from /joint_states while it ran; the commanded curve is the trajectory resampled at the same instants; no contacts).
+        """
+        import numpy as np
+        from piper_core.backend import ExecResult, Trajectory, check_start, check_trajectory, resample
+        if not isinstance(traj, Trajectory):
+            traj = Trajectory.from_pairs(traj)
+        names = [self.name_prefix + j for j in traj.joint_names]
+        if names != self.arm_joints:
+            return ExecResult(False, "bad_trajectory", f"joint_names must be {[j.removeprefix(self.name_prefix) for j in self.arm_joints]}")
+        limits = {j.removeprefix(self.name_prefix): v for j, v in self.joint_limits().items()}
+        refused = check_trajectory(traj, limits, max_velocity=3.0) or check_start(traj, self.joint_positions())
+        if refused:
+            return ExecResult(False, *refused)
+        points = []
+        for k in range(len(traj.t)):
+            pt = JointTrajectoryPoint(positions=traj.q[k].tolist(), time_from_start=_duration(float(traj.t[k])))
+            if traj.dq is not None:
+                pt.velocities = traj.dq[k].tolist()
+            points.append(pt)
+        goal = FollowJointTrajectory.Goal(trajectory=JointTrajectory(joint_names=self.arm_joints, points=points))
+        with self._lock:                            # times are the backend's own clock (joint_states stamps: simulation time in a simulator)
+            st = self._joint_state
+            t_sent = st.header.stamp.sec + st.header.stamp.nanosec * 1e-9 if st is not None else 0.0
+            self._joint_log = []
+        try:
+            res, err = self._run(self._trajectory, goal, timeout or float(traj.t[-1]) + 15.0)
+        finally:
+            log, self._joint_log = self._joint_log, None
+        grid, setpoints = resample(traj, 500.0)
+        if log:
+            t_log = np.array([t - t_sent for t, _ in log])
+            q_meas = np.array([q for _, q in log])
+            q_cmd = np.stack([np.interp(t_log, grid, setpoints[:, k], left=setpoints[0, k], right=setpoints[-1, k]) for k in range(6)], axis=1)
+        else:
+            t_log, q_meas, q_cmd = np.zeros(0), np.zeros((0, 6)), np.zeros((0, 6))
+        if err:
+            return ExecResult(False, "timeout" if err.code == "TIMED_OUT" else "fault", f"{err.code}: {err.message}", t_log, q_cmd, q_meas)
+        code = res.result.error_code
+        ok = code == FollowJointTrajectory.Result.SUCCESSFUL
+        return ExecResult(ok, "done" if ok else "fault", "" if ok else f"{_FJT_CODES.get(code, code)}: {res.result.error_string}", t_log, q_cmd, q_meas)
+
     def gripper(self, width: float, max_effort: float = 0.0, timeout: float = 10.0) -> Result:
         """Command the gripper opening width in metres.
 
@@ -604,7 +656,7 @@ class Piper:
             return Result(True, "SUCCESS", "at zero")
         r = self.move_to_joints([self.named_poses(internal=True)["park"][j] for j in self.arm_joints], velocity_scaling)
         if not r:
-            return Result(False, "STOP_FAILED", f"park: {r.message}; motors left on")
+            return Result(False, "STOP_FAILED", f"park: {r.code} {r.message}; motors left on")
         time.sleep(settle)
         r = self.set_motors(False)
         return Result(True, "SUCCESS", "parked, motors off") if r else Result(False, "STOP_FAILED", f"motors: {r.message}")

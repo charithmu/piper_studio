@@ -96,3 +96,12 @@ def test_protocol_is_checkable():
         joint_names = list(ARM_JOINTS)
         start = stop = close = state = execute = command = hold = move_to = lambda self, *a, **k: None
     assert isinstance(Dummy(), ArmBackend)
+
+
+def test_exec_result_json_round_trip():
+    from piper_core.backend import ExecResult
+    r = ExecResult(False, "guard:step", "joint1", np.array([0.0, 0.1]), np.zeros((2, 6)), np.ones((2, 6)), [(0.1, "guard:rejected", "x")], [(0.1, "a", "b", 0.001)])
+    back = ExecResult.from_json(r.to_json())
+    assert back.ok is False and back.reason == "guard:step" and back.message == "guard:step: joint1"
+    assert np.array_equal(back.q_meas, r.q_meas) and back.guard_events == r.guard_events and back.contacts == r.contacts
+    assert ExecResult(True).to_json() and ExecResult.from_json(ExecResult(True).to_json()).q_cmd.shape == (0, 6)

@@ -170,6 +170,31 @@ class TestBringup(unittest.TestCase):
                 done = threading_event_result(client.call_async(GetStateValidity.Request(robot_state=state, group_name="arm")))
                 self.assertTrue(done.valid, f"collision at q={q} gripper={width}: {[(c.contact_body_1, c.contact_body_2) for c in done.contacts]}")
 
+    def test_11_planner_trajectory_runs_as_given(self, backend):
+        """A planner trajectory (piper_core Trajectory, 25 ms points with velocities) executes on arm_controller as given: out, back to zero; bad ones are refused."""
+        import numpy as np
+        from piper_core.backend import Trajectory
+        self.assertTrue(self.arm.use_trajectories())
+        self.assertTrue(self.arm.move_named("zero", velocity_scaling=0.6))
+        time.sleep(0.5)
+        z = np.array(self.arm.joint_positions())
+        t = np.arange(0.0, 2.0 + 1e-9, 0.024956)
+        s = t / t[-1]
+        pos, vel = 10 * s**3 - 15 * s**4 + 6 * s**5, (30 * s**2 - 60 * s**3 + 30 * s**4) / t[-1]
+        d = np.array([0.5, 0.2, -0.2, 0.3, 0.2, 0.1])
+        out = Trajectory(["joint1", "joint2", "joint3", "joint4", "joint5", "joint6"], t, z + pos[:, None] * d, vel[:, None] * d)
+        res = self.arm.execute_trajectory(out)
+        self.assertTrue(res, res.message)
+        self.assertGreater(len(res.t), 20)
+        self.assert_joints(out.q[-1], tol=0.02)
+        back = Trajectory(out.joint_names, t, out.q[::-1], -out.dq[::-1])
+        self.assertTrue(self.arm.execute_trajectory(back))
+        self.assert_joints(z, tol=0.02)
+        jump = Trajectory.from_pairs([(0.0, z.tolist()), (0.002, (z + [0.2, 0, 0, 0, 0, 0]).tolist())])
+        self.assertEqual(self.arm.execute_trajectory(jump).reason, "guard:step")
+        self.assertEqual(self.arm.execute_trajectory(back).reason, "start_too_far")
+        self.assert_joints(z, tol=0.02)                                           # `back` starts where `out` ended, 0.5 rad away: refused, nothing moved
+
 
 def threading_event_result(future, timeout=10.0):
     """Wait for a future that the Piper client's background executor completes."""

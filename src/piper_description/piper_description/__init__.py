@@ -47,4 +47,8 @@ def render_config(path: str | Path, prefix: str = DEFAULT_PREFIX) -> Path:
     return out
 
 
-from piper_core.urdf_tools import fixed_gripper  # noqa: E402,F401  (ROS-free, so planners can use it without this package)
+def fixed_gripper(urdf: str, width: float, prefix: str = DEFAULT_PREFIX) -> str:
+    """The description with the gripper held at `width` metres: the ROS-free implementation lives in `piper_core.urdf_tools`
+    (planners use it without this package). Imported on use, because piper_core's tests depend on this package (no dependency cycle)."""
+    from piper_core.urdf_tools import fixed_gripper as impl
+    return impl(urdf, width, prefix)

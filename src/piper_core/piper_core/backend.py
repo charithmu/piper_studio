@@ -124,6 +124,18 @@ class ExecResult:
     def __bool__(self):
         return self.ok
 
+    def to_json(self) -> str:
+        return json.dumps({"schema": "piper.exec_result/1", "ok": self.ok, "reason": self.reason, "detail": self.detail, "t": self.t.tolist(),
+                           "q_cmd": self.q_cmd.tolist(), "q_meas": self.q_meas.tolist(), "guard_events": self.guard_events, "contacts": self.contacts})
+
+    @classmethod
+    def from_json(cls, text: str) -> "ExecResult":
+        d = json.loads(text)
+        if d.get("schema") != "piper.exec_result/1":
+            raise ValueError(f"not a piper.exec_result/1 document (schema={d.get('schema')!r})")
+        return cls(d["ok"], d["reason"], d["detail"], np.array(d["t"]), np.array(d["q_cmd"]).reshape(-1, 6),
+                   np.array(d["q_meas"]).reshape(-1, 6), [tuple(e) for e in d["guard_events"]], [tuple(c) for c in d["contacts"]])
+
     @property
     def message(self) -> str:
         return self.reason if not self.detail else f"{self.reason}: {self.detail}"

@@ -21,6 +21,9 @@ All five backends with the same controllers and MoveIt: mock, Gazebo (also its G
 plumbing with a fake driver. Simulated D435 wrist camera on the RealSense topic names. Prefix `piper_` on every name. Carrier example (own controller manager, prefix `arm_`).
 **Not done on the real arm through the ROS stack**; only SDK scripts (`tools/real_arm/`) have moved it (2026-10-14).
 
+## Packages for other repos
+`scripts/build_wheels.sh` builds `piper_core`, `piper_assets`, `piper_mujoco` wheels (no ROS to install them); contract and usage: `INTEGRATION.md` section 0, log: `CLEANUP.md` G12.
+
 ## Open work, grouped by what it needs (full list: CLEANUP.md)
 - Needs the user at the arm: `RealArm` in `piper_core` (B3), `backend:=real` end to end (C10), measuring the stand mount (C5, now on gripper_base; confirm with a caliper), camera calibration data (C9).
 - Can be done alone: small issues C4 (stand white in Gazebo, MuJoCo drops colours), C6, C7, C11; pruning `for_reference/` (F1); the next development (ML endpoints: pick and place, Go2 mount).

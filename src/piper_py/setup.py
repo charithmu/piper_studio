@@ -19,6 +19,7 @@ setup(
     license="Apache-2.0",
     entry_points={"console_scripts": [
         "piper = piper_py.cli:main",
+        "piper-ros-execute = piper_py.cli:execute_main",
         "fake_driver = piper_py.fake_driver:main",
     ]},
 )

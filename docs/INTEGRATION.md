@@ -36,6 +36,7 @@ are 0.01 rad inside their 0 limit; exact zeros are refused), and hand a `Traject
 before anything moves (`guard:limit`, `guard:margin`, `guard:step`, `guard:velocity`, `start_too_far`, `bad_trajectory`); nothing is clamped or rescaled.
 `Trajectory.to_json()` (schema `piper.trajectory/1`) is the hand-off to another Python environment. "Same trajectory" means the same setpoints on every
 backend: the real arm's tracking and `speed_percent` mapping are unmeasured, and the MuJoCo actuator model is provisional (README of `piper_mujoco`).
+On the ROS stack the same file runs on any backend: `piper execute plan.json --result result.json` (alias `piper-ros-execute`) against a running stack, or `python tools/run_trajectory.py --backend mock|gazebo|mujoco|isaac --trajectory plan.json --result result.json` which starts and stops the stack itself (Isaac through `gpu-run`). The result is `piper.exec_result/1` JSON (`ExecResult.from_json`).
 What stays downstream: planner configuration, collision spheres, the scene around the arm, calibration data, experiments.
 
 Get the sources with `git clone --recursive` (the official AgileX stack `external/agx_arm_ros` is a submodule and is required: the
