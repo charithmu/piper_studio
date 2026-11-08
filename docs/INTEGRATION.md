@@ -11,8 +11,32 @@ You never need the simulators, scenes or demos of this repo. Take only the layer
 | The robot model in your own world or on your own robot | `piper_description` (+ the official AgileX submodule it includes) | for xacro only |
 | The same controllers and MoveIt setup | + `piper_control` | yes |
 | Python client for state, trajectories, gripper, MoveIt, Servo | + `piper_py` | yes |
-| The safety rules (limits, command guard, named poses) in plain Python | `piper_core` | **no** |
-| Direct control of the real arm without ROS | `piper_core.RealArm` *(planned, B3)*; today `tools/real_arm/` | no |
+| The safety rules (limits, command guard, named poses) in plain Python | `piper_core` (pip wheel) | **no** |
+| The arm as data: flat URDF, meshes, SRDF, limits with sources, scene | `piper_assets` (pip wheel) | **no** |
+| Run planner trajectories in MuJoCo | `piper_mujoco` (pip wheel) | **no** |
+| Direct control of the real arm without ROS | `piper_core.RealArm` (tested on a fake SDK only; the first real run needs the user) | no |
+
+## 0. Python packages (no ROS): the way for planners such as cuRobo
+
+Three wheels, one version, built from a commit by `scripts/build_wheels.sh` (needs the ROS environment once, to generate the data) and attached to
+the release. A downstream project installs them into its own venv (Python 3.10 or newer) and never reads this repo's `install/`:
+
+```bash
+uv pip install --no-deps piper_core-0.3.0-py3-none-any.whl piper_assets-0.3.0-py3-none-any.whl piper_mujoco-0.3.0-py3-none-any.whl
+```
+
+| Package | Gives | Needs |
+|---|---|---|
+| `piper_core` | `Trajectory`, `ExecResult`, `ArmBackend` (`piper_core.backend`), `check_trajectory`, the guard, `zero_pose`, `RealArm` | numpy |
+| `piper_assets` | `urdf_path(gripper_width, camera)`, `srdf_path`, `limits()` (hard, planning, velocity, acceleration, jerk, effort, each with its source), `zero_pose()`, `scene()` (placeholder table), `manifest()` | numpy, `piper_core` |
+| `piper_mujoco` | `PiperSim(scene="empty"|"table", gripper_width=0.07)`: an `ArmBackend` on MuJoCo | `mujoco`, the two above |
+
+The contract for a planner: plan inside `limits().planning` (the hard limits less the 0.01 rad guard margin), start and end at `zero_pose()` (joints 2 and 3
+are 0.01 rad inside their 0 limit; exact zeros are refused), and hand a `Trajectory` to any backend. A trajectory is executed unchanged or refused whole
+before anything moves (`guard:limit`, `guard:margin`, `guard:step`, `guard:velocity`, `start_too_far`, `bad_trajectory`); nothing is clamped or rescaled.
+`Trajectory.to_json()` (schema `piper.trajectory/1`) is the hand-off to another Python environment. "Same trajectory" means the same setpoints on every
+backend: the real arm's tracking and `speed_percent` mapping are unmeasured, and the MuJoCo actuator model is provisional (README of `piper_mujoco`).
+What stays downstream: planner configuration, collision spheres, the scene around the arm, calibration data, experiments.
 
 Get the sources with `git clone --recursive` (the official AgileX stack `external/agx_arm_ros` is a submodule and is required: the
 meshes and the SRDF are generated from it). Pin a commit or tag; see `piper.repos`.
