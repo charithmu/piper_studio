@@ -13,7 +13,7 @@ run() {  # NAME CMD...
   local name=$1; shift
   if out=$("$@" 2>&1); then echo "PASS  $name   $(echo "$out" | tail -1)"; else echo "FAIL  $name"; echo "$out" | tail -15; fail=1; fi
 }
-run "offline tests" python -m pytest src/piper_description src/piper_control src/piper_core src/piper_sim src/piper_assets src/piper_mujoco -q
+run "offline tests" python -m pytest src/piper_description src/piper_control src/piper_core src/piper_sim src/piper_assets src/piper_mujoco src/piper_isaac -q
 run "generated macros vs official" python src/piper_description/tools/piper_arm_macro.py check
 for backend in "$@"; do
   domain=$((domain + 1)); export ROS_DOMAIN_ID=$domain

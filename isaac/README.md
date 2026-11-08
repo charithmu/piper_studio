@@ -43,6 +43,26 @@ to the real-arm path (`JointStateTopicSystem`), so controller behavior is the sa
 Isaac-hosted controller manager (own ROS ABI, USD-synthesized URDF) is not needed. `isaacsim.ros2.control`
 remains an option if in-process control is wanted later.
 
+## ROS-free server (`run_server.py`, the `piper_isaac` package)
+
+For planners that have no ROS (cuRobo, ML endpoints): `isaac/run_server.py` is a second front end on the same Isaac world. `isaac/world.py` owns what
+every front end needs (stage and USD, the `physx` variant, drive gains from `servo_gains.py`, gravity compensation, finger coupling, the scene);
+`run_server.py` adds a unix socket (JSON lines, one client, under the client's run directory, removed on exit) and no ROS. The client
+`piper_isaac.PiperIsaacSim` (pure Python, an `ArmBackend`) starts it through `gpu-run`, applies the `piper_core` rules and resampling, and sends the
+setpoints in chunks of 25 control steps; the server holds no rules. Differences from `run_piper.py`, by design:
+
+| | `run_piper.py` (ROS) | `run_server.py` (no ROS) |
+|---|---|---|
+| Time | paced to wall clock, `/clock` | simulation time only: the world advances only while a command runs; as fast as the GPU allows (about 150 control steps/s here with 2 physics substeps each) |
+| Rates | frame rate 240 Hz (90 Hz with a camera), physics >= 240 Hz | control 500 Hz, physics 1000 Hz (as `PiperSim`) |
+| Scene objects | static colliders | free bodies, mass 0.05 kg, friction 1.0 (larger of the two bodies wins), like the MuJoCo `table` scene; table top at z = 0, ground plane 0.5 m lower |
+| Output | joint states on a topic | measured joints per control step and arm contacts (penetrations of an arm link with the table, an object or another link) |
+
+`world.py` is not yet used by `run_piper.py`: moving the ROS runner onto it is open (CLEANUP G13, phase 2) and needs the Isaac launch test and `scripts/isaac.sh check`.
+Contacts come from the PhysX contact report; the schema has to be applied before the simulation starts (applying it to a running body invalidates PhysX's
+tensor views). Self-collision is off in the USD (`convert_urdf.py`: `allow_self_collision=False`), so self-contacts are not reported, unlike `PiperSim`.
+The servo gains are the provisional ones, equal to MuJoCo's: tracking numbers from this server do not describe the real arm.
+
 ## Wrist camera and scene objects
 
 `scripts/isaac.sh build-usd d435` builds a second USD (with the D435 meshes) and writes `camera_pose.json`: the colour optical frame in

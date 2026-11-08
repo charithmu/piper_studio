@@ -47,7 +47,7 @@ How the two non-package folders fit in:
 - **`isaac/`** exists outside colcon on purpose: Isaac Sim ships its own Python and ROS bridge, and must not mix with the apt ROS and `.venv`. `piper_sim` exports the same description to a URDF
   (`export_urdf.py`), `isaac/convert_urdf.py` turns it into USD in `~/data/ml/isaac/piper_studio/`, and `isaac/run_piper.py` runs it as a separate GPU process that exchanges joint states, commands, `/clock` and camera images
   with the ROS side over topics, exactly like the real driver does. `scripts/isaac.sh` is the only entry point (it runs through `gpu-run`); `piper_sim`'s launch starts it for `backend:=isaac`.
-  `servo_gains.py` keeps the Isaac servo gains equal to MuJoCo's (a test enforces it); `check_model.py` compares the USD with the URDF kinematics.
+  `isaac/world.py` is the Isaac world shared by the front ends (the ROS runner is to move onto it, CLEANUP G13) and `isaac/run_server.py` is the ROS-free front end (a unix socket; `src/piper_isaac` is its client wheel). `servo_gains.py` keeps the Isaac servo gains equal to MuJoCo's (a test enforces it); `check_model.py` compares the USD with the URDF kinematics.
 
 Dependency direction (arrows read "may use"): `piper_sim`, `piper_examples` -> `piper_control` -> `piper_core`, `piper_description` -> `external/agx_arm_description`; `piper_py` stands alone (topics only);
 `isaac/` talks to the ROS side only through topics. Nothing exported imports `piper_sim`, `piper_examples`, `isaac/` or `tools/`.
@@ -70,7 +70,7 @@ Dependency direction (arrows read "may use"): `piper_sim`, `piper_examples` -> `
 
 | Interface | Needs ROS | Use | Implemented by |
 |---|---|---|---|
-| Joint trajectories, direct | no | cuRobo and other planners that produce joint trajectories | `piper_core.backend.Trajectory` through `Piper.execute_trajectory` (`arm_controller`, any ROS backend), `piper_mujoco.PiperSim` (MuJoCo without ROS) or `piper_core.RealArm.execute` (real arm, never run on it); every point goes through the `piper_core` rules (CLEANUP G12, INTEGRATION section 0) |
+| Joint trajectories, direct | no | cuRobo and other planners that produce joint trajectories | `piper_core.backend.Trajectory` through `Piper.execute_trajectory` (`arm_controller`, any ROS backend), `piper_mujoco.PiperSim` (MuJoCo without ROS), `piper_isaac.PiperIsaacSim` (Isaac Sim without ROS, a client of `isaac/run_server.py`) or `piper_core.RealArm.execute` (real arm, never run on it); every point goes through the `piper_core` rules (CLEANUP G12, INTEGRATION section 0) |
 | State and gripper, direct | no | scripts, logging | `piper_core.RealArm` (wraps pyAgxArm and the firmware-profile handling now in `tools/real_arm/arm_common.py`) |
 | Streaming joint targets | yes | teleop, policies | `arm_position_controller` via `piper_py` |
 | FollowJointTrajectory | yes | scripted motion | `arm_controller` via `piper_py` |
