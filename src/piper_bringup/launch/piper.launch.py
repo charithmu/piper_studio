@@ -36,7 +36,7 @@ from launch_ros.actions import Node
 from moveit_configs_utils import MoveItConfigsBuilder
 import tempfile
 
-from piper_description import SIMULATORS, mujoco_model, physics_model, robot_description, xacro_file
+from piper_description import SIMULATORS, mujoco_model, physics_model, render_config, robot_description, xacro_file
 from piper_description.scene import gazebo_world, load_objects, mujoco_scene
 
 BACKENDS = ["mock", "real", "gazebo", "mujoco", "isaac"]
@@ -46,16 +46,17 @@ def share(package: str) -> Path:
     return Path(get_package_share_directory(package))
 
 
-def moveit_config(backend: str, gripper: str, urdf: str, camera: str = "none"):
+def moveit_config(backend: str, gripper: str, urdf: str, camera: str = "none", prefix: str = "piper_"):
+    moveit_dir = share("piper_bringup") / "config/moveit"
     config = (
         MoveItConfigsBuilder("piper", package_name="piper_bringup")
-        .robot_description(file_path=str(xacro_file()), mappings={"hardware": "mock", "gripper": gripper})
+        .robot_description(file_path=str(xacro_file()), mappings={"hardware": "mock", "gripper": gripper, "prefix": prefix})
         .robot_description_semantic(
             file_path="config/moveit/piper.srdf.xacro",
-            mappings={"effector_type": "agx_gripper" if gripper == "true" else "none", "camera": camera})
+            mappings={"prefix": prefix, "gripper": gripper, "camera": camera})
         .robot_description_kinematics(file_path="config/moveit/kinematics.yaml")
-        .joint_limits(file_path="config/moveit/joint_limits.yaml")
-        .trajectory_execution(file_path="config/moveit/moveit_controllers.yaml")
+        .joint_limits(file_path=str(render_config(moveit_dir / "joint_limits.yaml", prefix)))
+        .trajectory_execution(file_path=str(render_config(moveit_dir / "moveit_controllers.yaml", prefix)))
         .pilz_cartesian_limits(file_path="config/moveit/pilz_cartesian_limits.yaml")
         .planning_pipelines(pipelines=["ompl", "pilz_industrial_motion_planner"],
                             default_planning_pipeline="ompl")
@@ -118,22 +119,25 @@ def launch_setup(context):
     backend, gripper = arg("backend"), arg("gripper")
     if backend not in BACKENDS:
         raise RuntimeError(f"backend:={backend} is not supported; choose one of {BACKENDS}")
-    controllers = str(share("piper_bringup") / "config/controllers.yaml")
+    prefix = arg("prefix")
+    controllers = str(render_config(share("piper_bringup") / "config/controllers.yaml", prefix))
     camera = arg("camera")
-    cam_map = {"camera": camera} if camera != "none" else {}
-    if camera != "none" and arg("camera_bracket_mesh"):  # default: AgileX's stand mesh packaged in piper_description
-        cam_map["camera_bracket_mesh"] = arg("camera_bracket_mesh")
+    cam_map = {"prefix": prefix}
+    if camera != "none":
+        cam_map.update(camera=camera, camera_mount=arg("camera_mount"), camera_xyz=arg("camera_xyz"), camera_rpy=arg("camera_rpy"))
+        if arg("camera_mount_mesh"):  # default: the mount's own mesh (AgileX's stand, packaged in piper_description)
+            cam_map["camera_mount_mesh"] = arg("camera_mount_mesh")
     urdf = robot_description(backend, gripper=gripper, controllers_file=controllers, **cam_map)
     objects = load_objects(share("piper_bringup") / "config/scene_objects.yaml") if arg("scene") == "true" else []
     if backend == "mujoco":
         cfg = share("piper_bringup") / "config/mujoco"
         scene_text = Path(tempfile.gettempdir()) / f"piper_scene_{os.getpid()}.xml"
         scene_text.write_text(mujoco_scene(cfg / "scene.xml", objects))
-        scene = mujoco_model(urdf, cfg / "inputs.xml", scene_text,
+        scene = mujoco_model(urdf, cfg / "inputs.xml", scene_text, prefix=prefix,
                              camera={"width": 640, "height": 480, "hfov_deg": 69.4} if camera != "none" else None)
         urdf = robot_description(backend, gripper=gripper, controllers_file=controllers,
                                  mujoco_model=scene, mujoco_headless=arg("gui") != "true", **cam_map)
-    config = moveit_config(backend, gripper, urdf, camera)
+    config = moveit_config(backend, gripper, urdf, camera, prefix)
     sim_time = {"use_sim_time": backend in SIMULATORS}
     commanders = ["arm_controller"] + (["gripper_controller"] if gripper == "true" else [])
     if backend == "real":
@@ -194,7 +198,7 @@ def launch_setup(context):
         actions.append(ExecuteProcess(
             cmd=[arg("isaac_script"), "run", *(["--gui"] if arg("gui") == "true" else []),
                  *(["--video", arg("isaac_video")] if arg("isaac_video") else []),
-                 *(["--camera", camera] if camera != "none" else []), *scene_json],
+                 "--prefix", prefix, *(["--camera", camera] if camera != "none" else []), *scene_json],
             output="screen", sigterm_timeout="20", sigkill_timeout="30"))
     if backend == "gazebo":
         actions += gazebo(arg("gui") == "true", urdf, objects, camera != "none")
@@ -202,7 +206,7 @@ def launch_setup(context):
         actions += mujoco(controllers)
     if backend == "real":
         actions.append(Node(package="piper_bringup", executable="command_guard.py", name="command_guard",
-                            output="screen"))
+                            output="screen", parameters=[{"prefix": prefix}]))
     if backend == "real" and arg("driver") == "true":
         actions.append(Node(
             package="agx_arm_ctrl", executable="agx_arm_ctrl_single", name="agx_arm_ctrl",
@@ -222,14 +226,20 @@ def launch_setup(context):
 def generate_launch_description():
     return LaunchDescription([
         DeclareLaunchArgument("backend", default_value="mock", choices=BACKENDS),
+        DeclareLaunchArgument("prefix", default_value="piper_",
+                              description="prefix of every link, joint and frame name (empty: the official AgileX names)"),
         DeclareLaunchArgument("gripper", default_value="true", choices=["true", "false"]),
         DeclareLaunchArgument("moveit", default_value="true", choices=["true", "false"]),
         DeclareLaunchArgument("scene", default_value="true", choices=["true", "false"],
                               description="simulators: add the shared static objects (config/scene_objects.yaml)"),
         DeclareLaunchArgument("camera", default_value="none", choices=["none", "d435"],
                               description="wrist RealSense D435 (simulated image/depth topics under /camera)"),
-        DeclareLaunchArgument("camera_bracket_mesh", default_value="",
-                              description="optional path of another stand mesh, or 'none' for a box (default: AgileX's stand, packaged)"),
+        DeclareLaunchArgument("camera_mount", default_value="agilex_mid_stand",
+                              description="camera mount (urdf/mounts/<name>.xacro): agilex_mid_stand | custom"),
+        DeclareLaunchArgument("camera_mount_mesh", default_value="",
+                              description="optional path of another stand mesh, or 'none' for a box (default: the mount's own mesh)"),
+        DeclareLaunchArgument("camera_xyz", default_value="0 0 0", description="camera_mount:=custom: camera position in link6"),
+        DeclareLaunchArgument("camera_rpy", default_value="0 0 0", description="camera_mount:=custom: camera orientation in link6"),
         DeclareLaunchArgument("servo", default_value="true", choices=["true", "false"],
                               description="start MoveIt Servo (TCP-frame jogging via the streaming controller)"),
         DeclareLaunchArgument("rviz", default_value="false", choices=["true", "false"]),

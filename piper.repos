@@ -1,0 +1,8 @@
+# vcstool import list: vcs import src < piper.repos
+# Pin `version` to a commit or tag in your own copy. The official AgileX stack (external/agx_arm_ros) is a git submodule of
+# piper_studio, so clone with submodules (git submodule update --init --recursive) after importing.
+repositories:
+  piper_studio:
+    type: git
+    url: git@github.com:charithmu/piper_studio.git
+    version: main

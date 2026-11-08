@@ -6,9 +6,9 @@ moveit_simple_controller_manager:
     type: FollowJointTrajectory
     action_ns: follow_joint_trajectory
     default: true
-    joints: [joint1, joint2, joint3, joint4, joint5, joint6]
+    joints: [${prefix}joint1, ${prefix}joint2, ${prefix}joint3, ${prefix}joint4, ${prefix}joint5, ${prefix}joint6]
   gripper_controller:
     type: ParallelGripperCommand
     action_ns: gripper_cmd
     default: true
-    joints: [gripper]
+    joints: [${prefix}gripper]

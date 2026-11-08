@@ -2,11 +2,11 @@
 """Read everything readable from a real Piper, without moving it, and show a short coloured summary.
 
     source scripts/env.sh
-    python tools/arm_info.py                  # summary (colour in a terminal)
-    python tools/arm_info.py -r               # the long raw form: bus table and every value
-    python tools/arm_info.py -c               # also read the CPV drive parameters (SEE WARNING)
-    python tools/arm_info.py -b can1          # use this CAN bus (default: auto-detect)
-    python tools/arm_info.py --arm-id piper-01   # label for the saved JSON
+    python tools/real_arm/arm_info.py                  # summary (colour in a terminal)
+    python tools/real_arm/arm_info.py -r               # the long raw form: bus table and every value
+    python tools/real_arm/arm_info.py -c               # also read the CPV drive parameters (SEE WARNING)
+    python tools/real_arm/arm_info.py -b can1          # use this CAN bus (default: auto-detect)
+    python tools/real_arm/arm_info.py --arm-id piper-01   # label for the saved JSON
 
 The CAN bus is the Linux network interface of the USB-CAN adapter (can0, can1, ...), not something the arm reports. It is
 auto-detected: the only CAN bus, else the only one that is up; name it with -b/--canbus when there are several. If it is down:

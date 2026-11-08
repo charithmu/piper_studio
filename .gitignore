@@ -7,4 +7,5 @@ log/
 **/__pycache__/
 **/*.pyc
 for_reference/
-MUJOCO_LOG.TXT
+**/MUJOCO_LOG.TXT
+ucode.elf

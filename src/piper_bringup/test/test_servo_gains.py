@@ -22,6 +22,6 @@ def test_isaac_gains_equal_mujoco():
     m = mujoco.MjModel.from_xml_path(str(scene))
     for i in range(m.nu):
         name = m.actuator(i).name
-        kp, kd, _ = GAINS[name]
+        kp, kd, _ = GAINS[name.removeprefix("piper_")]  # gains are keyed by the official joint names; the model carries the prefix
         assert m.actuator_gainprm[i, 0] == pytest.approx(kp, rel=0.02), name
         assert -m.actuator_biasprm[i, 2] == pytest.approx(kd, rel=0.03), name

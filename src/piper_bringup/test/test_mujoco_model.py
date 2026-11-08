@@ -14,6 +14,7 @@ sys.path.insert(0, str(Path(get_package_prefix("piper_description")) / "lib" / "
 import model_audit  # noqa: E402
 
 ARM = [f"joint{i}" for i in range(1, 7)]
+P = "piper_"  # the model carries the default prefix; the official model does not
 OFFICIAL = (Path(get_package_share_directory("agx_arm_description"))
             / "agx_arm_urdf/piper/urdf/piper_with_gripper_description.xacro")
 
@@ -29,16 +30,15 @@ def test_generated_mujoco_model_matches_official(tmp_path):
     rng = np.random.default_rng(1)
     lo = np.array([ref.joints[j].lower for j in ARM]); hi = np.array([ref.joints[j].upper for j in ARM])
     for q in [np.zeros(6)] + [rng.uniform(lo, hi) for _ in range(100)]:
-        qd = dict(zip(ARM, q))
-        assert np.allclose(mj.fk(qd), ref.fk(qd), atol=1e-6)
+        assert np.allclose(mj.fk(dict(zip([P + j for j in ARM], q))), ref.fk(dict(zip(ARM, q))), atol=1e-6)
     for j in ARM:
-        assert (mj.joints[j].lower, mj.joints[j].upper) == pytest.approx(
+        assert (mj.joints[P + j].lower, mj.joints[P + j].upper) == pytest.approx(
             (ref.joints[j].lower, ref.joints[j].upper), abs=1e-5)
     m = mujoco.MjModel.from_xml_path(str(scene)); d = mujoco.MjData(m)
-    d.ctrl[m.actuator("gripper").id] = 0.06
+    d.ctrl[m.actuator(P + "gripper").id] = 0.06
     while d.time < 1.0:
         mujoco.mj_step(m, d)
-    q = {n: d.qpos[m.jnt_qposadr[m.joint(n).id]] for n in ("gripper", "gripper_joint1", "gripper_joint2")}
-    assert q["gripper"] == pytest.approx(0.06, abs=1e-3)
-    assert q["gripper_joint1"] == pytest.approx(0.5 * q["gripper"], abs=1e-4)
-    assert q["gripper_joint2"] == pytest.approx(-0.5 * q["gripper"], abs=1e-4)
+    q = {n: d.qpos[m.jnt_qposadr[m.joint(n).id]] for n in (P + "gripper", P + "gripper_joint1", P + "gripper_joint2")}
+    assert q[P + "gripper"] == pytest.approx(0.06, abs=1e-3)
+    assert q[P + "gripper_joint1"] == pytest.approx(0.5 * q[P + "gripper"], abs=1e-4)
+    assert q[P + "gripper_joint2"] == pytest.approx(-0.5 * q[P + "gripper"], abs=1e-4)

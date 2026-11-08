@@ -1,0 +1,19 @@
+<?xml version="1.0"?>
+<!--
+  Camera mount: none. The camera body sits directly at `xyz`/`rpy` in `parent`, with no stand (no visual, no collision).
+  Use it to try a camera pose quickly, for example `camera_mount:=custom camera_xyz:="0.05 0 0.03" camera_rpy:="0 0.4 0"`.
+  Same interface as mounts/agilex_mid_stand.xacro.
+-->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+  <xacro:property name="piper_mount_camera_xyz" value="0 0 0" />
+  <xacro:property name="piper_mount_camera_rpy" value="0 0 0" />
+
+  <xacro:macro name="piper_camera_mount" params="prefix parent mesh:='' xyz:='0 0 0' rpy:='0 0 0'">
+    <link name="${prefix}camera_mount_link" />
+    <joint name="${prefix}camera_mount_joint" type="fixed">
+      <origin xyz="${xyz}" rpy="${rpy}" />
+      <parent link="${parent}" />
+      <child link="${prefix}camera_mount_link" />
+    </joint>
+  </xacro:macro>
+</robot>

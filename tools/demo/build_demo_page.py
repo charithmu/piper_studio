@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Build the static demo page from recorded demo runs (scripts/run_demo.sh).
 
-    python tools/build_demo_page.py DEMO_DIR SITE_DIR
+    python tools/demo/build_demo_page.py DEMO_DIR SITE_DIR
 
 DEMO_DIR holds mock|gazebo|mujoco|isaac .json (piper_py demo records) and optional isaac.mp4 / mujoco.mp4.
 Needs the workspace env (xacro, matplotlib) and a built workspace (for the TCP forward kinematics).
@@ -25,7 +25,7 @@ import numpy as np  # noqa: E402
 import xacro  # noqa: E402
 from ament_index_python.packages import get_package_share_directory  # noqa: E402
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src/piper_description/tools"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src/piper_description/tools"))
 import model_audit  # noqa: E402
 import site_pages  # noqa: E402
 
@@ -52,7 +52,9 @@ def load_runs(demo: Path) -> dict:
 
 
 def tcp_model():
-    urdf = xacro.process_file(str(Path(get_package_share_directory("piper_description")) / "urdf/piper.urdf.xacro")).toxml()
+    # official names (prefix ""): the recorded joint values are positional, and ARM below uses the official names
+    urdf = xacro.process_file(str(Path(get_package_share_directory("piper_description")) / "urdf/piper.urdf.xacro"),
+                              mappings={"prefix": ""}).toxml()
     tmp = Path("/tmp/piper_demo_tcp.urdf")
     tmp.write_text(urdf)
     return model_audit.load_urdf("tcp", tmp)
@@ -284,7 +286,7 @@ servo models of MuJoCo and Isaac are provisional and equal; Gazebo's position co
 scripts/bootstrap.sh &amp;&amp; source scripts/env.sh
 scripts/isaac.sh build-usd                     # once, for Isaac (see isaac/README.md)
 scripts/run_demo.sh mujoco  out/               # also: mock | gazebo | isaac
-python tools/build_demo_page.py out/ site/</pre>
+python tools/demo/build_demo_page.py out/ site/</pre>
 </main></body></html>
 """
 

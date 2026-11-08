@@ -28,6 +28,7 @@ def main(argv=None):
     p = argparse.ArgumentParser(prog="piper", description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--namespace", default="")
+    p.add_argument("--prefix", default="piper_", help="prefix of the robot's joint and frame names (launch argument prefix:=)")
     p.add_argument("--speed", type=float, default=0.2, help="MoveIt velocity scaling (0-1]")
     sub = p.add_subparsers(dest="cmd", required=True)
     sub.add_parser("state", help="print measured joint state as JSON")
@@ -68,7 +69,7 @@ def main(argv=None):
         from piper_py import demo
         return demo.main(a.namespace, a.backend, a.out)
 
-    with Piper(namespace=a.namespace) as arm:
+    with Piper(namespace=a.namespace, prefix=a.prefix) as arm:
         if a.cmd == "state":
             print(json.dumps(arm.joint_state(), indent=2))
             return 0

@@ -12,14 +12,14 @@ ROOT = Path(__file__).resolve().parents[3]
 SRDF = ROOT / "src/piper_bringup/config/moveit/piper.srdf.xacro"
 INITIAL = ROOT / "src/piper_description/config/initial_positions.yaml"
 GUARD = ROOT / "src/piper_bringup/scripts/command_guard.py"
-TOOL = ROOT / "tools/arm_zero.py"
+TOOL = ROOT / "tools/real_arm/arm_zero.py"
 JOINTS = [f"joint{i}" for i in range(1, 7)]
 
 
 def srdf_pose(name):
     text = SRDF.read_text()
     block = re.search(rf'<group_state name="{name}" group="arm">(.*?)</group_state>', text, re.S).group(1)
-    vals = dict(re.findall(r'<joint name="(\w+)" value="([-0-9.]+)"', block))
+    vals = dict(re.findall(r'<joint name="\$\{prefix\}(\w+)" value="([-0-9.]+)"', block))
     return [float(vals[j]) for j in JOINTS]
 
 

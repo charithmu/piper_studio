@@ -169,4 +169,40 @@ aluminum peripherial evaluation case.
       </xacro:usb_plug>
     </xacro:if>
   </xacro:macro>
+
+  <!--
+    Camera model interface (every file in cameras/ defines this macro, so a model is chosen by including one of them):
+      piper_camera_model(prefix, parent, hardware, width, height, hfov_deg, update_rate, *origin)
+    Creates the camera frames `${prefix}camera_link`, `${prefix}camera_color_frame`, `${prefix}camera_color_optical_frame`,
+    `${prefix}camera_depth_optical_frame` (and the infra frames), with `origin` the pose of the camera body in `parent`.
+    Gazebo gets an rgbd sensor; MuJoCo and Isaac define theirs from these frames (piper_description.mujoco_model, isaac/run_piper.py).
+  -->
+  <xacro:macro name="piper_camera_model" params="prefix parent hardware width height hfov_deg update_rate *origin">
+    <xacro:piper_d435 parent="${parent}" name="${prefix}camera" use_nominal_extrinsics="true" use_mesh="true">
+      <xacro:insert_block name="origin" />
+    </xacro:piper_d435>
+
+    <!-- Simulated image sensors (Gazebo). The sensor looks along x of camera_color_frame (plus the lens offset below);
+         the bridge republishes the images as ROS topics. -->
+    <xacro:if value="${hardware == 'gazebo'}">
+      <gazebo reference="${prefix}camera_color_frame">
+        <sensor name="camera" type="rgbd_camera">
+          <always_on>1</always_on>
+          <update_rate>${update_rate}</update_rate>
+          <visualize>0</visualize>
+          <topic>camera</topic>
+          <!-- Lens plane: camera_color_frame lies inside the D435 housing mesh, so a sensor there sees only its own
+               housing (uniform background). Moving it 4 cm along its viewing axis puts it in front of the glass. -->
+          <pose>0.04 0 0 0 0 0</pose>
+          <gz_frame_id>${prefix}camera_color_optical_frame</gz_frame_id>
+          <camera>
+            <horizontal_fov>${hfov_deg * 3.14159265359 / 180.0}</horizontal_fov>
+            <image><width>${width}</width><height>${height}</height></image>
+            <clip><near>0.07</near><far>6.0</far></clip>
+            <depth_camera><clip><near>0.1</near><far>6.0</far></clip></depth_camera>
+          </camera>
+        </sensor>
+      </gazebo>
+    </xacro:if>
+  </xacro:macro>
 </robot>

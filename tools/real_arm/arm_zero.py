@@ -2,8 +2,8 @@
 """Real Piper: put the arm in a known state, then move it to the zero pose (--rest: and on to the park pose) with move_j. Replaces arm_move_rest.py.
 
     source scripts/env.sh
-    python tools/arm_zero.py --dry-run         # preflight and plan only: reads, nothing is changed
-    python tools/arm_zero.py [--speed 50]      # asks for Enter, then configures, enables, moves, holds, asks before disabling
+    python tools/real_arm/arm_zero.py --dry-run         # preflight and plan only: reads, nothing is changed
+    python tools/real_arm/arm_zero.py [--speed 50]      # asks for Enter, then configures, enables, moves, holds, asks before disabling
 
 Zero pose = all joints 0 (what the vendor's go-zero demo and the GUI's "Go Zero" use). By default joints whose stored limit IS 0 (joint 2 min, joint 3 max)
 are aimed 0.01 rad inside that limit (the SRDF 'zero') so the target never sits on the limit; --exact sends pure zeros like the vendor demo.
@@ -17,7 +17,7 @@ Sequence (nothing is sent until you press Enter):
   3. one move_j to the zero pose, watched at 10 Hz; done when all joints are within 0.5 deg for 1 s. No time limit unless --timeout is given
   4. hold; then ask before disabling (disable drops a raised arm: from the rest pose it drops only a few mm)
 Only real faults stop it: arm status != normal, an error code, or a driver fault bit (it then HOLDS the pose with move_j, joints resting past a stored limit are pulled to its edge, and leaves the motors enabled).
-Ctrl-C does the same. To release the arm afterwards: tools/arm_stop.py. Not used: reset() (powers the arm off), move_js / MIT / CPV, any set_* write to stored parameters.
+Ctrl-C does the same. To release the arm afterwards: tools/real_arm/arm_stop.py. Not used: reset() (powers the arm off), move_js / MIT / CPV, any set_* write to stored parameters.
 This arm has no e-stop button: keep a hand on the power switch.
 """
 import argparse
@@ -195,7 +195,7 @@ def main():
 
         # ---- 4. end
         if reason or args.stay:
-            print("leaving the motors enabled." + ("" if args.stay else " Release it with tools/arm_stop.py (hold the arm, or park it with --rest first)."))
+            print("leaving the motors enabled." + ("" if args.stay else " Release it with tools/real_arm/arm_stop.py (hold the arm, or park it with --rest first)."))
             return
         if not args.yes:
             input(f"Press Enter to DISABLE (the arm is at the {'park (rest)' if args.rest else 'zero'} pose{'' if args.rest else ': for a short drop go to --rest first'}); Ctrl-C leaves it enabled and holding... ")

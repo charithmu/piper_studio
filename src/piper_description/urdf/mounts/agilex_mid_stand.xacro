@@ -1,0 +1,54 @@
+<?xml version="1.0"?>
+<!--
+  Camera mount: AgileX's wrist camera stand for the Piper gripper (mesh meshes/realsense_mid_stand.dae, MIT, see meshes/README.md).
+
+  Mount interface (every file in mounts/ defines these, so a mount is chosen by including one of them):
+    piper_camera_mount(prefix, parent, mesh, xyz, rpy)
+      creates `${prefix}camera_mount_link`, fixed to `parent`; `mesh` overrides the visual mesh ('' = this mount's own, 'none' = a box);
+      xyz/rpy are for mounts that take a pose (see mounts/custom.xacro); this preset ignores them.
+    properties piper_mount_camera_xyz / piper_mount_camera_rpy: where the camera body sits in `${prefix}camera_mount_link`.
+
+  Poses are AgileX's own, from agx_arm_sim `urdf/piper_girpper_D435.urdf` (same link frames as the official model):
+    link6 -> stand   xyz -0.034 -0.001 0.022
+    stand -> camera  xyz -0.031 -0.028 0.0018, rpy 0 -1.22 0   (tilted toward the fingers)
+  See docs/description/DECISIONS.md D11. To add your own mount (CAD export): copy this file, change the mesh, poses and collision.
+-->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+  <xacro:property name="piper_mount_camera_xyz" value="-0.031 -0.028 0.0018" />
+  <xacro:property name="piper_mount_camera_rpy" value="0 -1.22 0" />
+  <xacro:property name="piper_mount_default_mesh" value="$(find piper_description)/meshes/realsense_mid_stand.dae" />
+
+  <xacro:macro name="piper_camera_mount" params="prefix parent mesh:='' xyz:='0 0 0' rpy:='0 0 0'">
+    <xacro:property name="stand_mesh" value="${mesh if mesh else piper_mount_default_mesh}" />
+    <link name="${prefix}camera_mount_link">
+      <inertial>
+        <origin xyz="0 0 0" rpy="0 0 0" />
+        <mass value="0.04" />
+        <inertia ixx="1e-5" ixy="0" ixz="0" iyy="1e-5" iyz="0" izz="1e-5" />
+      </inertial>
+      <xacro:if value="${stand_mesh == 'none'}">
+        <visual>
+          <origin xyz="-0.018 -0.014 0.002" rpy="0 0 0" />
+          <geometry><box size="0.074 0.097 0.048" /></geometry>
+          <material name="${prefix}camera_mount_grey"><color rgba="0.35 0.35 0.38 1" /></material>
+        </visual>
+      </xacro:if>
+      <xacro:unless value="${stand_mesh == 'none'}">
+        <visual>
+          <origin xyz="0 0 0" rpy="-1.57 0 1.57" />
+          <geometry><mesh filename="file://${stand_mesh}" /></geometry>
+        </visual>
+      </xacro:unless>
+      <!-- collision: bounding box of the stand mesh in the stand frame -->
+      <collision>
+        <origin xyz="-0.018 -0.014 0.002" rpy="0 0 0" />
+        <geometry><box size="0.074 0.097 0.048" /></geometry>
+      </collision>
+    </link>
+    <joint name="${prefix}camera_mount_joint" type="fixed">
+      <origin xyz="-0.034 -0.001 0.022" rpy="0 0 0" />
+      <parent link="${parent}" />
+      <child link="${prefix}camera_mount_link" />
+    </joint>
+  </xacro:macro>
+</robot>

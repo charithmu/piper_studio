@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Real Piper: enable the motors, hold still for a few seconds, disable. NO motion command is sent.
 
-    source scripts/env.sh && python tools/arm_enable_test.py [--canbus can0] [--hold 3]
+    source scripts/env.sh && python tools/real_arm/arm_enable_test.py [--canbus can0] [--hold 3]
 
 Needs the user at the arm with a hand on the power switch (this arm has no e-stop button), the arm in its folded rest pose and clear of obstacles.
 What it sends: motor enable frames, then (at the end, or on any error / Ctrl-C) motor disable frames. The arm should

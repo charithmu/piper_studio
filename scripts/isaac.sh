@@ -58,7 +58,7 @@ case "$cmd" in
     # a trapped signal interrupts wait; wait again until the runner is really gone
     while kill -0 "$child" 2>/dev/null; do wait "$child" || true; done ;;
   check)
-    ( set +u; source "$ws/scripts/env.sh"; python "$ws/tools/make_fk_reference.py" "$DATA/fk_reference.json" )
+    ( set +u; source "$ws/scripts/env.sh"; python "$ws/isaac/make_fk_reference.py" "$DATA/fk_reference.json" )
     in_isaac python "$ws/isaac/check_model.py" "$USD" "$DATA/fk_reference.json" 2>&1 | grep "check_model" ;;
   stop)
     [ -f "$PIDFILE" ] || { echo "not running"; exit 0; }

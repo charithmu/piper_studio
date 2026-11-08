@@ -91,7 +91,7 @@ class TestBringup(unittest.TestCase):
         r = self.arm.move_named("ready", velocity_scaling=1.0)
         self.assertTrue(r, r)
         q = self.arm.named_poses()["ready"]
-        self.assert_joints([q[f"joint{i}"] for i in range(1, 7)])
+        self.assert_joints([q[f"piper_joint{i}"] for i in range(1, 7)])
 
     def test_4_pose_goal(self):
         r = self.arm.move_pose([0.25, 0.0, 0.10], DOWN, velocity_scaling=1.0)
@@ -112,7 +112,7 @@ class TestBringup(unittest.TestCase):
         for width in (0.06, 0.0, 0.05, 0.0):
             r = self.arm.gripper(width)
             self.assertTrue(r, r)
-            self.assertTrue(math.isclose(self.arm.joint_state()["gripper"], width, abs_tol=0.003))
+            self.assertTrue(math.isclose(self.arm.joint_state()[self.arm.gripper_joint], width, abs_tol=0.003))
 
     def test_8_servo_tcp_motion(self):
         """Cartesian (TCP-frame) motion through MoveIt Servo and the streaming controller."""
@@ -144,11 +144,36 @@ class TestBringup(unittest.TestCase):
         self.assertEqual(color.shape, (480, 640, 3))
         self.assertEqual(depth.shape, (480, 640))
         self.assertEqual((info.width, info.height), (640, 480))
-        self.assertEqual(hc.frame_id, "camera_color_optical_frame")
-        self.assertEqual(hd.frame_id, "camera_color_optical_frame")
+        self.assertEqual(hc.frame_id, "piper_camera_color_optical_frame")
+        self.assertEqual(hd.frame_id, "piper_camera_color_optical_frame")
         self.assertGreater(float(color.std()), 5.0, "colour image is blank")
         valid = np.isfinite(depth) & (depth > 0)
         self.assertGreater(float(valid.mean()), 0.2, "depth image is mostly empty")
         self.assertTrue(0.05 < float(np.nanmedian(depth[valid])) < 5.0, "depth is not in metres")
         # pinhole model of a 69.4 deg horizontal field of view: fx = (w/2) / tan(hfov/2)
         self.assertAlmostEqual(info.k[0], 320.0 / math.tan(math.radians(69.4) / 2), delta=5.0)
+
+    def test_10_camera_stand_does_not_collide(self, backend):
+        """The camera stand's collision box must not touch the arm or the fingers (MoveIt start-state validity, DECISIONS D11)."""
+        from moveit_msgs.msg import RobotState
+        from moveit_msgs.srv import GetStateValidity
+        if backend in ("mock", "real") or os.environ.get("PIPER_TEST_CAMERA") == "none":
+            self.skipTest("no camera stand in this configuration")
+        client = self.arm.node.create_client(GetStateValidity, "/check_state_validity")
+        self.assertTrue(client.wait_for_service(timeout_sec=30.0))
+        p = self.arm.name_prefix
+        for q in ([0, 0.01, -0.01, 0, 0, 0], [0, 1.0, -1.0, 0, 1.0, 0]):
+            for width in (0.0, 0.05, 0.1):
+                state = RobotState()
+                state.joint_state.name = [*self.arm.arm_joints, self.arm.gripper_joint, p + "gripper_joint1", p + "gripper_joint2"]
+                state.joint_state.position = [*map(float, q), width, 0.5 * width, -0.5 * width]
+                done = threading_event_result(client.call_async(GetStateValidity.Request(robot_state=state, group_name="arm")))
+                self.assertTrue(done.valid, f"collision at q={q} gripper={width}: {[(c.contact_body_1, c.contact_body_2) for c in done.contacts]}")
+
+
+def threading_event_result(future, timeout=10.0):
+    """Wait for a future that the Piper client's background executor completes."""
+    deadline = time.monotonic() + timeout
+    while not future.done() and time.monotonic() < deadline:
+        time.sleep(0.02)
+    return future.result()

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Write reference forward kinematics (from the URDF) for isaac/check_model.py: random configs, TCP pose, total mass.
 
-    python tools/make_fk_reference.py OUT.json [N]
+    python isaac/make_fk_reference.py OUT.json [N]
 """
 import json
 import sys
@@ -14,7 +14,7 @@ import model_audit  # noqa: E402
 from piper_description import physics_model, robot_description  # noqa: E402
 
 out, n = Path(sys.argv[1]), int(sys.argv[2]) if len(sys.argv) > 2 else 25
-urdf = physics_model(robot_description("isaac"))
+urdf = physics_model(robot_description("isaac", prefix=""))  # official names; the USD (prefixed) is compared by DOF order
 tmp = out.with_suffix(".urdf")
 tmp.write_text(urdf)
 m = model_audit.load_urdf("ref", tmp)

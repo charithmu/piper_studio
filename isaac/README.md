@@ -82,3 +82,10 @@ scripts/isaac.sh build-usd && ros2 launch piper_bringup piper.launch.py backend:
 
 Verified with: Isaac Sim 6.1.0.0 (Kit 110.3), `isaacsim.ros2.core` 1.11.0, `isaacsim.asset.importer.urdf` (urdf-usd-converter 0.3.2),
 RTX 4090. Domain/ports: ROS 2 DDS only (no listening sockets of its own).
+
+## Names and the prefix
+
+Every joint and link in the USD carries the description's prefix (default `piper_`: `piper_joint1`, `piper_gripper`, ...), because the USD is
+converted from the prefixed URDF. `run_piper.py --prefix` and `check_model.py ... PREFIX` must match the prefix the USD was built with (the launch
+passes it; `servo_gains.py` keeps the official names and the runner adds the prefix). After changing the description or the prefix, rebuild:
+`scripts/isaac.sh build-usd` and `scripts/isaac.sh build-usd d435`.

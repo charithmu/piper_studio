@@ -20,7 +20,7 @@ from rclpy.node import Node
 from rclpy.qos import HistoryPolicy, QoSProfile, ReliabilityPolicy
 from sensor_msgs.msg import JointState
 
-from piper_py.robot import ARM_JOINTS, Piper, Result
+from piper_py.robot import Piper, Result
 
 DOWN = [0.0, 1.0, 0.0, 0.0]  # tool z axis pointing down
 SETTLE = 0.5  # s of (simulated) time to dwell after each step before the next one starts
@@ -137,9 +137,9 @@ def run(arm: Piper, backend: str) -> dict:
     return {
         "backend": backend,
         "steps": steps,
-        "joints": [*ARM_JOINTS, "gripper"],
+        "joints": [*arm.arm_joints, arm.gripper_joint],
         "t": [s[0] for s in samples],
-        "q": [[s[1].get(j) for j in [*ARM_JOINTS, "gripper"]] for s in samples],
+        "q": [[s[1].get(j) for j in [*arm.arm_joints, arm.gripper_joint]] for s in samples],
     }
 
 
