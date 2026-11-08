@@ -8,7 +8,7 @@ importable parts for other projects (an ML endpoint with its own simulator, a Go
 |---|---|
 | run the arm in a simulator or on the real arm | [Quick start](#quick-start) |
 | use the Piper from another repo, with my own simulator or without ROS | [docs/INTEGRATION.md](docs/INTEGRATION.md) |
-| understand the design | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
+| understand the design and who owns what (repo map, package responsibilities, how `external/` and `isaac/` fit) | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
 | start a new development session | [docs/STATE.md](docs/STATE.md) (orientation, gotchas), then [docs/CLEANUP.md](docs/CLEANUP.md) (to-do and state) |
 
 ## Layout
@@ -19,12 +19,14 @@ src/piper_core          rules without ROS: joint limits, command guard, named po
 src/piper_control       controllers (one config for every backend), MoveIt, Servo, command guard node; control.launch.py (mock | real | external)
 src/piper_py            Python client and `piper` CLI: state, trajectories, streaming, gripper, MoveIt, Servo, camera
 src/piper_examples      example of using the Piper from another project: a carrier robot with its own controller manager (tested)
-src/piper_sim           simulators (Gazebo, MuJoCo), scenes, and piper.launch.py: one launch file for every backend (internal to this repo)
+src/piper_sim           simulators (Gazebo, MuJoCo, Isaac models), scenes, and piper.launch.py: one launch file for every backend (internal to this repo)
 isaac/                  Isaac Sim runner and USD conversion (own environment, see isaac/README.md)
 tools/                  real_arm/ (direct scripts, no ROS), demo/ (demo page), capture/ (stills and video)
-external/agx_arm_ros    official AgileX ROS 2 stack, pinned submodule, unmodified
-docs/                   ARCHITECTURE, INTEGRATION, CLEANUP (tracker), VERSIONS, ROADMAP, description/ (decisions), real_arm/, archive/ (historical)
-scripts/                bootstrap.sh, session.sh (environment for each terminal), env.sh, isaac.sh, run_demo.sh, can_up.sh
+external/agx_arm_ros    official AgileX ROS 2 stack, pinned submodule, unmodified: source of the geometry (our macros are generated from it) and the real-arm driver
+env/                    pinned Python environment (uv)
+docs/                   STATE (start here), ARCHITECTURE (repo map, responsibilities), INTEGRATION (contract), CLEANUP (tracker), VERSIONS, ROADMAP, REFERENCE_REPOS,
+                        description/ (decisions), real_arm/ (real-arm knowledge), archive/ (historical)
+scripts/                bootstrap.sh, session.sh (environment for each terminal), env.sh, test_all.sh, isaac.sh, run_demo.sh, can_up.sh, reference_repos.sh
 ```
 
 `for_reference/` (not in git, about 5 GB) holds cloned vendor and community repositories for comparison; `scripts/reference_repos.sh` lists and restores them ([docs/REFERENCE_REPOS.md](docs/REFERENCE_REPOS.md)).

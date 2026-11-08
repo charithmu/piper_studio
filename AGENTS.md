@@ -22,11 +22,15 @@ Before touching the real arm also read `docs/real_arm/REAL_ARM.md` and the arm's
 
 | Path | What | Who may import it |
 |---|---|---|
-| `external/agx_arm_ros` | official AgileX stack (submodule), **unmodified** | |
+| `external/agx_arm_ros` | official AgileX stack (submodule), **unmodified**: source of the geometry (our macros are generated from it), the real-arm driver and message types | |
 | `src/piper_description` | xacro macros (`piper_arm` generated from the official model, tool frames, camera model + mount, ros2_control), meshes, `robot_description()` | everyone |
 | `src/piper_core` | rules without ROS: limits, command guard, named poses | everyone |
 | `src/piper_control`, `src/piper_py` | controllers, MoveIt, Servo, guard node; Python client and CLI | everyone |
-| `src/piper_sim`, `src/piper_examples`, `isaac/`, `tools/` | simulators, scenes, the integration example, demos, real-arm scripts | this repo only |
+| `src/piper_sim`, `src/piper_examples` | simulators and scenes, the integration example | this repo only |
+| `isaac/` | Isaac Sim runner and USD conversion: outside colcon, own Python environment, talks to ROS only over topics (`scripts/isaac.sh`) | this repo only |
+| `tools/` | real-arm SDK scripts (no ROS), demo page, capture | this repo only |
+
+The full map (what each package owns, what it depends on, how `external/` and `isaac/` fit): `docs/ARCHITECTURE.md`, section "Repository map and responsibilities".
 
 Do not edit `external/agx_arm_ros`. If a vendor bug blocks us, work around it in our packages; if a patch is unavoidable, propose forking to the user first and record it in `docs/VERSIONS.md`.
 
