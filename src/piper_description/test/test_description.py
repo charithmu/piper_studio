@@ -106,3 +106,44 @@ def test_physics_model_widens_limits_and_drops_mimic():
         assert math.isclose(float(b.get("upper")), float(a.get("upper")) + margin)
     assert not phys.findall("joint/mimic")
 
+
+
+def _fixed_chain(root, child, parent):
+    """4x4 pose of `child` in `parent`, following the URDF's fixed joints upward."""
+    import numpy as np
+
+    joints = {j.find("child").get("link"): j for j in root.findall("joint")}
+    pose = np.eye(4)
+    while child != parent:
+        j = joints[child]
+        assert j.get("type") == "fixed", f"{j.get('name')} is not fixed"
+        o = j.find("origin")
+        xyz = [float(v) for v in (o.get("xyz", "0 0 0") if o is not None else "0 0 0").split()]
+        r, p, y = [float(v) for v in (o.get("rpy", "0 0 0") if o is not None else "0 0 0").split()]
+        cr, sr, cp, sp, cy, sy = math.cos(r), math.sin(r), math.cos(p), math.sin(p), math.cos(y), math.sin(y)
+        t = np.eye(4)
+        t[:3, :3] = [[cy * cp, cy * sp * sr - sy * cr, cy * sp * cr + sy * sr],
+                     [sy * cp, sy * sp * sr + cy * cr, sy * sp * cr - cy * sr],
+                     [-sp, cp * sr, cp * cr]]
+        t[:3, 3] = xyz
+        pose = t @ pose
+        child = j.find("parent").get("link")
+    return pose
+
+
+@pytest.mark.parametrize("stand", ["packaged", "none"])
+def test_wrist_camera_mount(stand):
+    """camera_link in link6 equals AgileX's own mount (agx_arm_sim piper_girpper_D435.urdf, DECISIONS D11).
+
+    Regression guard: the pose once came from a description whose link6 frame was rotated 90 deg, which put the camera in line
+    with one finger. The camera must sit behind the gripper, on -x of link6, looking along the gripper (+x of link6 tilted to +z).
+    """
+    extra = {"camera_bracket_mesh": "none"} if stand == "none" else {}
+    root = ET.fromstring(expand(camera="d435", **extra))
+    pose = _fixed_chain(root, "camera_link", "link6")
+    assert pose[:3, 3] == pytest.approx([-0.0731, -0.0115, 0.0381], abs=5e-4)
+    assert pose[:3, 0] == pytest.approx([0.344, 0.0, 0.939], abs=2e-3)          # viewing direction
+    assert abs(pose[1, 3]) < 0.02, "camera must sit near the plane between the fingers (they open along +-y of link6)"
+    mesh = [m.get("filename") for m in root.iter("mesh")]
+    assert any("d435_colored.dae" in f for f in mesh)
+    assert any("realsense_mid_stand.dae" in f for f in mesh) == (stand == "packaged")

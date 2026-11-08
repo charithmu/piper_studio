@@ -32,6 +32,7 @@ description, not maintained by hand.
 | D9 | AgileX Isaac description (Dec 2025) | Reference only; regenerate USD from D1 | J1 upper 2.168 is a digit swap of 2.618. J6 velocity 3. Old two-finger gripper. |
 | D10 | Piper-L material (IIT) | Not applicable | Different link lengths (joint3→4 0.338 vs 0.285 m). |
 | D11 | Wrist camera mount and meshes | D435 on AgileX's `realsense_mid_stand` at AgileX's pose from agx_arm_sim `piper_girpper_D435.urdf` (MIT): stand at link6 (−0.034, −0.001, 0.022), camera on the stand (−0.031, −0.028, 0.0018), rpy 0 −1.22 0. Coloured D435 mesh from MuJoCo Menagerie `realsense_d435i` (Apache-2.0), built by `tools/build_d435_mesh.py` | The old pose was AgileX's older piper_isaac_sim mount (link6 frame rotated 90° about z), which put the camera in line with one finger. Verified numerically (camera_link in link6 equals AgileX's) and visually (Gazebo wrist image, RViz meshes and colours). **Open:** AgileX puts gripper_base at link6, the official model 4.5 mm further out (mounted relative to link6); stand collision box vs fingers in MoveIt not checked; MuJoCo drops mesh colours; Isaac USD needs `isaac.sh build-usd d435`. |
+| D12 | Prefix and mount for other platforms | A `piper_arm` xacro macro generated at build time from the unmodified official URDF (option A). B (fork the URDF) and C (no prefix) are recorded in `docs/ARCHITECTURE.md` | **Planned** (migration step 2). Needed for the Go2 mount (M9). |
 
 ## Simulator models
 

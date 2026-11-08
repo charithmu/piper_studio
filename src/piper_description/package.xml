@@ -13,7 +13,9 @@
   <exec_depend>agx_arm_description</exec_depend>
   <exec_depend>xacro</exec_depend>
   <exec_depend>robot_state_publisher</exec_depend>
+  <exec_depend>joint_state_publisher</exec_depend>
   <exec_depend>joint_state_publisher_gui</exec_depend>
+  <exec_depend>realsense2_description</exec_depend> <!-- urdf/piper.d435.xacro includes its materials and USB plug -->
   <exec_depend>rviz2</exec_depend>
 
   <test_depend>ament_cmake_pytest</test_depend>
