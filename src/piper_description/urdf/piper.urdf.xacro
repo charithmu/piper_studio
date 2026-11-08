@@ -20,7 +20,7 @@
   <!-- Wrist camera: none | d435 (RealSense D435 at AgileX's mount pose; see piper.camera.xacro). Simulated size/FOV
        follow the D435 colour stream at 640x480 (69.4 deg horizontal). -->
   <xacro:arg name="camera" default="none" />
-  <xacro:arg name="camera_bracket_mesh" default="" />
+  <xacro:arg name="camera_bracket_mesh" default="$(find piper_description)/meshes/realsense_mid_stand.dae" />
   <xacro:arg name="camera_width" default="640" />
   <xacro:arg name="camera_height" default="480" />
   <xacro:arg name="camera_hfov_deg" default="69.4" />

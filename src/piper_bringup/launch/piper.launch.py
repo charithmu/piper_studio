@@ -120,7 +120,9 @@ def launch_setup(context):
         raise RuntimeError(f"backend:={backend} is not supported; choose one of {BACKENDS}")
     controllers = str(share("piper_bringup") / "config/controllers.yaml")
     camera = arg("camera")
-    cam_map = {"camera": camera, "camera_bracket_mesh": arg("camera_bracket_mesh")} if camera != "none" else {}
+    cam_map = {"camera": camera} if camera != "none" else {}
+    if camera != "none" and arg("camera_bracket_mesh"):  # default: AgileX's stand mesh packaged in piper_description
+        cam_map["camera_bracket_mesh"] = arg("camera_bracket_mesh")
     urdf = robot_description(backend, gripper=gripper, controllers_file=controllers, **cam_map)
     objects = load_objects(share("piper_bringup") / "config/scene_objects.yaml") if arg("scene") == "true" else []
     if backend == "mujoco":
@@ -227,7 +229,7 @@ def generate_launch_description():
         DeclareLaunchArgument("camera", default_value="none", choices=["none", "d435"],
                               description="wrist RealSense D435 (simulated image/depth topics under /camera)"),
         DeclareLaunchArgument("camera_bracket_mesh", default_value="",
-                              description="optional path of a bracket mesh (e.g. AgileX's realsense_mid_stand.dae)"),
+                              description="optional path of another stand mesh, or 'none' for a box (default: AgileX's stand, packaged)"),
         DeclareLaunchArgument("servo", default_value="true", choices=["true", "false"],
                               description="start MoveIt Servo (TCP-frame jogging via the streaming controller)"),
         DeclareLaunchArgument("rviz", default_value="false", choices=["true", "false"]),

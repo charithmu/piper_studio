@@ -6,7 +6,7 @@ find_package(ament_cmake_python REQUIRED)
 
 ament_python_install_package(${PROJECT_NAME})
 
-install(DIRECTORY urdf config launch rviz DESTINATION share/${PROJECT_NAME})
+install(DIRECTORY urdf meshes config launch rviz DESTINATION share/${PROJECT_NAME})
 install(PROGRAMS tools/model_audit.py tools/export_urdf.py DESTINATION lib/${PROJECT_NAME})
 
 if(BUILD_TESTING)

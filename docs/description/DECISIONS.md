@@ -31,6 +31,7 @@ description, not maintained by hand.
 | D8 | MuJoCo Menagerie / legacy `agx_arm_mjsim` model | **Not used** | Legacy MJCF is an exact copy of Menagerie. link6 FK differs by up to 11.3 mm (configuration dependent, so a real kinematic difference). Total mass 2.37 kg. J3/J4/J6 limits differ (−2.697 looks like a digit swap of −2.967). Independent 35 mm fingers. Kept as a contact-parameter reference only. |
 | D9 | AgileX Isaac description (Dec 2025) | Reference only; regenerate USD from D1 | J1 upper 2.168 is a digit swap of 2.618. J6 velocity 3. Old two-finger gripper. |
 | D10 | Piper-L material (IIT) | Not applicable | Different link lengths (joint3→4 0.338 vs 0.285 m). |
+| D11 | Wrist camera mount and meshes | D435 on AgileX's `realsense_mid_stand` at AgileX's pose from agx_arm_sim `piper_girpper_D435.urdf` (MIT): stand at link6 (−0.034, −0.001, 0.022), camera on the stand (−0.031, −0.028, 0.0018), rpy 0 −1.22 0. Coloured D435 mesh from MuJoCo Menagerie `realsense_d435i` (Apache-2.0), built by `tools/build_d435_mesh.py` | The old pose was AgileX's older piper_isaac_sim mount (link6 frame rotated 90° about z), which put the camera in line with one finger. Verified numerically (camera_link in link6 equals AgileX's) and visually (Gazebo wrist image, RViz meshes and colours). **Open:** AgileX puts gripper_base at link6, the official model 4.5 mm further out (mounted relative to link6); stand collision box vs fingers in MoveIt not checked; MuJoCo drops mesh colours; Isaac USD needs `isaac.sh build-usd d435`. |
 
 ## Simulator models
 

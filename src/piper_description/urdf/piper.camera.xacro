@@ -1,22 +1,25 @@
-<?xml version="1.0"?>
 <!--
-  Wrist camera: Intel RealSense D435 on link6, the placement AgileX uses in piper_isaac_sim (a camera_stand on link6 with
-  the camera tilted 1.22 rad toward the gripper), using the D435 model from realsense2_description (Apache-2.0).
-
-  The bracket here is our own simple placeholder geometry (a block with the camera tilt): piper_isaac_sim carries no
-  license, so its mesh is not copied. To see AgileX's stand mesh from a local checkout set
-  camera_bracket_mesh:=/path/to/realsense_mid_stand.dae (not redistributed). The real bracket is yet to be designed.
+  Wrist camera: Intel RealSense D435 on AgileX's camera stand, mounted on the Piper gripper. The stand mesh and the poses
+  are AgileX's own, from agx_arm_sim `urdf/piper_girpper_D435.urdf` (MIT; see meshes/README.md), which uses the same link
+  frames as the official model we include:
+    link6 -> camera_bracket_link (the stand)   xyz -0.034 -0.001 0.022
+    camera_bracket_link -> camera (D435)       xyz -0.031 -0.028 0.0018, rpy 0 -1.22 0   (tilted toward the fingers)
+  The camera sits on the -x side of the gripper, across from nothing: the fingers open along +-y, so they appear
+  symmetrically left and right in the image. (Until 2026-11-07 the pose of the older piper_isaac_sim description was used
+  unrotated and put the camera on the +y side, in line with one finger; see docs/description/DECISIONS.md D11.)
+  The D435 frames come from realsense2_description (Apache-2.0, modified copy piper.d435.xacro); its coloured mesh is built from MuJoCo Menagerie realsense_d435i (Apache-2.0). Set camera_bracket_mesh:=/path/to.dae to use another stand mesh,
+  or camera_bracket_mesh:=none for a plain box.
 
   Frames (names as published by the realsense2_camera driver): camera_link, camera_color_frame,
   camera_color_optical_frame (z forward), camera_depth_optical_frame. Depth is aligned to color in simulation.
 -->
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro">
-  <xacro:include filename="$(find realsense2_description)/urdf/_d435.urdf.xacro" />
+  <xacro:include filename="$(find piper_description)/urdf/piper.d435.xacro" />
 
   <xacro:macro name="piper_camera" params="parent hardware bracket_mesh width height hfov_deg update_rate">
-    <xacro:sensor_d435 parent="${parent}" name="camera" use_nominal_extrinsics="true" use_mesh="true">
-      <origin xyz="-0.029 0.065 0.022" rpy="0 -1.22 -1.57" />
-    </xacro:sensor_d435>
+    <xacro:piper_d435 parent="camera_bracket_link" name="camera" use_nominal_extrinsics="true" use_mesh="true">
+      <origin xyz="-0.031 -0.028 0.0018" rpy="0 -1.22 0" />
+    </xacro:piper_d435>
 
     <link name="camera_bracket_link">
       <inertial>
@@ -24,23 +27,27 @@
         <mass value="0.04" />
         <inertia ixx="1e-5" ixy="0" ixz="0" iyy="1e-5" iyz="0" izz="1e-5" />
       </inertial>
-      <xacro:if value="${bracket_mesh == ''}">
+      <xacro:if value="${bracket_mesh == 'none'}">
         <visual>
-          <origin xyz="0 0.0 0" rpy="0 0 0" />
-          <geometry><box size="0.04 0.02 0.04" /></geometry>
+          <origin xyz="-0.018 -0.014 0.002" rpy="0 0 0" />
+          <geometry><box size="0.074 0.097 0.048" /></geometry>
           <material name="bracket_grey"><color rgba="0.35 0.35 0.38 1" /></material>
         </visual>
-        <collision>
-          <origin xyz="0 0.0 0" rpy="0 0 0" />
-          <geometry><box size="0.04 0.02 0.04" /></geometry>
-        </collision>
       </xacro:if>
-      <xacro:unless value="${bracket_mesh == ''}">
-        <visual><geometry><mesh filename="file://${bracket_mesh}" /></geometry></visual>
+      <xacro:unless value="${bracket_mesh == 'none'}">
+        <visual>
+          <origin xyz="0 0 0" rpy="-1.57 0 1.57" />
+          <geometry><mesh filename="file://${bracket_mesh}" /></geometry>
+        </visual>
       </xacro:unless>
+      <!-- collision: bounding box of the stand mesh in the stand frame -->
+      <collision>
+        <origin xyz="-0.018 -0.014 0.002" rpy="0 0 0" />
+        <geometry><box size="0.074 0.097 0.048" /></geometry>
+      </collision>
     </link>
     <joint name="camera_bracket_joint" type="fixed">
-      <origin xyz="-0.015 0.050 0.022" rpy="0 0 0" />
+      <origin xyz="-0.034 -0.001 0.022" rpy="0 0 0" />
       <parent link="${parent}" />
       <child link="camera_bracket_link" />
     </joint>
