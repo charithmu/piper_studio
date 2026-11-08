@@ -45,7 +45,7 @@ Slave (follower) is the normal role for us: it sends all feedback and accepts co
 | >= S-V1.7-4 | - | firmware return-to-zero (0x191, the vendor node's `move_home`) |
 | < S-V1.6-3 | - | older DH parameters (use the old URDF) |
 
-The SDK profile must match the arm or status/MIT frames mis-decode. `tools/arm_common.open_arm()` reads the version and picks it (`resolve_firmware_profile`).
+The SDK profile must match the arm or status/MIT frames mis-decode. `tools/real_arm/arm_common.open_arm()` reads the version and picks it (`resolve_firmware_profile`).
 
 ## 4. Control modes
 
@@ -88,7 +88,7 @@ Vendor ROS node `agx_arm_ctrl`: `fast_mode` routes `control/joint_states` throug
 ## 6b. Named poses and the routine
 
 `zero` = all joints 0 with joints 2/3 0.01 rad inside their stops (the simulators' startup pose); `rest` = zero with joint 5 lowered 0.2936 rad, the park pose just above the
-support brackets. Routine on the real arm: come to `zero`, then `rest` (`piper rest` or `tools/arm_zero.py --rest`), then disable the motors with someone at the arm.
+support brackets. Routine on the real arm: come to `zero`, then `rest` (`piper rest` or `tools/real_arm/arm_zero.py --rest`), then disable the motors with someone at the arm.
 A Piper rests with joints 2 and 3 about 0.04 rad past their limits, so `command_guard` keeps arm joints 0.01 rad inside the limits and clamps (not rejects) values up to 0.1 rad outside;
 activating from the stops therefore lifts joints 2/3 by about 2.7 deg.
 
@@ -139,4 +139,4 @@ Run each after any firmware change; diff the saved `arm_info` JSON against the a
 The arm does not report a serial number over CAN. `get_firmware()` returns hardware version, software version, production date, motor ratio/batch, node type and node number,
 which describe the model and batch, not one unit (the raw 88-byte block also holds an unparsed 4-character field). So identify an arm by a label you choose (e.g. `piper-01`),
 the serial printed on the arm's label (record it by hand), and the read-out fingerprint. The USB-CAN adapter has its own serial (`lsusb -v`), which identifies the adapter, not the arm.
-To register an arm: copy `arms/_template.md` to `arms/<arm-id>.md`, run `tools/arm_info.py --arm-id <arm-id>` and fill the table from the JSON.
+To register an arm: copy `arms/_template.md` to `arms/<arm-id>.md`, run `tools/real_arm/arm_info.py --arm-id <arm-id>` and fill the table from the JSON.

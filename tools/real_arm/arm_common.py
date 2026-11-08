@@ -1,4 +1,4 @@
-"""Shared helpers for the real-arm tools (tools/arm_*.py). Importing this sends nothing."""
+"""Shared helpers for the real-arm tools (tools/real_arm/arm_*.py). Importing this sends nothing."""
 import math
 import sys
 import time

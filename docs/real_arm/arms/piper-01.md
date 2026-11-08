@@ -1,6 +1,6 @@
 # piper-01: the arm on the `atlas` workstation
 
-`piper-01` is a placeholder label: rename it when you choose a real one. Raw read-out: `piper-01.readout.json` (`tools/arm_info.py`, 2026-10-14, nothing moved).
+`piper-01` is a placeholder label: rename it when you choose a real one. Raw read-out: `piper-01.readout.json` (`tools/real_arm/arm_info.py`, 2026-10-14, nothing moved).
 
 | Item | Value |
 |---|---|
@@ -23,7 +23,7 @@
 - Joints 2 and 3 rest about -2 deg and +2 deg, outside their stored ranges, also after calibration. The vendor `piper_ros` README says the DH parameters after S-V1.6-3 offset those
   two joint frames by 2 degrees, so this is plausibly by design (not confirmed with AgileX).
 - Enable test on S-V1.9-1 (2026-10-14): all six joints enabled, max drift 0.08 deg over 2.5 s, currents <= 0.08 A, status normal, clean disable. No motion has been commanded on the real arm yet.
-- **First motion (2026-10-14, `tools/arm_zero.py`, 50 % speed):** from the resting pose (0.1, -2.2, 2.3, 0.0, 22.0, 0.0 deg) to the zero pose in 0.6 s (joint 5 moved 22 deg), final error 0.06 deg,
+- **First motion (2026-10-14, `tools/real_arm/arm_zero.py`, 50 % speed):** from the resting pose (0.1, -2.2, 2.3, 0.0, 22.0, 0.0 deg) to the zero pose in 0.6 s (joint 5 moved 22 deg), final error 0.06 deg,
   final pose 0.0, +0.48, -0.44, 0.0, 0.0, 0.0 deg (joints 2/3 are aimed 0.5 deg inside their stored limit), no fault, clean disable. The path used was the SDK directly: CAN control + MOVE_J read back, speed 50 %, one `move_j`.
   Our ROS stack (`backend:=real`, command_guard, controllers) has not driven the arm yet.
 

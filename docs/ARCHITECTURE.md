@@ -34,7 +34,7 @@ imports `piper_sim`.
 | Interface | Needs ROS | Use | Implemented by |
 |---|---|---|---|
 | Joint trajectories, direct | no | cuRobo and other planners that produce joint trajectories | `piper_core.RealArm.execute(trajectory)` (real arm), `piper_core` guard on every point |
-| State and gripper, direct | no | scripts, logging | `piper_core.RealArm` (wraps pyAgxArm and the firmware-profile handling now in `tools/arm_common.py`) |
+| State and gripper, direct | no | scripts, logging | `piper_core.RealArm` (wraps pyAgxArm and the firmware-profile handling now in `tools/real_arm/arm_common.py`) |
 | Streaming joint targets | yes | teleop, policies | `arm_position_controller` via `piper_py` |
 | FollowJointTrajectory | yes | scripted motion | `arm_controller` via `piper_py` |
 | Planning and Cartesian | yes | collision-aware moves | MoveIt via `piper_py` |
@@ -78,7 +78,7 @@ The two options not taken are recorded so we can change later:
 |---|---|---|
 | 1 | Manifest dependencies, camera-mount regression test, this document | done 2026-11-08 |
 | 2 | `piper_arm` macro with prefix and mount (option A, committed and validated), camera model/mount split, prefix through controllers, MoveIt, MuJoCo, Isaac runner, guard and `piper_py` | done 2026-11-08 (Isaac not yet run) |
-| 3 | `piper_core`: limits, guard, named poses, `RealArm` (from `tools/arm_common.py`, `command_guard.py`, `piper_py` rules) | |
+| 3 | `piper_core`: limits, guard, named poses, `RealArm` (from `tools/real_arm/arm_common.py`, `command_guard.py`, `piper_py` rules) | |
 | 4 | Split `piper_sim` from `piper_bringup` and `piper_description` (scenes, simulator model helpers, `isaac/`) | |
 | 5 | `piper_control`: runs on any controller manager; `piper.launch.py backend:=` stays in `piper_sim` | |
 | 6 | `docs/INTEGRATION.md` (contract: names, units, controllers, frames) plus an example project using its own simulator and one without ROS | |

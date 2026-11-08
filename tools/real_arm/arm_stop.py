@@ -2,9 +2,9 @@
 """Real Piper: release or stop the arm. No questions asked, so it works in a hurry.
 
     source scripts/env.sh
-    python tools/arm_stop.py            # motors OFF (disable): the arm goes limp. A raised arm FALLS: hold it by hand first.
-    python tools/arm_stop.py --estop    # electronic emergency stop: a raised arm LOWERS SLOWLY with constant damping (vendor docs)
-    python tools/arm_stop.py --reset    # vendor recovery order after an e-stop: e-stop, 1 s, reset(). reset() powers the arm off.
+    python tools/real_arm/arm_stop.py            # motors OFF (disable): the arm goes limp. A raised arm FALLS: hold it by hand first.
+    python tools/real_arm/arm_stop.py --estop    # electronic emergency stop: a raised arm LOWERS SLOWLY with constant damping (vendor docs)
+    python tools/real_arm/arm_stop.py --reset    # vendor recovery order after an e-stop: e-stop, 1 s, reset(). reset() powers the arm off.
 
 Plain disable is what arm_enable_test.py does at its end. The e-stop is the closest thing to a stop button this arm has (there is no hardware one);
 after it the arm reports EMERGENCY STOP and needs --reset (or a power cycle) before it takes commands again.

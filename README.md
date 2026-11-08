@@ -16,7 +16,9 @@ src/piper_description     the robot model as xacro macros (`piper_arm` generated
 src/piper_bringup         one launch file for every backend; shared controllers; MoveIt config; command guard (real arm)
 src/piper_py              Python API + `piper` CLI: state, joint/trajectory/streaming/gripper/MoveIt motion, demo recorder
 isaac/                    Isaac Sim runner and USD conversion (own environment; see isaac/README.md)
-tools/                    demo page builder, MuJoCo replay renderer
+tools/real_arm            direct real-arm scripts (no ROS): info, zero, joints, stop, enable test
+tools/demo                demo page builder, site pages, step analysis
+tools/capture             camera stills, video recording, MuJoCo replay renderer
 env/                      pinned Python environment (uv)
 scripts/                  bootstrap.sh (rebuild from clean clone), env.sh (source before anything), session.sh (env + display + domain per terminal)
 docs/ARCHITECTURE.md      layers, interfaces (ROS and non-ROS), mounting and prefix, migration plan
@@ -87,7 +89,7 @@ submodule bump. See docs/ARCHITECTURE.md.
 ### Demo
 
 `scripts/run_demo.sh BACKEND OUT/` runs one scripted sequence (planning, straight-line moves, gripper, direct trajectory,
-50 Hz streaming) on a backend and records it; `tools/build_demo_page.py OUT/ SITE/` builds the comparison page
+50 Hz streaming) on a backend and records it; `tools/demo/build_demo_page.py OUT/ SITE/` builds the comparison page
 (videos, step results, cross-backend agreement, plus status, control-level, architecture and camera pages).
 On atlas it is served at `https://atlas.buri-fence.ts.net:8700/piper-studio/demo/` (tailnet only).
 
@@ -123,13 +125,21 @@ ros2 run piper_py piper rest         # zero, then joint 5 lowered 16.8 deg: park
 ros2 run piper_py piper disable      # controllers off, 5 s countdown to get a hand on the arm, motors off
 ```
 
-Without ROS, `tools/arm_info.py` (summary), `arm_zero.py`, `arm_joints.py` (live joints) and `arm_stop.py` talk to the arm directly; see
+Without ROS, `tools/real_arm/arm_info.py` (summary), `arm_zero.py`, `arm_joints.py` (live joints) and `arm_stop.py` talk to the arm directly; see
 [docs/real_arm/REAL_ARM.md](docs/real_arm/REAL_ARM.md) and the per-arm file in `docs/real_arm/arms/`.
+
+### Windows on a headless machine
+
+RViz, the MuJoCo viewer and the MuJoCo camera need a display with GLX. A TurboVNC desktop has none (use `vglrun -d egl`, `scripts/session.sh` defines `gl`);
+a plain virtual display works for checks and screenshots: `Xvfb :96 -screen 0 2560x1440x24 +extension GLX &`, then `DISPLAY=:96 ros2 launch ...` and
+`DISPLAY=:96 import -window root shot.png`. The Gazebo GUI does not come up there yet (docs/CLEANUP.md C3); Gazebo's and Isaac's cameras need no display.
 
 ## Test
 
 ```bash
-colcon test --packages-select piper_description piper_py && colcon test-result --verbose
+python -m pytest src/piper_description src/piper_bringup -q                         # offline: description, generated macros vs official, MuJoCo model, poses
+PIPER_TEST_BACKENDS=mock,gazebo,mujoco python -m pytest src/piper_py/test -q        # launch tests per backend (add isaac: GPU, needs scripts/isaac.sh build-usd d435)
+python src/piper_description/tools/piper_arm_macro.py check                         # generated macros still equal the pinned official files
 ```
 
 ## Status

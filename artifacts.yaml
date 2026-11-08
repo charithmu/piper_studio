@@ -20,7 +20,7 @@ artifacts:
     unit_scope: user
     manage: "web-pages restart piper-studio-demo"
     probe: {path: /}
-    notes: "Built by tools/build_demo_page.py from recorded demo runs; files in ~/data/ml/isaac/piper_studio/site."
+    notes: "Built by tools/demo/build_demo_page.py from recorded demo runs; files in ~/data/ml/isaac/piper_studio/site."
     links:
       - {label: Open demo, local: "http://localhost:8780/", tailnet: "https://{ts}:8700/piper-studio/demo/"}
   - id: piper-run-demo
@@ -37,7 +37,7 @@ artifacts:
     desc: Builds the demo page from recorded demo runs (scripts/run_demo.sh).
     runtime: one-shot
     workdir: .
-    start: python tools/build_demo_page.py
+    start: python tools/demo/build_demo_page.py
   - id: piper-bootstrap
     type: job
     title: Rebuild the workspace from a clean clone

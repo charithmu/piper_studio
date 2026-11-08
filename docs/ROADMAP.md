@@ -11,8 +11,10 @@ Each milestone ends with passing tests and an updated VERSIONS.md.
 | M5 | Isaac Sim 6.1: USD generated from the URDF; topic-based ROS 2 control; same tests pass (see isaac/README.md) | done 2026-10-08 |
 | M6 | Streaming/servo: streaming controller, `piper_py.stream_joints`, MoveIt Servo (TCP twist/pose) done on all backends; teleop input still to do | done except teleop |
 | M7 | Recording and policy interface: synchronized episodes (state, commands, camera), LeRobot export, policy runner using streaming targets | |
-| M8 | Wrist camera: simulated D435 in Gazebo, MuJoCo and Isaac done (2026-10-10); real driver launch, calibration, final mount still to do | partly done; needs camera model and mount |
-| M9 | Platform composition (Go2 + Piper): frame prefix/namespace, mount transform | |
+| M8 | Wrist camera: simulated D435 in Gazebo, MuJoCo and Isaac done (2026-10-10); AgileX stand and pose, coloured mesh, model/mount split done (2026-11-08, D11/D13); real driver launch, calibration still to do | partly done |
+| M9 | Platform composition (Go2 + Piper): `piper_arm` macro with prefix and mount pose done (2026-11-08, D12); `piper_core`, `piper_control`/`piper_sim` split, integration doc: see docs/CLEANUP.md | partly done |
+
+Current to-do list and repo state: [CLEANUP.md](CLEANUP.md). Layers and interfaces: [ARCHITECTURE.md](ARCHITECTURE.md).
 
 Cross-cutting references (not dependencies): IIT piper-ros2-dls (gain scaling, Piper-L), Renesas
 and piper_cpp native drivers, MuJoCo Menagerie (contact parameters), AgileX Isaac assets and

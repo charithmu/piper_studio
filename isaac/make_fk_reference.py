@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Write reference forward kinematics (from the URDF) for isaac/check_model.py: random configs, TCP pose, total mass.
 
-    python tools/make_fk_reference.py OUT.json [N]
+    python isaac/make_fk_reference.py OUT.json [N]
 """
 import json
 import sys

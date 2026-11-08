@@ -2,6 +2,8 @@
 
 Generated 2026-10-08 by `src/piper_description/tools/model_audit.py` (MuJoCo 3.12.0). Conclusions are in [DECISIONS.md](DECISIONS.md).
 
+> Snapshot of 2026-10-08 (not regenerated since). Our description is audited here with `prefix:=""` (official names); since 2026-11-08 the default prefix is `piper_` and the prefixed model is checked against the official one by `tools/piper_arm_macro.py check` (part of the tests).
+
 Reference: `official@983788b`. Values differing from the reference are **bold**. FK compares `link6` relative to `base_link`.
 
 | Source | Kind | Origin |

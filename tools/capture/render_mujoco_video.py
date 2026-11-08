@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Replay a recorded demo run (piper_py demo JSON) through the generated MuJoCo model and render it to mp4.
 
-    MUJOCO_GL=egl python tools/render_mujoco_video.py run.json out.mp4
+    MUJOCO_GL=egl python tools/capture/render_mujoco_video.py run.json out.mp4
 
 Shows what the MuJoCo backend did; poses come from the recorded /joint_states (fingers = +/-0.5 * gripper).
 """

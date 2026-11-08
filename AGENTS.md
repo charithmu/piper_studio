@@ -1,6 +1,6 @@
 # Piper Studio agent guide
 
-Read README.md, docs/ROADMAP.md, VERSIONS.md and docs/description/DECISIONS.md before changing anything. Before touching the real arm also read docs/real_arm/REAL_ARM.md (firmware gates, safety semantics) and the arm's file in docs/real_arm/arms/.
+Read README.md, docs/ARCHITECTURE.md, docs/CLEANUP.md (the current to-do list and repo state; trust it over HANDOFF.md and docs/archive/), docs/ROADMAP.md, VERSIONS.md and docs/description/DECISIONS.md before changing anything. Before touching the real arm also read docs/real_arm/REAL_ARM.md (firmware gates, safety semantics) and the arm's file in docs/real_arm/arms/.
 
 ## Environment
 

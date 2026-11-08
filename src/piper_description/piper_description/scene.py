@@ -80,7 +80,7 @@ GAZEBO_WORLD = """<?xml version="1.0"?>
 """
 
 
-# Fixed observer camera (same viewpoint as tools/render_mujoco_video.py); publishes gz topic overview/image.
+# Fixed observer camera (same viewpoint as tools/capture/render_mujoco_video.py); publishes gz topic overview/image.
 OVERVIEW_CAMERA = """    <model name="overview_camera"><static>true</static><pose>0.945 -0.984 0.617 0 0.314 2.269</pose><link name="link">
       <sensor name="overview" type="camera"><always_on>1</always_on><update_rate>30</update_rate><topic>overview/image</topic>
         <camera><horizontal_fov>1.1</horizontal_fov><image><width>1280</width><height>720</height></image>

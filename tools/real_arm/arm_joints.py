@@ -2,10 +2,10 @@
 """Live joint readout of a real Piper, updated in place. Purely passive: it only listens (sends nothing), so it can run next to any other program.
 
     source scripts/env.sh
-    python tools/arm_joints.py            # live table, degrees; Enter saves the pose, q (or Ctrl-C) quits
-    python tools/arm_joints.py --rad      # radians instead of degrees
-    python tools/arm_joints.py --once     # one snapshot (also used when the output is not a terminal)
-    python tools/arm_joints.py -b can1    # a specific CAN bus (default: auto-detect)
+    python tools/real_arm/arm_joints.py            # live table, degrees; Enter saves the pose, q (or Ctrl-C) quits
+    python tools/real_arm/arm_joints.py --rad      # radians instead of degrees
+    python tools/real_arm/arm_joints.py --once     # one snapshot (also used when the output is not a terminal)
+    python tools/real_arm/arm_joints.py -b can1    # a specific CAN bus (default: auto-detect)
 
 Move the arm by hand (motors disabled) and read the numbers to find poses. Press Enter to print the current pose as a copy-paste line
 (radians, ready for move_j / SRDF) and append it with a timestamp to ~/data/ml/isaac/piper_studio/arm_poses.log.
