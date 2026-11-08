@@ -34,7 +34,7 @@ meshes and the SRDF are generated from it). Pin a commit or tag; see `piper.repo
   <xacro:include filename="$(find piper_description)/urdf/cameras/d435.xacro"/>
   <xacro:include filename="$(find piper_description)/urdf/mounts/agilex_mid_stand.xacro"/>
   <xacro:include filename="$(find piper_description)/urdf/piper_camera.xacro"/>
-  <xacro:piper_camera prefix="piper_" parent="piper_link6" hardware="mock" mount_mesh="" mount_xyz="0 0 0" mount_rpy="0 0 0"
+  <xacro:piper_camera prefix="piper_" parent="piper_gripper_base" hardware="mock" mount_mesh="" mount_xyz="0 0 0" mount_rpy="0 0 0"
                       width="640" height="480" hfov_deg="69.4" update_rate="30"/>
 </robot>
 ```

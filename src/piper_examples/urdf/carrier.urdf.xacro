@@ -31,7 +31,7 @@
   <xacro:include filename="$(find piper_description)/urdf/cameras/d435.xacro" />
   <xacro:include filename="$(find piper_description)/urdf/mounts/agilex_mid_stand.xacro" />
   <xacro:include filename="$(find piper_description)/urdf/piper_camera.xacro" />
-  <xacro:piper_camera prefix="${prefix}" parent="${prefix}link6" hardware="mock" mount_mesh="" mount_xyz="0 0 0" mount_rpy="0 0 0"
+  <xacro:piper_camera prefix="${prefix}" parent="${prefix}gripper_base" hardware="mock" mount_mesh="" mount_xyz="0 0 0" mount_rpy="0 0 0"
                       width="640" height="480" hfov_deg="69.4" update_rate="30" />
 
   <!-- the carrier's own hardware: mock here; your simulator's plugin in a real project -->

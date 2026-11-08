@@ -23,7 +23,7 @@
   <xacro:arg name="tcp_xyz" default="0 0 0.138" />
   <xacro:arg name="tcp_rpy" default="0 0 0" />
   <!-- Wrist camera: a model (cameras/) on a mount (mounts/). camera: none | d435. camera_mount: agilex_mid_stand | custom.
-       camera_mount_mesh: other stand mesh path, or 'none' for a box. camera_xyz/camera_rpy: pose in link6 for camera_mount:=custom.
+       camera_mount_mesh: other stand mesh path, or 'none' for a box. camera_xyz/camera_rpy: pose in gripper_base for camera_mount:=custom.
        Simulated size/FOV follow the D435 colour stream at 640x480 (69.4 deg horizontal). -->
   <xacro:arg name="camera" default="none" />
   <xacro:arg name="camera_mount" default="agilex_mid_stand" />
@@ -53,7 +53,7 @@
     <xacro:include filename="$(find piper_description)/urdf/cameras/$(arg camera).xacro" />
     <xacro:include filename="$(find piper_description)/urdf/mounts/$(arg camera_mount).xacro" />
     <xacro:include filename="$(find piper_description)/urdf/piper_camera.xacro" />
-    <xacro:piper_camera prefix="${prefix}" parent="${prefix}link6" hardware="$(arg hardware)"
+    <xacro:piper_camera prefix="${prefix}" parent="${prefix}gripper_base" hardware="$(arg hardware)"
                         mount_mesh="$(arg camera_mount_mesh)" mount_xyz="$(arg camera_xyz)" mount_rpy="$(arg camera_rpy)"
                         width="$(arg camera_width)" height="$(arg camera_height)"
                         hfov_deg="$(arg camera_hfov_deg)" update_rate="$(arg camera_rate)" />

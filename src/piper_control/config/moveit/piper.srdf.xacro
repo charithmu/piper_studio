@@ -12,7 +12,7 @@
   <xacro:piper_official_srdf prefix="${prefix}" gripper="$(arg gripper)" />
 
   <xacro:if value="${'$(arg camera)' != 'none'}">
-    <!-- wrist camera and its mount are rigidly attached to link6 -->
+    <!-- wrist camera and its mount are rigidly attached to gripper_base -->
     <xacro:macro name="never" params="a b"><disable_collisions link1="${prefix}${a}" link2="${prefix}${b}" reason="Adjacent" /></xacro:macro>
     <xacro:never a="camera_link" b="link6" /> <xacro:never a="camera_link" b="link5" />
     <xacro:never a="camera_link" b="flange_link" /> <xacro:never a="camera_link" b="gripper_base" />

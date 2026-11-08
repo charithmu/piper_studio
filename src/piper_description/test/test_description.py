@@ -167,15 +167,18 @@ def _fixed_chain(root, child, parent):
 
 @pytest.mark.parametrize("stand", ["packaged", "none"])
 def test_wrist_camera_mount(stand):
-    """camera_link in link6 equals AgileX's own mount (agx_arm_sim piper_girpper_D435.urdf, DECISIONS D11).
+    """camera_link in gripper_base equals AgileX's own mount numbers (agx_arm_sim piper_girpper_D435.urdf, DECISIONS D11).
+    The stand is clamped to the gripper body, so it follows gripper_base, 4.5 mm out from link6 (user-confirmed, CLEANUP C5).
 
     Regression guard: the pose once came from a description whose link6 frame was rotated 90 deg, which put the camera in line
     with one finger. The camera must sit behind the gripper, on -x of link6, looking along the gripper (+x of link6 tilted to +z).
     """
     extra = {"camera_mount_mesh": "none"} if stand == "none" else {}
     root = ET.fromstring(expand(camera="d435", **extra))
-    pose = _fixed_chain(root, P + "camera_link", P + "link6")
+    pose = _fixed_chain(root, P + "camera_link", P + "gripper_base")
     assert pose[:3, 3] == pytest.approx([-0.0731, -0.0115, 0.0381], abs=5e-4)
+    in_link6 = _fixed_chain(root, P + "camera_link", P + "link6")
+    assert in_link6[2, 3] == pytest.approx(0.0381 + 0.0045, abs=5e-4)           # the 4.5 mm gripper_base offset
     assert pose[:3, 0] == pytest.approx([0.344, 0.0, 0.939], abs=2e-3)          # viewing direction
     assert abs(pose[1, 3]) < 0.02, "camera must sit near the plane between the fingers (they open along +-y of link6)"
     mesh = [m.get("filename") for m in root.iter("mesh")]

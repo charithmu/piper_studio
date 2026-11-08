@@ -22,7 +22,7 @@ plumbing with a fake driver. Simulated D435 wrist camera on the RealSense topic 
 **Not done on the real arm through the ROS stack**; only SDK scripts (`tools/real_arm/`) have moved it (2026-10-14).
 
 ## Open work, grouped by what it needs (full list: CLEANUP.md)
-- Needs the user at the arm: `RealArm` in `piper_core` (B3), `backend:=real` end to end (C10), measuring the stand mount (C5), camera calibration data (C9).
+- Needs the user at the arm: `RealArm` in `piper_core` (B3), `backend:=real` end to end (C10), measuring the stand mount (C5, now on gripper_base; confirm with a caliper), camera calibration data (C9).
 - Can be done alone: small issues C4 (stand white in Gazebo, MuJoCo drops colours), C6, C7, C11; pruning `for_reference/` (F1); the next development (ML endpoints: pick and place, Go2 mount).
 
 ## Gotchas that cost time

@@ -8,8 +8,9 @@
       xyz/rpy are for mounts that take a pose (see mounts/custom.xacro); this preset ignores them.
     properties piper_mount_camera_xyz / piper_mount_camera_rpy: where the camera body sits in `${prefix}camera_mount_link`.
 
-  Poses are AgileX's own, from agx_arm_sim `urdf/piper_girpper_D435.urdf` (same link frames as the official model):
-    link6 -> stand   xyz -0.034 -0.001 0.022
+  Poses are AgileX's own numbers, from agx_arm_sim `urdf/piper_girpper_D435.urdf`, applied to `gripper_base` (the stand is clamped to
+  the gripper body; the official model puts gripper_base 4.5 mm out from link6, user-confirmed 2026-11-08, CLEANUP C5):
+    gripper_base -> stand   xyz -0.034 -0.001 0.022
     stand -> camera  xyz -0.031 -0.028 0.0018, rpy 0 -1.22 0   (tilted toward the fingers)
   See docs/description/DECISIONS.md D11. To add your own mount (CAD export): copy this file, change the mesh, poses and collision.
 -->
