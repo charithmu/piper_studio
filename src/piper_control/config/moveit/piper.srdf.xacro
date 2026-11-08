@@ -1,6 +1,8 @@
 <?xml version="1.0"?>
 <!-- Official agx_arm_moveit semantics (groups, end effector, collision matrix) plus Piper Studio named poses. -->
-<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="piper">
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="$(arg robot_name)">
+  <!-- must equal the name of the URDF MoveIt loads, or MoveIt ignores this file (and the collision matrix with it) -->
+  <xacro:arg name="robot_name" default="piper" />
   <xacro:arg name="prefix" default="piper_" />
   <xacro:arg name="gripper" default="true" />
   <xacro:arg name="camera" default="none" />

@@ -15,7 +15,7 @@ from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 from moveit_configs_utils import MoveItConfigsBuilder
 
-from piper_description import DEFAULT_PREFIX, render_config, xacro_file
+from piper_description import DEFAULT_PREFIX, normalize_prefix, render_config, xacro_file
 
 
 def share(package: str) -> Path:
@@ -26,7 +26,7 @@ def share(package: str) -> Path:
 def description_arguments() -> list:
     return [
         DeclareLaunchArgument("prefix", default_value=DEFAULT_PREFIX,
-                              description="prefix of every link, joint and frame name (empty: the official AgileX names)"),
+                              description="prefix of every link, joint and frame name (none: no prefix, the official AgileX names)"),
         DeclareLaunchArgument("gripper", default_value="true", choices=["true", "false"]),
         DeclareLaunchArgument("camera", default_value="none", choices=["none", "d435"],
                               description="wrist camera model (urdf/cameras/<name>.xacro)"),
@@ -41,7 +41,7 @@ def description_arguments() -> list:
 
 def description_mappings(arg) -> dict:
     """xacro mappings from the launch arguments; `arg(name)` returns a launch argument's value."""
-    mappings = {"prefix": arg("prefix"), "gripper": arg("gripper")}
+    mappings = {"prefix": normalize_prefix(arg("prefix")), "gripper": arg("gripper")}
     if arg("camera") != "none":
         mappings.update(camera=arg("camera"), camera_mount=arg("camera_mount"), camera_xyz=arg("camera_xyz"), camera_rpy=arg("camera_rpy"))
         if arg("camera_mount_mesh"):  # default: the mount's own mesh (AgileX's stand, packaged in piper_description)
@@ -71,14 +71,14 @@ def real_arm_arguments() -> list:
 
 
 # ---- MoveIt ---------------------------------------------------------------------------------------------------------------------------
-def moveit_config(gripper: str, urdf: str, camera: str = "none", prefix: str = DEFAULT_PREFIX):
+def moveit_config(gripper: str, urdf: str, camera: str = "none", prefix: str = DEFAULT_PREFIX, robot_name: str = "piper"):
     moveit_dir = share("piper_control") / "config/moveit"
     config = (
         MoveItConfigsBuilder("piper", package_name="piper_control")
         .robot_description(file_path=str(xacro_file()), mappings={"hardware": "mock", "gripper": gripper, "prefix": prefix})
         .robot_description_semantic(
             file_path="config/moveit/piper.srdf.xacro",
-            mappings={"prefix": prefix, "gripper": gripper, "camera": camera})
+            mappings={"prefix": prefix, "gripper": gripper, "camera": camera, "robot_name": robot_name})
         .robot_description_kinematics(file_path="config/moveit/kinematics.yaml")
         .joint_limits(file_path=str(render_config(moveit_dir / "joint_limits.yaml", prefix)))
         .trajectory_execution(file_path=str(render_config(moveit_dir / "moveit_controllers.yaml", prefix)))

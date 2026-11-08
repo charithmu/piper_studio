@@ -32,6 +32,7 @@ from launch_ros.actions import Node
 
 from piper_control import launch_lib as lib
 from piper_control.launch_lib import share
+from piper_description import normalize_prefix
 from piper_sim import SIMULATORS, mujoco_model, physics_model, robot_description
 from piper_sim.scene import gazebo_world, load_objects, mujoco_scene
 
@@ -88,7 +89,7 @@ def mujoco(controllers: str):
 
 def launch_setup(context):
     arg = lambda name: LaunchConfiguration(name).perform(context)  # noqa: E731
-    backend, gripper, camera, prefix = arg("backend"), arg("gripper"), arg("camera"), arg("prefix")
+    backend, gripper, camera, prefix = arg("backend"), arg("gripper"), arg("camera"), normalize_prefix(arg("prefix"))
     if backend not in BACKENDS:
         raise RuntimeError(f"backend:={backend} is not supported; choose one of {BACKENDS}")
     controllers = lib.controllers_file(prefix)
