@@ -36,8 +36,8 @@ values are not kept.
 - Bus: status/pose/joints/gripper 200 Hz, motor 100 Hz, driver 20 Hz; extra frames 0x1C0-0x1C3 (20-40 Hz; the SDK's Revo2 hand ids) and 0x212 (1 Hz, undocumented).
   Whether a Revo2 hand is attached or the firmware emits them is not established.
 - Joints 2 and 3 rest about -2 deg and +2 deg, outside their stored ranges, also after calibration: the arm sags a little when the motors go off (the user's explanation, 2026-11-08).
-  The vendor `piper_ros` README also says the DH parameters after S-V1.6-3 offset those two joint frames by 2 degrees (not confirmed with AgileX). Either way it is accepted: the guard
-  allows a small slack outside the limits, and after a reset the arm goes to the normal zero pose (tested after the calibration, see the first-motion entry below).
+  The vendor `piper_ros` README also says the DH parameters after S-V1.6-3 offset those two joint frames by 2 degrees (not confirmed with AgileX). Either way it only matters for leaving the resting pose: see
+  "Start-up and shut-down sequence" below.
 - Enable test on S-V1.9-1 (2026-10-14): all six joints enabled, max drift 0.08 deg over 2.5 s, currents <= 0.08 A, status normal, clean disable. No motion has been commanded on the real arm yet.
 - **First motion (2026-10-14, `tools/real_arm/arm_zero.py`, 50 % speed):** from the resting pose (0.1, -2.2, 2.3, 0.0, 22.0, 0.0 deg) to the zero pose in 0.6 s (joint 5 moved 22 deg), final error 0.06 deg,
   final pose 0.0, +0.48, -0.44, 0.0, 0.0, 0.0 deg (joints 2/3 are aimed 0.5 deg inside their stored limit), no fault, clean disable. The path used was the SDK directly: CAN control + MOVE_J read back, speed 50 %, one `move_j`.
@@ -45,6 +45,17 @@ values are not kept.
 
 - CPV drive parameters (read 2026-10-14 with `arm_info.py -c`): acceleration 5.0 and deceleration 5.0 rad/s^2 on every joint, profile velocity 0, position gain 5.0, velocity-loop kp 0.7 (joints 1-3) / 0.8 (joints 4-6), ki 40 (joints 1-3) / 80 (joints 4-6). Reading them put the arm in MOVE_CPV motion mode
   (the first `-c` version did not restore it; the fixed tool sets MOVE_J on the next `-c`, and any `move_j` switches it back).
+
+## Start-up and shut-down sequence (user rule, 2026-11-08)
+
+The resting pose is slightly outside the stored limits of joints 2 and 3 (about -2.2 and +2.3 deg against j2 >= 0, j3 <= 0). This is a quirk of the arm resting on its stops, and it only matters for the first move:
+
+1. **Start:** the arm sits at the resting pose with the motors off. Enable it, then leave the resting pose with one known `move_j` to the `zero` pose, aimed 0.01 rad inside the joint 2/3 limits (done 2026-10-14, `arm_zero.py`, 0.6 s, no fault). The firmware accepts this.
+   MoveIt would accept the same start state: its default allowance for a start state outside the limits is 0.05 rad (2.9 deg), more than the 2.3 deg here (default value, not yet seen on the real arm).
+2. **Work:** from `zero` onwards everything stays inside the limits. Nothing is ever commanded outside them (the guard keeps commands `limit_margin` = 0.01 rad inside and clamps tiny overshoots to that range; planners and cuRobo get the same limits).
+3. **Stop:** always return to `zero` first (`piper rest` goes zero, then `rest`, joint 5 lowered), then disable the motors. The arm drops to its resting pose on its own, which is fine and expected.
+
+Never command a target past a stored limit to "reach" the resting pose; use the sequence above both ways.
 
 ## Park pose (recorded by hand 2026-10-14)
 

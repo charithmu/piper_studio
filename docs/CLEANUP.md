@@ -36,7 +36,7 @@ Internal (this repo only): `piper_sim` (Gazebo, MuJoCo, Isaac models, scenes, `p
 
 ## C. Functional follow-ups
 
-- [x] C1 Stand collision box vs fingers in MoveIt: start state valid at zero and ready for gripper 0 to 0.1 m (`GetStateValidity`, 2026-11-08). Not yet a test (see C2).
+- [x] C1 Stand collision box vs fingers in MoveIt: start state valid at zero and ready for the then gripper range (`GetStateValidity`, 2026-11-08; the stroke is now 0 to 0.07 m and the test uses 0, 0.035, 0.07). Not yet a test (see C2).
 - [x] C2 C1 is now a launch test, `test_10_camera_stand_does_not_collide` (two poses x three gripper widths via `GetStateValidity`; runs on the simulator backends with the camera; verified on MuJoCo).
 - [x] C3 Gazebo GUI on a virtual display (Xvfb 1600x900 with GLX) now brings the arm up: the controller spawners gave up after the default 10 s service timeout while the software-rendered GUI loaded the machine; `piper_control.launch_lib.SPAWNER_TIMEOUTS` raises `--service-call-timeout` and `--switch-timeout` to 30 s. Verified: Gazebo GUI + `piper named ready` succeeds; mock, Gazebo and real-plumbing launch tests still pass. Left over, cosmetic: the GUI opens with a camera far from the arm (`13_gazebo_gui_ready.png`); a `<gui><camera>` pose in the world SDF is ignored by Gazebo, so it needs a GUI config file (not done).
 - [ ] C4 Gazebo shows the camera stand white (the mesh's dark material is not applied). MuJoCo drops mesh colours (collision meshes are used as visuals); the arm is white there.

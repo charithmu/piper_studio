@@ -86,6 +86,5 @@ Simulators get the same description plus generated, tested transforms (`piper_si
 
 ## Open items needing the real arm (read-only, user present)
 
-1. Firmware version and the joint limits the firmware enforces.
-2. Gripper stroke setting (0.07 or 0.1 m) and measured opening.
+1. (Done: firmware S-V1.9-1, limits and gripper stroke 0.07 m read from the arm, see `docs/real_arm/arms/piper-01.md`.) Still open: a caliper measurement of the opening.
 3. Real-arm confirmation of the camera model, the stand and its pose (nominal from AgileX, D11) and the TCP offset; calibration override (`config/camera_mounts/`, CLEANUP C9).
