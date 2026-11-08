@@ -9,7 +9,7 @@ importable parts for other projects (an ML endpoint with its own simulator, a Go
 | run the arm in a simulator or on the real arm | [Quick start](#quick-start) |
 | use the Piper from another repo, with my own simulator or without ROS | [docs/INTEGRATION.md](docs/INTEGRATION.md) |
 | understand the design | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
-| see what is left to do and the state of the repo | [docs/CLEANUP.md](docs/CLEANUP.md) |
+| start a new development session | [docs/STATE.md](docs/STATE.md) (orientation, gotchas), then [docs/CLEANUP.md](docs/CLEANUP.md) (to-do and state) |
 
 ## Layout
 
@@ -27,7 +27,7 @@ docs/                   ARCHITECTURE, INTEGRATION, CLEANUP (tracker), VERSIONS, 
 scripts/                bootstrap.sh, session.sh (environment for each terminal), env.sh, isaac.sh, run_demo.sh, can_up.sh
 ```
 
-`for_reference/` (not in git, about 3 GB) holds cloned vendor and community repositories used for comparison (AgileX `agx_arm_sim`, `piper_isaac_sim`, `realsense-ros`).
+`for_reference/` (not in git, about 5 GB) holds cloned vendor and community repositories for comparison; `scripts/reference_repos.sh` lists and restores them ([docs/REFERENCE_REPOS.md](docs/REFERENCE_REPOS.md)).
 
 ## Quick start
 
@@ -125,6 +125,9 @@ python src/piper_description/tools/piper_arm_macro.py check                     
 
 `scripts/run_demo.sh BACKEND OUT/` runs one scripted sequence (planning, straight lines, gripper, direct trajectory, 50 Hz streaming) and records it;
 `tools/demo/build_demo_page.py OUT/ SITE/` builds the comparison page. On atlas it is served at `https://atlas.buri-fence.ts.net:8700/piper-studio/demo/` (tailnet only).
+
+Servo step responses (the provisional actuator model): `scripts/run_demo.sh BACKEND OUT/ DOMAIN stepresp`, then `python tools/demo/step_analysis.py OUT/BACKEND.step.json`.
+One wrist-camera still on a running backend: `python tools/capture/capture_stills.py out.png`.
 
 RViz, the MuJoCo viewer and the MuJoCo camera need a display with GLX, which a TurboVNC desktop does not have (`scripts/session.sh` defines `gl` for `vglrun -d egl`).
 For checks and screenshots use a private virtual display: `Xvfb :96 -screen 0 2560x1440x24 +extension GLX &`, then `DISPLAY=:96 ros2 launch ...` and `DISPLAY=:96 import -window root shot.png`.

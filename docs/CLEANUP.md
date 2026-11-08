@@ -22,7 +22,7 @@ Internal (this repo only): `piper_sim` (Gazebo, MuJoCo, Isaac models, scenes, `p
 - [x] A6 `isaac/README.md`: prefix and USD rebuild note.
 - [x] A7 `comms/` (agent protocol files, 25 KB) moved whole to `docs/archive/comms-20261108/` on the user's decision (pass 2); its 2026-11-08 STATUS entry is the last one. State now lives in this tracker and git history.
 - [x] A8 `docs/archive/` (312 KB, three historical sets) kept, with a README saying it is historical and not to be followed.
-- [x] A9 `.claude/settings.json` (project agent permissions, shared by whoever works here) stays tracked; decided to keep.
+- [x] A9 `.claude/settings.json` removed (pass 3, user decision): it forced `acceptEdits` and an allow list that conflicted with the machine rules (auto-allowed push, pip, apt, pkill); Claude behaviour now comes from `~/.claude/settings.json` and `~/projects/RULES.md`.
 
 ## B. Organisation
 
@@ -59,6 +59,17 @@ Internal (this repo only): `piper_sim` (Gazebo, MuJoCo, Isaac models, scenes, `p
 ## E. Tooling
 
 - [x] E1 `scripts/test_all.sh [backends...]`: one command for the offline tests, the generated-macro check, launch tests per backend, the real-arm plumbing and the carrier example, each in its own ROS domain with the daemon stopped afterwards. Verified with `mock` (all PASS).
+
+## F. Repo-wide inventory (pass 3, 2026-11-08)
+
+Every root entry and folder was mapped. Kept as they are: `src/` (7 packages), `docs/`, `scripts/`, `tools/`, `isaac/`, `env/`, `external/agx_arm_ros` (submodule), `artifacts.yaml`, `piper.repos`, `.gitmodules`, `.gitignore`, `log/COLCON_IGNORE`.
+Generated, ignored: `build/`, `install/`, `log/` (older colcon logs deleted), `.venv/` (425 MB, `scripts/bootstrap.sh` rebuilds it), `.vscode/` (user's editor settings, paths updated for the new packages), `for_reference/`.
+
+- [x] F0 Deleted (user approved): `.venv-legacy/` (237 MB, legacy venv; code is at tag `legacy-final-20261008`), `.vscode/browse.vc.db` (1.4 GB VS Code index), `.pytest_cache/`, old `log/build_*`; `.claude/settings.json` removed (A9); `*.code-workspace` git-ignored (the user's `piper_studio.code-workspace` stays on disk).
+- [ ] F1 Prune `for_reference/` (5.3 GB; about 2.5 GB is study material nothing refers to). Kept for now at the user's request. Restore script and pinned commits: `scripts/reference_repos.sh`, `docs/REFERENCE_REPOS.md`.
+- [x] F2 Stale text fixed: DECISIONS (single source of truth is now the generated macro, simulator transforms live in `piper_sim`), `meshes/README.md`, `isaac/README.md`, `.vscode/settings.json` paths.
+- [x] F4 Per-file reference check of every script and module: all are used or documented; `tools/capture/capture_stills.py` and `tools/demo/step_analysis.py` are manual tools with no caller, now described in the README. Nothing dead found.
+- [x] F3 `docs/STATE.md` written for fresh sessions (orientation, verified state, gotchas, where data lives); `AGENTS.md` and `README.md` point to it.
 
 ## Verification record
 

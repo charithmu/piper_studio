@@ -1,5 +1,4 @@
 .venv/
-.venv-legacy/
 .vscode/
 build/
 install/
@@ -9,3 +8,4 @@ log/
 for_reference/
 **/MUJOCO_LOG.TXT
 ucode.elf
+*.code-workspace

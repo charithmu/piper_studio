@@ -1,21 +1,24 @@
 # Robot description decisions
 
-Status 2026-10-08. Evidence: [MODEL_AUDIT.md](MODEL_AUDIT.md) (all sources compared with `model_audit.py`).
+Status 2026-11-08 (D1-D10 from 2026-10-08; D11-D13 added). Evidence: [MODEL_AUDIT.md](MODEL_AUDIT.md) (all sources compared with `model_audit.py`).
 Every value used by Piper Studio has a stated provenance. **Provisional** values must not be used
 as physical ratings (for safety limits, torque budgets or actuator identification).
 
 ## Single source of truth
 
-`piper_description/urdf/piper.urdf.xacro` includes the official
-`agilexrobotics/agx_arm_urdf` model (pinned through `external/agx_arm_ros`) **unmodified** and adds only:
+`piper_description/urdf/piper_arm.xacro` is the official `agilexrobotics/agx_arm_urdf` model (pinned through
+`external/agx_arm_ros`) as a mountable xacro macro with a name prefix. It is **generated** from the unmodified official files by
+`tools/piper_arm_macro.py`, committed with provenance (source commits and file hashes in its header), and `check` (run by
+`test_description.py`) fails if it differs from the official model in any link, joint, limit, inertial, mesh or mimic. The same tool
+generates the prefixed official SRDF in `piper_control`. `piper.urdf.xacro` assembles the standalone robot from the macros and adds only:
 
-- `tcp_link` (fingertip centre by default),
-- an optional world anchor,
+- `${prefix}tcp_link` (fingertip centre by default; `urdf/piper.tool.xacro`),
+- the wrist camera (a model in `urdf/cameras/` on a mount in `urdf/mounts/`, D11/D13),
 - the ros2_control block that selects the backend.
 
-`test_description.py` fails if the expanded model differs from the official one in any joint limit,
-mass or link6 forward kinematics. MuJoCo, Gazebo and Isaac models are to be generated from this
-description, not maintained by hand.
+Names carry the prefix `piper_` by default (D12); the tests also compare the unprefixed expansion with the official model. MuJoCo, Gazebo and
+Isaac models are generated from this description (`piper_sim`), not maintained by hand. Names in the tables below are the official ones; the
+robot's are `piper_` + these.
 
 ## Decisions
 
@@ -37,7 +40,7 @@ description, not maintained by hand.
 
 ## Simulator models
 
-Simulators get the same description plus two generated, tested transforms (`piper_description`):
+Simulators get the same description plus generated, tested transforms (`piper_sim`):
 
 - `robot_description(<simulator>)` (ROS side: robot_state_publisher, MoveIt, ros2_control): gives the
   virtual `gripper_link` a 10 g placeholder inertial, because physics engines drop massless moving
@@ -72,4 +75,4 @@ Simulators get the same description plus two generated, tested transforms (`pipe
 
 1. Firmware version and the joint limits the firmware enforces.
 2. Gripper stroke setting (0.07 or 0.1 m) and measured opening.
-3. Camera model, mount and TCP/camera offsets.
+3. Real-arm confirmation of the camera model, the stand and its pose (nominal from AgileX, D11) and the TCP offset; calibration override (`config/camera_mounts/`, CLEANUP C9).

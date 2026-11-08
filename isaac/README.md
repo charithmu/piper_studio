@@ -29,7 +29,7 @@ Use a unique `ROS_DOMAIN_ID` (the runner inherits it). Standalone runner options
 
 ## What it does
 
-1. `ros2 run piper_description export_urdf.py --hardware isaac --physics` writes the one description as a plain
+1. `ros2 run piper_sim export_urdf.py --hardware isaac --physics` writes the one description as a plain
    URDF (absolute mesh paths, widened physics limits, no mimic). Same source as Gazebo and MuJoCo.
 2. `convert_urdf.py` turns it into USD with Isaac's URDF importer (`isaacsim.asset.importer.urdf`). Physics is
    a USD variant set; the runner selects `physx`.
