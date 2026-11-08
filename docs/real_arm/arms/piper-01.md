@@ -52,7 +52,7 @@ Pose recorded with the motors off, wrist a few mm above the support brackets: jo
 (16.82 deg); joints 2/3 are at the stops (-2.19 / +2.45), which are outside the stored limits (j2 >= 0, j3 <= 0), so the pose cannot be commanded as recorded.
 Flange height from the SDK's forward kinematics: resting on the stops (j5 22 deg) 167.0 mm, recorded pose 174.3 mm, the same pose with joints 2/3 clamped inside their limits 189.2 mm, all joints 0: 213.3 mm.
 The SRDF `rest` therefore is zero with joint 5 = 0.2936 rad (16.82 deg), about 22 mm above resting; disabling there drops the wrist a little more than the recorded pose would.
-To check on the arm: whether the firmware accepts a slightly negative joint 2 / positive joint 3 target (then `rest` could use the recorded values and the guard margin could shrink).
+Verified 2026-10-14: the firmware accepts *leaving* this resting pose (joints 2/3 at -2.2 / +2.3 deg, outside the stored range) with one `move_j` to a target 0.01 rad inside the limits. Not tested, and not needed: commanding a target past a stored limit (the vendor status code 4 "target angle out of range" is the likely reaction). `rest` therefore stays at joints 2/3 = 0.01 rad inside.
 
 Joint ranges and where each pose sits: ![joint ranges](piper-01.joint_ranges.svg). Limit sources: the arm's stored limits (`get_joint_angle_vel_limits`, saved in `piper-01.readout.json`),
 the official URDF `external/agx_arm_ros/.../piper/urdf/piper_description.urdf` (all six joints identical since the vendor update of 2026-10-13). Joint 5 has room to ±70°, so the park pose is not a limit: the wrist drops

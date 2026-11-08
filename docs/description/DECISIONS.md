@@ -40,6 +40,17 @@ robot's are `piper_` + these.
 | D12 | Prefix and mount for other platforms | A `piper_arm` xacro macro generated once from the unmodified official URDF and committed (option A), default prefix `piper_`. B (fork the URDF) and C (no prefix) are recorded in `docs/ARCHITECTURE.md` | **Done 2026-11-08.** The macro is committed with provenance and validated by `tools/piper_arm_macro.py check` (also in the tests). Default prefix `piper_`. For the Go2 mount (M9). |
 | D13 | Camera: model and mount | Two separate xacro macros: `urdf/cameras/<model>.xacro` (frames, body mesh, simulated sensor; d435) and `urdf/mounts/<mount>.xacro` (bracket mesh, collision, poses; `agilex_mid_stand`, `custom`), chained by `piper_camera`; selected with `camera:=` and `camera_mount:=` | New cameras (ZED, OAK-D Pro) and CAD-exported brackets are added as one file each. Real-arm calibration will override the nominal pose (planned: `config/camera_mounts/`). |
 
+## Dynamic limits: what each source says, and starting values for downstream work (2026-11-08)
+
+| Quantity | Firmware (S-V1.9-1) | Vendor files | Other | Used / suggested start |
+|---|---|---|---|---|
+| Velocity | 3.0 rad/s, all joints | URDF 5; vendor MoveIt yaml 5; vendor Isaac description 10 (J6 3) | flange (Cartesian moves only): 1.0 m/s, 0.25 rad/s | 3.0 is the maximum. Start planners at 50 % (1.5 rad/s); Studio MoveIt default scaling is 10 % |
+| Acceleration | 5.0 rad/s², all joints (the drive's CPV acceleration and deceleration are also 5.0) | URDF none; vendor MoveIt yaml 5 | flange 1.5 m/s², 0.3 rad/s² | 5.0 is the maximum. Start at 50 % (2.5 rad/s²) |
+| Jerk | not reported | none anywhere in the vendor repos (checked agx_arm_ros, agx_arm_urdf, agx_arm_sim, pyAgxArm, piper_sdk) | cuRobo's bundled Franka uses 500 rad/s³ (not Piper data) | no source. Derive: reach the acceleration limit in about 0.2 s, 25 rad/s³ at the maximum (12.5 at 50 %). Our value; tune with `stepresp` |
+| Torque | not reported | URDF 100 N·m on every joint (placeholder, same in the vendor Isaac and MuJoCo models; gripper 10) | SDK `move_mit` feed-forward range at firmware >= S-V1.8-8: ±16 N·m (joints 1-3), ±13.0 N·m (joints 4-6), a command encoding range, not a rating | no rating exists. Static holding torque from the CAD masses (arm + gripper, worst pose, no payload; our estimate): J1 0, **J2 12.5**, J3 4.9, J4 0.9, J5 1.0, J6 0.02 N·m, so a planning limit must exceed these. Start with torque-limited planning off, or use the SDK range as an upper bound; the driver publishes motor torque estimates (`feedback/joint_states` effort) to log during real runs |
+
+Safe numbers are starting points for the first runs; none is a rating.
+
 ## Simulator models
 
 Simulators get the same description plus generated, tested transforms (`piper_sim`):

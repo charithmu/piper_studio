@@ -5,6 +5,7 @@ activated, never jump to the URDF initial positions.
 """
 
 import os
+import subprocess
 import time
 import unittest
 
@@ -61,6 +62,31 @@ class TestRealPlumbing(unittest.TestCase):
     def test_2_state_is_measured_feedback(self):
         time.sleep(0.5)
         self.assert_near(self.arm.joint_positions(), START, 1e-3)
+
+    def test_2b_driver_status_is_read_and_a_fault_blocks_activation(self):
+        """The vendor driver's diagnostics (arm, motors, gripper) are readable, and a reported fault refuses activation."""
+        deadline = time.monotonic() + 10
+        while time.monotonic() < deadline and not (self.arm.status()["arm"] and len(self.arm.status()["motors"]) == 6):
+            time.sleep(0.2)
+        st = self.arm.status()
+        self.assertEqual(st["arm"]["level"], "OK")
+        self.assertEqual(st["arm"]["arm_status_name"], "normal")
+        self.assertEqual([m["name"] for m in st["motors"]], [f"joint{i}" for i in range(1, 7)])
+        self.assertEqual(self.arm.faults(), [])
+        subprocess.run(["ros2", "param", "set", "/fake_agx_arm_driver", "fault", "joint3"], check=True, capture_output=True)
+        deadline = time.monotonic() + 10
+        while time.monotonic() < deadline and not self.arm.faults():
+            time.sleep(0.2)
+        self.assertEqual(self.arm.faults(), ["joint3: driver_overcurrent"])
+        r = self.arm.activate()
+        self.assertFalse(r)
+        self.assertEqual(r.code, "ARM_FAULT")
+        self.assertEqual(self.arm.controllers()["arm_controller"], "inactive")
+        subprocess.run(["ros2", "param", "set", "/fake_agx_arm_driver", "fault", ""], check=True, capture_output=True)
+        deadline = time.monotonic() + 10
+        while time.monotonic() < deadline and self.arm.faults():
+            time.sleep(0.2)
+        self.assertEqual(self.arm.faults(), [])
 
     def test_3_activation_holds_measured_pose(self):
         r = self.arm.activate()

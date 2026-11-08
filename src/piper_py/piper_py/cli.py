@@ -32,6 +32,7 @@ def main(argv=None):
     p.add_argument("--speed", type=float, default=0.2, help="MoveIt velocity scaling (0-1]")
     sub = p.add_subparsers(dest="cmd", required=True)
     sub.add_parser("state", help="print measured joint state as JSON")
+    sub.add_parser("status", help="real arm: health reported by the vendor driver (arm, motors, gripper); read-only")
     sub.add_parser("controllers", help="list controllers and their states")
     sub.add_parser("activate", help="activate arm/gripper controllers after checking feedback")
     sub.add_parser("deactivate", help="deactivate all command controllers")
@@ -73,6 +74,22 @@ def main(argv=None):
         if a.cmd == "state":
             print(json.dumps(arm.joint_state(), indent=2))
             return 0
+        if a.cmd == "status":
+            st = arm.status()
+            if not (st["arm"] or st["motors"] or st["gripper"]):
+                print("no status from a vendor driver (simulators publish none; on the real arm check the driver is running)")
+                return 1
+            if st["arm"]:
+                v = st["arm"]
+                print(f"arm      {v['level']:5s} {v.get('ctrl_mode_name', '?')}, {v.get('arm_status_name', '?')}, {v.get('mode_feedback_name', '?')}"
+                      f"  (motion_status {v['values'].get('motion_status')}, err {v['values'].get('err_status')}, age {v['age']:.1f} s)")
+            for m in st["motors"]:
+                v = m["values"]
+                print(f"{m['name']:8s} {m['level']:5s} {m['message']:10s} {v.get('bus_voltage_v', '?'):>6} V  driver {v.get('driver_temp_deg', '?'):>5} C"
+                      f"  motor {v.get('motor_temp_deg', '?'):>5} C  {v.get('bus_current', '?')} A")
+            if st["gripper"]:
+                print(f"gripper  {st['gripper']['level']:5s} {st['gripper']['message']}")
+            return 1 if arm.faults() else 0
         if a.cmd == "controllers":
             for name, state in sorted(arm.controllers().items()):
                 print(f"{name:28s} {state}")

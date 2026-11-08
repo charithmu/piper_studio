@@ -103,6 +103,20 @@ hardware zero mark first (index 255 = all joints "with offset", the SDK docstrin
 All Set Zero buttons (commented out in its code), the Windows app ArmRobotUA does the same. Since S-V1.6-3 the zero of joints 2 and 3 is offset 2 deg from the stops, which is why they rest 2 deg past their stored range.
 Calibration is a write that changes where every pose is: do it only deliberately, then re-read `arm_info.py` and the arm's park pose.
 
+## 6d. Vendor ROS driver `agx_arm_ctrl` (agx_arm_ros 286633e, read 2026-11-08)
+
+Topics (namespace as launched). Feedback: `feedback/joint_states` (200 Hz; position, **velocity** and **effort** = motor torque estimate in N.m, current x k x b x c, per joint plus `gripper`),
+`feedback/tcp_pose`, and three **diagnostics** at 2 Hz (`diagnostic_msgs/DiagnosticArray`, values are strings): `feedback/arm_status` (keys `ctrl_mode`, `arm_status`, `mode_feedback`, `teach_status`,
+`motion_status`, `trajectory_num`, `err_status`, `joint_angle_limit[]`, `communication_status_joint[]`; level ERROR for arm_status 1-10, 14, 15 or a nonzero error code), `feedback/motor_status` (one entry per joint:
+`enabled`, `bus_voltage_v`, `bus_current`, `driver_temp_deg`, `motor_temp_deg`, `status_raw`, fault flags `undervoltage`, `motor_overtemp`, `driver_overcurrent`, `driver_overtemp`, `collision_tripped`,
+`driver_error`, `stall_tripped`; STALE when feedback is older than 2 s) and `feedback/gripper_status`. These replaced the custom `AgxArmStatus`/`GripperStatus`/`HandStatus` messages (removed upstream 2026-10-21).
+`piper_py` reads them: `Piper.status()`, `Piper.faults()`, `piper status`; `activate()` refuses while one is reported (tested with the fake driver, not yet on the arm).
+Codes: arm_status 0 normal, 1 e-stop, 2 no solution, 3 singularity, **4 target angle out of range**, 5 joint communication, 6 brake not released, 7 collision, 8 teach drag overspeed, 9 joint status, 10 other, 11-13 teaching, 14-15 overtemperature.
+Services: `enable_agx_arm` (SetBool), **`control_enable`** (SetBool: an external gate; closed, the driver ignores all control topics without disabling the motors, a safe way to hold off commands), `move_home` (move_j to zeros),
+`emergency_stop` (holds the current pose with `move_j`, or `move_js` on firmware without seamless switching; not a power cut), `exit_teach_mode` (only offered on firmware without seamless switching, so not on this arm).
+Commands: `control/joint_states`, `move_j`, `move_js`, `move_p`, `move_l`, `move_c`, `move_cpv`, `move_mit` (not used by us). Parameters: `auto_enable` (default true: our launch turns it off), `speed_percent` (0 = do not set), `fast_mode`, `fw_version`, `tcp_offset`, `gripper_default_effort`, `control_enabled`.
+The driver ignores control commands until a valid joint stream exists. Commented-out code only hides an unused `feedback/flange_pose` publisher; nothing else useful was found in comments.
+
 ## 7. Teach (drag) mode
 
 The button light between joints 5 and 6: **off** = stopped (normal); **solid green** = recording (drag the arm by hand); **flashing green** = **playing back** the last recording

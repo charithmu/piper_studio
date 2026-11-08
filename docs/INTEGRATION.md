@@ -63,6 +63,7 @@ Names below are for the default prefix; with another prefix, joints and frames f
 | Planning | MoveIt `move_group`, group `arm` (end effector group `gripper`) | OMPL and Pilz (LIN, PTP, CIRC) |
 | Servo | MoveIt Servo `~/delta_twist_cmds`, `~/pose_target_cmds`, `~/delta_joint_cmds` | publishes to the streaming controller |
 | Named poses | SRDF group states `zero`, `rest`, `ready` | `zero`: start and end pose of every session; `rest`: park pose of the real arm |
+| Driver health (real arm) | `/feedback/arm_status`, `/feedback/motor_status`, `/feedback/gripper_status` | vendor `diagnostic_msgs/DiagnosticArray`, 2 Hz; `Piper.status()`, `Piper.faults()`, `piper status`; `activate()` refuses (`ARM_FAULT`) while one is reported. Simulators publish none. |
 | Camera | `/camera/color/image_raw`, `/camera/color/camera_info`, `/camera/aligned_depth_to_color/image_raw` | RealSense topic names, in simulation and (planned) with the real driver |
 
 **One command owner:** exactly one of `arm_controller` and `arm_position_controller` is active; switch explicitly (`Piper.use_streaming()` / `use_trajectories()`).

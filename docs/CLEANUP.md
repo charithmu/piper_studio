@@ -80,7 +80,9 @@ The arm runs the latest firmware it supports (S-V1.9-1) and is calibrated; its r
 - [x] G3 MoveIt limits 3.0 rad/s / 5.0 rad/s² (firmware); demo and tests use widths up to 60-70 mm; INTEGRATION gripper range 0 to 0.07 (**contract change**, noted here and in INTEGRATION).
 - [x] G4 Stale values removed: S-V1.7-3 history and its numbers, J6 ±120°, 5 rad/s, 0.1 m gripper, "stroke unmeasured". Docs for ARCHITECTURE step 6 / Isaac and B7 pointer fixed. `docs/description/MASSES.md` (per-link masses with sources) and `tools/mass_table.py` added.
 - [x] G5 Verified: 31 offline tests, `check`, launch tests mock, Gazebo, MuJoCo, Isaac (USD rebuilt with and without camera, `isaac.sh check` 0.001 mm, mass 4.7196 = URDF), real plumbing, carrier example. Not on the real arm.
-- [ ] G6 Open (needs the user): joint torque limits and jerk (not in the firmware), masses (weigh), camera and stand, the 4.5 mm gripper_base ambiguity (C5), whether the firmware accepts joint 2/3 targets slightly past zero.
+- [x] G7 Driver status consumed (read-only): `Piper.status()`, `Piper.faults()`, `piper status`, `activate()` refuses on a reported fault; the fake driver publishes the same diagnostics; test `test_2b`. Vendor interfaces and codes documented in `REAL_ARM.md` 6d. Joint 2/3 start from the resting pose verified (2026-10-14 first motion). Limits table with sources and starting values in `DECISIONS.md`.
+- [ ] G6 Open (needs the user): **weigh the arm, gripper, camera and stand and replace the masses in `MASSES.md` (to-do)**; joint torque rating and jerk (not in the firmware); camera and stand; the 4.5 mm: AgileX deliberately moved `gripper_base` 4.5 mm out of `flange_link` in June 2026 (new flange mesh), so the official model is current, only AgileX's older sim URDF has it at link6 (C5 stays: measure the stand on the real mount).
+- [ ] G8 Idea, not done: `command_guard` could drop commands while the driver reports an ERROR, and `control_enable` (the vendor gate) could be closed by the guard on a fault.
 
 ## Verification record
 

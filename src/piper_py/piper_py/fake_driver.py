@@ -2,6 +2,8 @@
 
 Publishes feedback/joint_states at `rate` Hz starting from `initial_positions`, and moves each
 joint toward the latest control/joint_states target with a first-order lag (`time_constant`).
+It also publishes the vendor driver's diagnostics (feedback/arm_status, motor_status, gripper_status at 2 Hz, same keys); the
+parameter `fault` (a joint name such as "joint3", or "arm") makes the matching entry report an ERROR, so tests can prove that faults are seen.
 Like the real driver, it ignores commands while `enabled` is false and turns NaN into 0.0
 (agx_arm_ctrl's _safe_get_value), so tests can prove that NaN never reaches it.
 """
@@ -11,6 +13,9 @@ import math
 import rclpy
 from rclpy.node import Node
 from rclpy.parameter import Parameter
+import json
+
+from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus, KeyValue
 from sensor_msgs.msg import JointState
 from std_srvs.srv import SetBool
 
@@ -24,6 +29,7 @@ class FakeDriver(Node):
         self.declare_parameter("rate", 200.0)
         self.declare_parameter("time_constant", 0.05)
         self.declare_parameter("enabled", True)
+        self.declare_parameter("fault", "")
         self.q = list(self.get_parameter("initial_positions").value)
         self.target = list(self.q)
         self.dt = 1.0 / self.get_parameter("rate").value
@@ -31,7 +37,40 @@ class FakeDriver(Node):
         self.pub = self.create_publisher(JointState, "feedback/joint_states", 1)
         self.create_subscription(JointState, "control/joint_states", self.on_command, 1)
         self.create_service(SetBool, "enable_agx_arm", self.on_enable)  # like the vendor driver
+        self.arm_status_pub = self.create_publisher(DiagnosticArray, "feedback/arm_status", 1)
+        self.motor_status_pub = self.create_publisher(DiagnosticArray, "feedback/motor_status", 10)
+        self.gripper_status_pub = self.create_publisher(DiagnosticArray, "feedback/gripper_status", 1)
         self.create_timer(self.dt, self.step)
+        self.create_timer(0.5, self.publish_status)
+
+    def _status(self, name, level, message, values):
+        st = DiagnosticStatus(name=name, hardware_id=f"fake:{name}", level=bytes([level]), message=message)
+        st.values = [KeyValue(key=k, value=v if isinstance(v, str) else json.dumps(v)) for k, v in values.items()]
+        return st
+
+    def publish_status(self):
+        fault = self.get_parameter("fault").value
+        now = self.get_clock().now().to_msg()
+        arm_bad = fault == "arm"
+        arm = DiagnosticArray()
+        arm.header.stamp = now
+        arm.status = [self._status("arm", 2 if arm_bad else 0, "arm_status=7, err_status=0" if arm_bad else "arm_status=0, err_status=0", {
+            "ctrl_mode": 1, "arm_status": 7 if arm_bad else 0, "mode_feedback": 1, "teach_status": 0, "motion_status": 0, "trajectory_num": 0,
+            "err_status": 0, "joint_angle_limit": [False] * 6, "communication_status_joint": [False] * 6})]
+        self.arm_status_pub.publish(arm)
+        motors = DiagnosticArray()
+        motors.header.stamp = now
+        for name in JOINTS[:6]:
+            bad = fault == name
+            motors.status.append(self._status(name, 2 if bad else 0, "driver_overcurrent" if bad else "enabled", {
+                "enabled": "true", "undervoltage": "false", "motor_overtemp": "false", "driver_overcurrent": "true" if bad else "false",
+                "driver_overtemp": "false", "collision_tripped": "false", "driver_error": "false", "stall_tripped": "false",
+                "bus_voltage_v": "24.0", "driver_temp_deg": "32", "motor_temp_deg": "30", "bus_current": "0.1", "status_raw": "0"}))
+        self.motor_status_pub.publish(motors)
+        grip = DiagnosticArray()
+        grip.header.stamp = now
+        grip.status = [self._status("gripper", 0, "enabled", {"driver_enable_status": True, "homing_status": True})]
+        self.gripper_status_pub.publish(grip)
 
     def on_enable(self, request, response):
         self.set_parameters([Parameter("enabled", Parameter.Type.BOOL, bool(request.data))])

@@ -96,7 +96,7 @@ exercised only against a stand-in driver. ✓ = passed in the automated test or 
 <li><b>Isaac control latency:</b> joint targets travel over ROS topics to Isaac and back (one extra hop). NVIDIA recommends the in-process
 <code>isaacsim.ros2.control</code> for this; not tried yet. See the <a href="control.html">control levels</a> page and the architecture notes.</li>
 <li><b>Firmware-level modes</b> of the arm (Cartesian PTP/line/arc, per-joint MIT impedance, unsmoothed joint streaming, CPV, limits/payload/protection) are not exposed by our API. Details and the recommendation on the <a href="control.html">control levels</a> page.</li>
-<li><b>Fault reporting:</b> the driver publishes <code>feedback/arm_status</code> (errors, motion state); we do not consume it yet.</li>
+<li><b>Fault reporting:</b> the driver publishes <code>feedback/arm_status</code>, <code>motor_status</code> and <code>gripper_status</code> (diagnostics, 2&nbsp;Hz); <code>Piper.status()</code> / <code>piper status</code> read them and <code>activate</code> refuses while a fault is reported.</li>
 <li><b>Recording and policy interfaces</b> (LeRobot, VLA adapters), <b>Go2 composition</b>, a real RealSense driver launch: not started. Waiting for the discussion you asked for.</li>
 <li><b>Simulator actuator parameters</b> (MuJoCo/Isaac servo gains, URDF effort limits) are provisional until identified on the real arm.</li>
 </ul>
@@ -141,7 +141,7 @@ LEVELS = [
      "all of it (<code>enable</code>, <code>electronic_emergency_stop</code>, <code>set_*_limits</code>, <code>set_payload</code>, <code>set_crash_protection_rating</code>, leader/follower, …)",
      "services <code>enable_agx_arm</code>, <code>control_enable</code>, <code>emergency_stop</code>, <code>move_home</code>, <code>exit_teach_mode</code>; parameters <code>auto_enable</code>, <code>speed_percent</code>, <code>tcp_offset</code>",
      "<span class=ok>partly</span>: <code>piper activate/deactivate</code> (checks feedback is fresh and matches before enabling controllers), <code>auto_enable:=false</code> default, command guard",
-     "Ours is a safety wrapper the vendor lacks (the driver maps ROS's idle NaN to 0.0). <b>Gap:</b> e-stop, home, limits/payload read-out and <code>arm_status</code> faults are not reachable from <code>piper_py</code>. Add read-only first; writes need your approval."),
+     "Ours is a safety wrapper the vendor lacks (the driver maps ROS's idle NaN to 0.0). <b>Gap:</b> e-stop, home and limits/payload read-out are not reachable from <code>piper_py</code> (driver status and faults are, read-only). Writes need your approval."),
     ("Joint torque / impedance (MIT)", "per-joint position + velocity + torque with kp/kd, the lowest level the arm offers",
      "<code>move_mit</code> (per motor), V1.8.8 changes its parameters", "topic <code>control/move_mit</code> (<code>MoveMITMsg</code>)",
      "<span class=bad>not exposed</span>; our ros2_control joints have a position command interface only",
@@ -210,7 +210,7 @@ from the vendor sources in <code>for_reference/agilex/</code> (26 AgileX reposit
 <h2>Recommendation</h2>
 <ol>
 <li>Keep <code>move_j</code> as the default real path; it is the safest and what the vendor ships for ROS.</li>
-<li>Before a real session, add <b>read-only</b> access to <code>arm_status</code>, motor states and firmware version to <code>piper_py</code> and show faults in <code>piper state</code>.</li>
+<li>Before a real session, read the driver status with <code>piper status</code> (done); firmware version read-out in <code>piper_py</code> is still to add.</li>
 <li>On the arm (you present), compare <code>move_j</code>, <code>move_js</code> (<code>fast_mode</code>) and CPV with the step-response tool, then choose the streaming path for Servo and policies.</li>
 <li>Expose firmware Cartesian moves and MIT only as separate, clearly named real-arm calls; do not route simulators through them.</li>
 <li>Reuse, don't duplicate: no Python client exists in the vendor ROS stack, so <code>piper_py</code> is not redundant; its MoveIt and Servo wrappers sit on upstream MoveIt, not on vendor code.</li>

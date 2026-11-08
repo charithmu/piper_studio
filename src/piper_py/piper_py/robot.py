@@ -21,6 +21,7 @@ from dataclasses import dataclass, field
 import numpy as np
 import rclpy
 from builtin_interfaces.msg import Duration
+from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus
 from control_msgs.action import FollowJointTrajectory, ParallelGripperCommand
 from controller_manager_msgs.srv import ListControllers, SwitchController
 from geometry_msgs.msg import PoseStamped, TwistStamped
@@ -43,6 +44,17 @@ from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 
 DEFAULT_PREFIX = "piper_"  # prefix of every joint and frame name (see piper_description, piper.urdf.xacro `prefix`)
 ARM_JOINTS = [f"joint{i}" for i in range(1, 7)]  # official names; the robot's are prefix + these
+
+
+# Meaning of the codes in the vendor driver's feedback/arm_status (agx_arm_ctrl README, "Arm Status Details").
+CTRL_MODE = {0: "standby", 1: "CAN command control", 2: "teach", 3: "ethernet", 4: "wifi", 5: "remote", 6: "coordinated teach input",
+             7: "offline trajectory", 8: "TCP control"}
+ARM_STATUS = {0: "normal", 1: "emergency stop", 2: "no solution", 3: "singularity", 4: "target angle out of range", 5: "joint communication abnormal",
+              6: "joint brake not released", 7: "collision detected", 8: "teach drag overspeed", 9: "joint status abnormal", 10: "other abnormal",
+              11: "teaching recording", 12: "teaching executing", 13: "teaching paused", 14: "main controller overtemperature",
+              15: "release resistor overtemperature"}
+MODE_FEEDBACK = {0: "MOVE P", 1: "MOVE J", 2: "MOVE L", 3: "MOVE C", 4: "MOVE MIT", 5: "MOVE CPV"}
+STATUS_TOPICS = {"arm": "arm_status", "motors": "motor_status", "gripper": "gripper_status"}
 
 
 def _code_names(cls) -> dict[int, str]:
@@ -103,6 +115,11 @@ class Piper:
         self._feedback: tuple[float, JointState] | None = None
         self.node.create_subscription(JointState, f"{self._prefix}/feedback/joint_states", self._on_feedback,
                                       qos_profile_sensor_data, callback_group=state_group)
+        # Vendor driver status (diagnostic_msgs/DiagnosticArray, 2 Hz, backend:=real only): arm, per-motor and gripper health.
+        self._diag: dict[str, tuple[float, DiagnosticArray]] = {}
+        for kind, topic in STATUS_TOPICS.items():
+            self.node.create_subscription(DiagnosticArray, f"{self._prefix}/feedback/{topic}",
+                                          lambda msg, k=kind: self._on_diag(k, msg), 10, callback_group=state_group)
         self._stream = self.node.create_publisher(
             Float64MultiArray, f"{self._prefix}/arm_position_controller/commands", 10)
         # MoveIt Servo (TCP-frame jogging through the streaming controller)
@@ -179,6 +196,54 @@ class Piper:
         js = self.joint_state()
         return [js[j] for j in self.arm_joints]
 
+    def _on_diag(self, kind: str, msg: DiagnosticArray):
+        with self._lock:
+            self._diag[kind] = (time.monotonic(), msg)
+
+    @staticmethod
+    def _entry(st: DiagnosticStatus) -> dict:
+        level = int.from_bytes(st.level, "little") if isinstance(st.level, bytes) else int(st.level)
+        values = {kv.key: kv.value for kv in st.values}
+        return {"name": st.name, "level": {0: "OK", 1: "WARN", 2: "ERROR", 3: "STALE"}.get(level, str(level)),
+                "message": st.message, "values": values}
+
+    def status(self) -> dict:
+        """Health reported by the vendor driver (real arm only; empty entries on simulators): `arm`, `motors` (one per joint), `gripper`.
+
+        Each entry has name, level (OK / WARN / ERROR / STALE), message and the driver's values as strings. `age` is the seconds since the
+        message arrived (the driver publishes at 2 Hz). Read-only: nothing here commands the arm.
+        """
+        out: dict = {"arm": None, "motors": [], "gripper": None}
+        with self._lock:
+            diag = dict(self._diag)
+        now = time.monotonic()
+        for kind, (t, msg) in diag.items():
+            entries = [{**self._entry(st), "age": now - t} for st in msg.status]
+            if kind == "motors":
+                out["motors"] = entries
+            elif entries:
+                out[kind] = entries[0]
+        arm = out["arm"]
+        if arm:
+            v = arm["values"]
+            for key, table in (("ctrl_mode", CTRL_MODE), ("arm_status", ARM_STATUS), ("mode_feedback", MODE_FEEDBACK)):
+                if key in v:
+                    arm[key + "_name"] = table.get(int(v[key]), v[key])
+        return out
+
+    def faults(self) -> list[str]:
+        """Active faults the driver reports right now (empty if none, or if no status arrived: simulators and old drivers publish none)."""
+        st = self.status()
+        bad = []
+        if st["arm"] and st["arm"]["level"] == "ERROR":
+            bad.append(f"arm: {st['arm']['message']}")
+        for m in st["motors"]:
+            if m["level"] == "ERROR":
+                bad.append(f"{m['name']}: {m['message']}")
+        if st["gripper"] and st["gripper"]["level"] == "ERROR":
+            bad.append(f"gripper: {st['gripper']['message']}")
+        return bad
+
     def _on_servo_status(self, msg: ServoStatus):
         self._servo_code = msg.code
 
@@ -233,6 +298,9 @@ class Piper:
                                                        for d in diff.values()):
                 return Result(False, "STATE_MISMATCH", "ros2_control state differs from driver feedback",
                               {"diff": diff})
+            bad = self.faults()
+            if bad:
+                return Result(False, "ARM_FAULT", "the driver reports a fault: " + "; ".join(bad), {"faults": bad})
         todo = [c for c in wanted if states[c] != "active"]
         if states.get("arm_position_controller") == "active" and "arm_controller" in todo:
             return self.switch(todo, ["arm_position_controller"])
