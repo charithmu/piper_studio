@@ -11,11 +11,14 @@ Independent of any other viewer. Needs the workspace environment (scripts/viewer
 
 from __future__ import annotations
 
+import gzip
+import hashlib
 import json
 import mimetypes
 import os
 import re
 import sys
+import threading
 import xml.etree.ElementTree as ET
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -25,6 +28,9 @@ WS = Path(os.environ.get("PIPER_STUDIO_WS", Path(__file__).resolve().parents[2])
 STATIC = Path(__file__).resolve().parent / "static"
 MESH_ROOTS = [WS.resolve()]
 MESH_SUFFIX = {".stl", ".dae"}
+CACHE = Path(__file__).resolve().parent / "run" / "cache"      # light copies of the big meshes (git-ignored)
+LITE_CELL = 0.0025                                                # m: vertex-clustering grid of the light meshes
+_gz: dict = {}                                                    # (path, mtime) -> gzip bytes, so each file is compressed once
 
 
 def floats(text, default="0 0 0"):
@@ -120,6 +126,35 @@ def build_model(camera: str = "none", gripper: bool = True, calibration: str = "
     }
 
 
+def lite_mesh(path: Path) -> Path:
+    """A light binary STL of a visual or collision mesh (vertices clustered on a 2.5 mm grid), cached on disk; for slow connections."""
+    key = hashlib.sha1(f"{path}:{path.stat().st_mtime_ns}:{LITE_CELL}".encode()).hexdigest()[:16]
+    out = CACHE / f"{path.stem}-{key}.stl"
+    if not out.exists():
+        sys.path.insert(0, str(WS / "src/piper_description/tools"))
+        from build_collision_meshes import cluster, load
+        CACHE.mkdir(parents=True, exist_ok=True)
+        mesh = cluster(load(path), LITE_CELL)
+        tmp = out.with_suffix(".tmp.stl")
+        mesh.export(tmp)
+        tmp.replace(out)
+    return out
+
+
+def prewarm():
+    """Build the light meshes of the default models in the background, so the first visitor does not wait for them."""
+    try:
+        for cam in ("none", "d435"):
+            m = build_model(cam)
+            for l in m["links"]:
+                for s in l["visual"] + l["collision"]:
+                    if s["type"] == "mesh":
+                        lite_mesh(Path(s["url"].split("p=", 1)[1]))
+        print("viewer: light meshes ready", flush=True)
+    except Exception as e:
+        print("viewer: prewarm failed:", e, flush=True)
+
+
 def git_head() -> str:
     import subprocess
     try:
@@ -132,11 +167,29 @@ class Handler(BaseHTTPRequestHandler):
     def log_message(self, fmt, *args):
         sys.stderr.write("viewer: " + fmt % args + "\n")
 
-    def send(self, code, body: bytes, ctype: str):
+    def send(self, code, body: bytes, ctype: str, etag: str | None = None, key=None):
+        if etag and self.headers.get("If-None-Match") == etag:       # unchanged file: the browser keeps its copy
+            self.send_response(304)
+            self.send_header("ETag", etag)
+            self.end_headers()
+            return
+        gz = "gzip" in self.headers.get("Accept-Encoding", "") and len(body) > 1024
+        if gz:
+            if key is not None and key in _gz:
+                body = _gz[key]
+            else:
+                body = gzip.compress(body, 6)
+                if key is not None:
+                    _gz[key] = body
         self.send_response(code)
         self.send_header("Content-Type", ctype)
+        if gz:
+            self.send_header("Content-Encoding", "gzip")
+        self.send_header("Vary", "Accept-Encoding")
         self.send_header("Content-Length", str(len(body)))
-        self.send_header("Cache-Control", "no-store")
+        self.send_header("Cache-Control", "no-cache" if etag else "no-store")      # no-cache = revalidate with the ETag (cheap 304)
+        if etag:
+            self.send_header("ETag", etag)
         self.end_headers()
         self.wfile.write(body)
 
@@ -151,7 +204,11 @@ class Handler(BaseHTTPRequestHandler):
                 p = Path(q.get("p", "")).resolve()
                 if p.suffix.lower() not in MESH_SUFFIX or not any(r == p or r in p.parents for r in MESH_ROOTS) or not p.is_file():
                     return self.send(404, b"not served", "text/plain")
-                return self.send(200, p.read_bytes(), mimetypes.guess_type(str(p))[0] or "application/octet-stream")
+                if q.get("lite") == "1":
+                    p = lite_mesh(p)
+                st = p.stat()
+                return self.send(200, p.read_bytes(), mimetypes.guess_type(str(p))[0] or "application/octet-stream",
+                                 etag=f'"{st.st_mtime_ns}-{st.st_size}"', key=(str(p), st.st_mtime_ns))
             name = "index.html" if url.path in ("/", "") else url.path.lstrip("/")
             f = (STATIC / name).resolve()
             if STATIC not in f.parents or not f.is_file():
@@ -165,6 +222,7 @@ class Handler(BaseHTTPRequestHandler):
 def main():
     port = int(sys.argv[1]) if len(sys.argv) > 1 else 8781
     srv = ThreadingHTTPServer(("127.0.0.1", port), Handler)
+    threading.Thread(target=prewarm, daemon=True).start()
     print(f"Piper Studio viewer on http://127.0.0.1:{port}/  (workspace {WS})", flush=True)
     srv.serve_forever()
 

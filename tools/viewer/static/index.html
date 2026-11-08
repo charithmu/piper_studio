@@ -39,7 +39,7 @@
 <body>
 <div id="app">
   <div id="view">
-    <div id="hud" class="mono">loading...</div>
+    <div id="hud" class="mono">loading...</div><div id="load" class="mono" style="position:absolute;left:10px;top:44px;background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:2px 8px;display:none"></div>
     <div id="legend" class="dim">collision shapes:<i style="background:#4fb3ff"></i>mesh<i style="background:#ff9b3d"></i>box<i style="background:#5ecb8a"></i>sphere / cylinder<i style="background:#ff5d5d"></i>selected</div>
   </div>
   <div id="side">
@@ -82,6 +82,10 @@ const $ = (id) => document.getElementById(id);
 const deg = (r) => (r * 180 / Math.PI);
 let model = null, q = {}, selected = null, S = null;               // q: joint name -> value; S: scene objects of the current model
 const show = {visual: true, collision: false, frames: false, axes: false, com: false, tcp: true};
+let full = false; try { full = localStorage.getItem('piper_viewer_full') === '1'; } catch (e) {}     // light visuals by default (small download)
+let pending = 0, done = 0;
+function track(p) { pending++; progress(); return p.finally(() => { done++; progress(); }); }
+function progress() { const el = $('load'); if (!el) return; const busy = done < pending; el.style.display = busy ? 'block' : 'none'; el.textContent = busy ? `loading meshes ${done}/${pending}...` : ''; }
 const COL = {mesh: 0x4fb3ff, box: 0xff9b3d, other: 0x5ecb8a, sel: 0xff5d5d};
 
 // ---------------------------------------------------------------- three.js scene (Z up, like ROS)
@@ -130,8 +134,13 @@ function loadDae(url) { if (!cache.has(url)) cache.set(url, new Promise((ok, no)
 function rpyQuat(r) { return new THREE.Quaternion().setFromEuler(new THREE.Euler(r[0], r[1], r[2], 'ZYX')); }
 function place(obj, s) { obj.position.set(...s.xyz); obj.quaternion.copy(rpyQuat(s.rpy)); return obj; }
 
-async function visualObject(s) {
+async function visualObject(s, linkName) {
   if (s.type !== 'mesh') return primitive(s, new THREE.MeshStandardMaterial({color: 0x9aa5b5}));
+  if (!full) {      // light copy made by the server (vertices clustered on a 2.5 mm grid, gzip, cached): a few hundred KB instead of tens of MB
+    const g = await loadStl(s.url + '&lite=1');
+    const dark = /camera|mount/.test(linkName) ;
+    return new THREE.Mesh(g, new THREE.MeshStandardMaterial({color: dark ? 0x3a3f48 : 0xb9c1cf, metalness: 0.1, roughness: 0.75, flatShading: false}));
+  }
   const url = s.url;
   if (url.endsWith('.stl') || url.includes('.stl&')) {
     const g = await loadStl(url);
@@ -194,11 +203,22 @@ async function buildRobot() {
   const jobs = [];
   for (const l of model.links) {
     const g = links[l.name];
-    for (const v of l.visual) jobs.push(visualObject(v).then(o => g.userData.vis.add(place(o, v))).catch(e => console.warn('visual', l.name, e)));
-    for (const c of l.collision) jobs.push(collisionObject(c).then(o => g.userData.col.add(place(o, c))).catch(e => console.warn('collision', l.name, e)));
+    for (const v of l.visual) jobs.push(track(visualObject(v, l.name).then(o => { g.userData.vis.add(place(o, v)); highlight(); }).catch(e => console.warn('visual', l.name, e))));
   }
+  loadCollisions();
   await Promise.all(jobs);
   applyShow(); applyPose();
+}
+
+// collision shapes are fetched only once they are switched on (they are the larger part of the download)
+function loadCollisions() {
+  if (!S || !show.collision) return;
+  for (const l of model.links) {
+    const g = S.links[l.name];
+    if (g.userData.colLoaded) continue;
+    g.userData.colLoaded = true;
+    for (const c of l.collision) track(collisionObject(c).then(o => { g.userData.col.add(place(o, c)); highlight(); }).catch(e => console.warn('collision', l.name, e)));
+  }
 }
 
 // ---------------------------------------------------------------- pose
@@ -262,6 +282,7 @@ function buildPanel() {
 // ---------------------------------------------------------------- toggles, link list, details
 function applyShow() {
   if (!S) return;
+  loadCollisions();
   for (const l of model.links) {
     const g = S.links[l.name];
     g.userData.vis.visible = show.visual; g.userData.col.visible = show.collision;
@@ -271,8 +292,11 @@ function applyShow() {
   for (const j of Object.values(S.joints)) if (j.userData.axis) j.userData.axis.visible = show.axes;
   highlight();
 }
+const FULL_BOX = '<label title="the real visual meshes: about 35 MB without the camera, slow on a mobile connection (the browser keeps them afterwards)"><input type="checkbox" id="t-full"> full-detail visuals (large download)</label>';
 const TOG = [['visual', 'visual meshes'], ['collision', 'collision shapes'], ['frames', 'all frames'], ['tcp', 'tcp / camera frame'], ['axes', 'joint axes'], ['com', 'centres of mass']];
-$('toggles').innerHTML = TOG.map(([k, t]) => `<label><input type="checkbox" data-t="${k}" ${show[k] ? 'checked' : ''}>${t}</label>`).join('');
+$('toggles').innerHTML = TOG.map(([k, t]) => `<label><input type="checkbox" data-t="${k}" ${show[k] ? 'checked' : ''}>${t}</label>`).join('') + '<br>' + FULL_BOX;
+$('t-full').checked = full;
+$('t-full').onchange = (e) => { full = e.target.checked; try { localStorage.setItem('piper_viewer_full', full ? '1' : '0'); } catch (err) {} cache.clear(); load(); };
 document.querySelectorAll('[data-t]').forEach(c => c.onchange = () => { show[c.dataset.t] = c.checked; applyShow(); });
 
 function kindOf(l) { if (!l.collision.length) return 'none'; const k = new Set(l.collision.map(c => c.type)); return k.size === 1 ? [...k][0] : 'mixed'; }
