@@ -219,7 +219,11 @@ class World:
         return self.robot.get_dof_velocities().numpy()[0][self.i_arm].astype(float)
 
     def gripper(self):
-        return float(self.robot.get_dof_positions().numpy()[0][self.i_grip]), float(self.robot.get_dof_velocities().numpy()[0][self.i_grip])
+        """(opening in m, its speed): the PHYSICAL opening, the two finger joints' travel (joint1 - joint2). The `gripper` dof is a virtual joint that no object blocks,
+        so it would read the commanded width even with a cube between the fingers."""
+        q, v = self.robot.get_dof_positions().numpy()[0], self.robot.get_dof_velocities().numpy()[0]
+        a, b = self.i_fingers
+        return float(q[a] - q[b]), float(v[a] - v[b])
 
     def object_poses(self):
         """{name: (position (3,), quaternion wxyz (4,))} in the base frame (= world)."""
