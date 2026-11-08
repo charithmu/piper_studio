@@ -190,3 +190,18 @@ def test_wrist_camera_mount(stand):
     mesh = [m.get("filename") for m in root.iter("mesh")]
     assert any("d435_colored.dae" in f for f in mesh)
     assert any("realsense_mid_stand.dae" in f for f in mesh) == (stand == "packaged")
+
+
+def test_integration_doc_snippet_expands(tmp_path):
+    """The xacro example in docs/INTEGRATION.md (a carrier robot using the macros) must keep working."""
+    import re
+
+    doc = Path(__file__).resolve().parents[3] / "docs/INTEGRATION.md"
+    if not doc.exists():
+        pytest.skip("docs/ not next to the sources")
+    snippet = re.search(r"```xml\n(.*?)```", doc.read_text(), re.S).group(1).replace("<!-- your own links ... -->", '<link name="trunk"/>')
+    path = tmp_path / "carrier.xacro"
+    path.write_text(snippet)
+    root = ET.fromstring(xacro.process_file(str(path)).toxml())
+    assert root.find("joint[@name='piper_mount_joint']/parent").get("link") == "trunk"
+    assert root.find("link[@name='piper_camera_color_optical_frame']") is not None

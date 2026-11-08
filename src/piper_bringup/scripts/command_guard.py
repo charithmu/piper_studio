@@ -17,15 +17,15 @@ hw/joint_states for the hardware interface, and accepted commands (hw/joint_comm
 (control/joint_states) with the prefix removed.
 """
 
-import math
 import time
-import xml.etree.ElementTree as ET
 
 import rclpy
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile
 from sensor_msgs.msg import JointState
 from std_msgs.msg import String
+
+from piper_core import GuardConfig, check_command, limits_from_urdf
 
 
 class CommandGuard(Node):
@@ -49,11 +49,7 @@ class CommandGuard(Node):
                                  QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL))
 
     def on_description(self, msg: String):
-        root = ET.fromstring(msg.data)
-        self.limits = {
-            j.get("name"): (float(j.find("limit").get("lower")), float(j.find("limit").get("upper")))
-            for j in root.findall("joint")
-            if j.get("type") in ("revolute", "prismatic") and j.find("limit") is not None}
+        self.limits = limits_from_urdf(msg.data)
         self.get_logger().info(f"limits loaded for {len(self.limits)} joints")
 
     def on_feedback(self, msg: JointState):
@@ -71,27 +67,15 @@ class CommandGuard(Node):
             return self.reject("no robot_description yet")
         if self.feedback is None or time.monotonic() - self.feedback[0] > self.max_feedback_age:
             return self.reject("driver feedback missing or stale")
-        measured = self.feedback[1]
-        out = list(msg.position)
-        for k, (name, pos) in enumerate(zip(msg.name, msg.position)):
-            if not math.isfinite(pos):
-                return self.reject(f"{name} is not finite (no active controller?)")
-            lo, hi = self.limits.get(name, (-math.inf, math.inf))
-            if name in self.arm_joints:
-                lo, hi = lo + self.limit_margin, hi - self.limit_margin
-                if not lo - self.limit_slack <= pos <= hi + self.limit_slack:
-                    return self.reject(f"{name}={pos:.4f} outside [{lo:.4f}, {hi:.4f}] by more than {self.limit_slack}")
-                out[k] = pos = min(max(pos, lo), hi)
-                if name not in measured or not math.isfinite(measured[name]):
-                    return self.reject(f"no measured state for {name}")
-                if abs(pos - measured[name]) > self.max_step:
-                    return self.reject(
-                        f"{name} step {pos - measured[name]:+.3f} rad exceeds max_step {self.max_step}")
-            elif not lo - 1e-6 <= pos <= hi + 1e-6:
-                return self.reject(f"{name}={pos:.4f} outside [{lo:.4f}, {hi:.4f}]")
-        msg.position = out
+        verdict = check_command(msg.name, msg.position, self.limits, self.feedback[1], self.cfg())  # piper_core: the one rule set
+        if not verdict.ok:
+            return self.reject(verdict.reason)
+        msg.position = verdict.positions
         msg.name = [n.removeprefix(self.prefix) for n in msg.name]  # the driver speaks the official names
         self.pub.publish(msg)
+
+    def cfg(self) -> GuardConfig:
+        return GuardConfig(tuple(self.arm_joints), self.max_step, self.limit_margin, self.limit_slack)
 
 
 def main():

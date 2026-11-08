@@ -152,3 +152,28 @@ class TestBringup(unittest.TestCase):
         self.assertTrue(0.05 < float(np.nanmedian(depth[valid])) < 5.0, "depth is not in metres")
         # pinhole model of a 69.4 deg horizontal field of view: fx = (w/2) / tan(hfov/2)
         self.assertAlmostEqual(info.k[0], 320.0 / math.tan(math.radians(69.4) / 2), delta=5.0)
+
+    def test_10_camera_stand_does_not_collide(self, backend):
+        """The camera stand's collision box must not touch the arm or the fingers (MoveIt start-state validity, DECISIONS D11)."""
+        from moveit_msgs.msg import RobotState
+        from moveit_msgs.srv import GetStateValidity
+        if backend in ("mock", "real") or os.environ.get("PIPER_TEST_CAMERA") == "none":
+            self.skipTest("no camera stand in this configuration")
+        client = self.arm.node.create_client(GetStateValidity, "/check_state_validity")
+        self.assertTrue(client.wait_for_service(timeout_sec=30.0))
+        p = self.arm.name_prefix
+        for q in ([0, 0.01, -0.01, 0, 0, 0], [0, 1.0, -1.0, 0, 1.0, 0]):
+            for width in (0.0, 0.05, 0.1):
+                state = RobotState()
+                state.joint_state.name = [*self.arm.arm_joints, self.arm.gripper_joint, p + "gripper_joint1", p + "gripper_joint2"]
+                state.joint_state.position = [*map(float, q), width, 0.5 * width, -0.5 * width]
+                done = threading_event_result(client.call_async(GetStateValidity.Request(robot_state=state, group_name="arm")))
+                self.assertTrue(done.valid, f"collision at q={q} gripper={width}: {[(c.contact_body_1, c.contact_body_2) for c in done.contacts]}")
+
+
+def threading_event_result(future, timeout=10.0):
+    """Wait for a future that the Piper client's background executor completes."""
+    deadline = time.monotonic() + timeout
+    while not future.done() and time.monotonic() < deadline:
+        time.sleep(0.02)
+    return future.result()

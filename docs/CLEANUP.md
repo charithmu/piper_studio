@@ -28,20 +28,20 @@ Internal (this repo only): `piper_sim` (Gazebo, MuJoCo, Isaac models, scenes, `p
 
 - [x] B1 `tools/` regrouped by purpose: `tools/real_arm/` (arm_* scripts and `arm_common.py`), `tools/demo/` (demo page, site pages, recording, step analysis, FK reference), `tools/capture/` (stills, video). `make_fk_reference.py` moved to `isaac/` (only used by `isaac.sh check`). References updated (README, docs, `artifacts.yaml`, scripts, tests). Verified: unit tests, `make_fk_reference`, py_compile of all moved scripts. Downstream callers by path (the bake-off overlay uses `tools/record_video.py`) must follow: B7.
 - [ ] B2 Split `piper_sim` out of `piper_description` and `piper_bringup`: simulator model helpers (`mujoco_model`, `physics_model`, `scene.py`, Gazebo world), `config/mujoco`, `scene_objects.yaml`, `isaac/`, and the `backend:=` launch. `piper_description` keeps only xacro, meshes and `robot_description()`.
-- [ ] B3 `piper_core`, pure Python without ROS: limits parsed from the URDF, the command guard as one function (used by `command_guard.py` and the direct driver), named poses, and `RealArm` (direct pyAgxArm driver, firmware-profile handling from `tools/real_arm/arm_common.py`, `execute(trajectory)` for planners such as cuRobo).
+- [~] B3 `piper_core`, pure Python without ROS. Done: package `src/piper_core` with `limits_from_urdf`, `check_command` (the guard as one function, now used by `command_guard.py`) and `named_poses_from_srdf`; 8 tests; imports with no ROS; real plumbing and resting launch tests pass with the refactored guard. Open: `RealArm` (direct pyAgxArm driver, firmware-profile handling from `tools/real_arm/arm_common.py`, `execute(trajectory)` for planners such as cuRobo). It moves the real arm, so it is written with the user present and tested on the arm; also let `piper_py` use `piper_core` limits.
 - [ ] B4 `piper_control`: controllers, MoveIt, Servo, guard and `control.launch.py` that run on any controller manager (the real driver, mock, or a downstream simulator). `piper.launch.py backend:=` stays in `piper_sim`.
-- [ ] B5 `docs/INTEGRATION.md`: the contract for other repos (names, units, controllers, frames, versioning) plus a small example project that uses its own simulator and one that uses no ROS.
-- [ ] B6 `piper.repos` (vcstool import list) and a tag, so downstream projects pin a version.
+- [~] B5 `docs/INTEGRATION.md` written (contract: macros, names, units, controllers, frames, no-ROS use, real-arm rules, versioning). Open: a small example project that uses its own simulator, and one without ROS, to prove it (also checks the snippets in the doc).
+- [~] B6 `piper.repos` written. Open: a tag (after the merge, C12).
 - [x] B7 The downstream overlay `~/projects/ml_tests/.../00_studio_overlay` copies `src/` and uses the old unprefixed names and tool paths: note left in `comms/FOR_OTHERS.md` (not ours to edit).
 
 ## C. Functional follow-ups
 
 - [x] C1 Stand collision box vs fingers in MoveIt: start state valid at zero and ready for gripper 0 to 0.1 m (`GetStateValidity`, 2026-11-08). Not yet a test (see C2).
-- [ ] C2 Turn C1 into a launch test (cheap: one service call per pose).
+- [x] C2 C1 is now a launch test, `test_10_camera_stand_does_not_collide` (two poses x three gripper widths via `GetStateValidity`; runs on the simulator backends with the camera; verified on MuJoCo).
 - [ ] C3 Gazebo GUI on a virtual display (Xvfb with GLX): the GUI renders but the controller spawner fails (`switch_controller` after 3 attempts), so the arm never comes up. Headless server cameras work and are what the tests use.
 - [ ] C4 Gazebo shows the camera stand white (the mesh's dark material is not applied). MuJoCo drops mesh colours (collision meshes are used as visuals); the arm is white there.
 - [ ] C5 4.5 mm ambiguity: AgileX's flat URDF puts `gripper_base` at link6, the official model 4.5 mm further out; the stand is mounted relative to link6. Measure on the real mount.
-- [ ] C6 `piper_py` exits with a harmless `InvalidHandle` traceback (found by the bake-off).
+- [ ] C6 `piper_py` sometimes exits with a harmless "cannot use Destroyable because destruction was requested" message (seen once after `pose` + `gripper`, reported by the bake-off as `InvalidHandle`). Not reproduced in 7 CLI runs (state, named, pose, joints, gripper x3): intermittent; likely a pending future when the node is destroyed in `Piper.close()`.
 - [ ] C7 Log noise: `servo_node` logger registered twice, octomap "No 3D sensor plugin", Gazebo `gz_frame_id` not in SDF, controller period 0.005 s vs Gazebo 0.001 s.
 - [ ] C8 `view.launch.py prefix:=""` falls back to `piper_` (xacro ignores an empty command-line value); the Python API handles it.
 - [ ] C9 Camera calibration override: `config/camera_mounts/<name>.yaml` (measured pose replaces the nominal one on the real arm).
@@ -72,5 +72,7 @@ Isaac and Gazebo cameras from their own sensors).
 Screenshots: 01-06 RViz (model, MoveIt, zero and ready pose, wrist close-up), 07-08 MuJoCo, 09-10 Gazebo, 11-12 Isaac (+ `11_isaac_run.mp4`).
 
 ## Log
+
+- 2026-11-08 pass 1 (later): A1-A9, B1, B7, C1, C2 done; B3 (guard, limits, poses), B5 (INTEGRATION.md, snippet is a test), B6 (`piper.repos`) partly done. Tests: 31 offline (`piper_description`, `piper_bringup`, `piper_core`), launch tests per backend. Next pass: B2 (`piper_sim` split) and B4 (`piper_control`), then `RealArm` (B3) with the user at the arm, C3-C5, C7-C11, merge (C12).
 
 - 2026-11-08 pass 1: created this tracker; verified the prefix migration on all backends (above); surveyed the repo (see A and B).
