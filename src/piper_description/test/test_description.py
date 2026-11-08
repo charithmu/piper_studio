@@ -234,3 +234,22 @@ def test_fixed_gripper_puts_the_fingers_where_the_joints_would(width):
     assert [float(v) for v in fixed.find("joint[@name='gripper']/origin").get("xyz").split()] == pytest.approx([0, 0, width])
     with pytest.raises(ValueError):
         fixed_gripper(urdf, 0.08, "")
+
+
+def test_camera_calibration_replaces_the_nominal_pose(tmp_path):
+    """camera_calibration:=<yaml> moves the stand and the camera (a measured pose), nothing else; the default stays the nominal pose."""
+    import yaml
+
+    nominal = ET.fromstring(expand(camera="d435"))
+    cal = tmp_path / "measured.yaml"
+    cal.write_text(yaml.safe_dump({"stand_in_gripper_base": {"xyz": [-0.03, 0.002, 0.025], "rpy": [0, 0, 0]},
+                                   "camera_in_stand": {"xyz": [-0.03, -0.03, 0.002], "rpy": [0, -1.2, 0]},
+                                   "measured": {"date": "test"}}))
+    measured = ET.fromstring(expand(camera="d435", camera_calibration=str(cal)))
+    origin = lambda r, n: r.find(f"joint[@name='{P}{n}']/origin").attrib  # noqa: E731
+    assert origin(nominal, "camera_mount_joint")["xyz"] == "-0.034 -0.001 0.022"
+    assert origin(measured, "camera_mount_joint")["xyz"] == "-0.03 0.002 0.025"
+    assert origin(measured, "camera_joint")["rpy"] == "0 -1.2 0"
+    assert origin(measured, "camera_link_joint") == origin(nominal, "camera_link_joint")       # the D435 body itself is unchanged
+    named = ET.fromstring(expand(camera="d435", camera_calibration="agilex_mid_stand"))        # a name in config/camera_mounts
+    assert origin(named, "camera_mount_joint") == origin(nominal, "camera_mount_joint")

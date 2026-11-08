@@ -21,9 +21,10 @@ XACRO_ARGS = {
     "gripper": ("true", "include the gripper (true|false)"),
     "camera": ("none", "wrist camera model (urdf/cameras/<name>.xacro): none | d435"),
     "camera_mount": ("agilex_mid_stand", "camera mount (urdf/mounts/<name>.xacro): agilex_mid_stand | custom"),
+    "camera_calibration": ("", "measured stand and camera pose: a name in config/camera_mounts or a yaml path (default: nominal)"),
     "camera_mount_mesh": ("", "stand mesh path, or 'none' for a box (default: the mount's own mesh)"),
-    "camera_xyz": ("0 0 0", "camera_mount:=custom: camera position in link6"),
-    "camera_rpy": ("0 0 0", "camera_mount:=custom: camera orientation in link6"),
+    "camera_xyz": ("0 0 0", "camera_mount:=custom: camera position in gripper_base"),
+    "camera_rpy": ("0 0 0", "camera_mount:=custom: camera orientation in gripper_base"),
     "camera_width": ("640", "simulated image width (px)"),
     "camera_height": ("480", "simulated image height (px)"),
     "camera_hfov_deg": ("69.4", "simulated horizontal field of view (deg)"),
@@ -36,7 +37,7 @@ XACRO_ARGS = {
 def launch_setup(context):
     arg = lambda name: LaunchConfiguration(name).perform(context)  # noqa: E731
     # camera_mount_mesh is forwarded only when set: an empty value would override the mount's own mesh.
-    mappings = {n: arg(n) for n in XACRO_ARGS if n != "camera_mount_mesh" or arg(n)}
+    mappings = {n: arg(n) for n in XACRO_ARGS if n not in ("camera_mount_mesh", "camera_calibration") or arg(n)}
     mappings["prefix"] = normalize_prefix(mappings["prefix"])
     description = robot_description("mock", **mappings)
     return [

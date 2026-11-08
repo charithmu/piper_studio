@@ -8,15 +8,17 @@
       xyz/rpy are for mounts that take a pose (see mounts/custom.xacro); this preset ignores them.
     properties piper_mount_camera_xyz / piper_mount_camera_rpy: where the camera body sits in `${prefix}camera_mount_link`.
 
-  Poses are AgileX's own numbers, from agx_arm_sim `urdf/piper_girpper_D435.urdf`, applied to `gripper_base` (the stand is clamped to
-  the gripper body; the official model puts gripper_base 4.5 mm out from link6, user-confirmed 2026-11-08, CLEANUP C5):
-    gripper_base -> stand   xyz -0.034 -0.001 0.022
-    stand -> camera  xyz -0.031 -0.028 0.0018, rpy 0 -1.22 0   (tilted toward the fingers)
+  Poses: config/camera_mounts/agilex_mid_stand.yaml (nominal: AgileX's own numbers from agx_arm_sim `urdf/piper_girpper_D435.urdf`, applied
+  to `gripper_base`: the stand is clamped to the gripper body, the official model puts gripper_base 4.5 mm out from link6, user-confirmed
+  2026-11-08, CLEANUP C5). A measured pose replaces them: camera_calibration:=<name or path of such a yaml> (piper.urdf.xacro).
   See docs/description/DECISIONS.md D11. To add your own mount (CAD export): copy this file, change the mesh, poses and collision.
 -->
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro">
-  <xacro:property name="piper_mount_camera_xyz" value="-0.031 -0.028 0.0018" />
-  <xacro:property name="piper_mount_camera_rpy" value="0 -1.22 0" />
+  <!-- The poses come from config/camera_mounts/agilex_mid_stand.yaml (nominal) or the file given as camera_calibration (measured);
+       piper.urdf.xacro redefines piper_mount_calibration before the camera is placed. -->
+  <xacro:property name="piper_mount_calibration" value="${xacro.load_yaml('$(find piper_description)/config/camera_mounts/agilex_mid_stand.yaml')}" />
+  <xacro:property name="piper_mount_camera_xyz" value="${' '.join(map(str, piper_mount_calibration['camera_in_stand']['xyz']))}" />
+  <xacro:property name="piper_mount_camera_rpy" value="${' '.join(map(str, piper_mount_calibration['camera_in_stand']['rpy']))}" />
   <xacro:property name="piper_mount_default_mesh" value="$(find piper_description)/meshes/realsense_mid_stand.dae" />
 
   <xacro:macro name="piper_camera_mount" params="prefix parent mesh:='' xyz:='0 0 0' rpy:='0 0 0'">
@@ -47,7 +49,8 @@
       </collision>
     </link>
     <joint name="${prefix}camera_mount_joint" type="fixed">
-      <origin xyz="-0.034 -0.001 0.022" rpy="0 0 0" />
+      <origin xyz="${' '.join(map(str, piper_mount_calibration['stand_in_gripper_base']['xyz']))}"
+              rpy="${' '.join(map(str, piper_mount_calibration['stand_in_gripper_base']['rpy']))}" />
       <parent link="${parent}" />
       <child link="${prefix}camera_mount_link" />
     </joint>

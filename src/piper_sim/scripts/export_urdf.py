@@ -29,12 +29,15 @@ def main():
     p.add_argument("--gripper-width", type=float, default=None, help="fix the gripper at this opening in metres (0 closed, 0.07 open)")
     p.add_argument("--camera", default="none", help="none | d435 (wrist RealSense)")
     p.add_argument("--camera-mount", default="agilex_mid_stand", help="camera mount (urdf/mounts/<name>.xacro)")
+    p.add_argument("--camera-calibration", default="", help="measured camera pose: a name in config/camera_mounts or a yaml path (default: nominal)")
     p.add_argument("--prefix", default="piper_", help="prefix of every link, joint and frame name")
     p.add_argument("--camera-pose-out", type=Path,
                    help="with --camera: write the colour camera pose in link6 as JSON, for a simulator that creates the camera itself "
                         "(USD convention: the camera looks along -Z with +Y up, i.e. the optical frame turned 180 deg about x)")
     a = p.parse_args()
     cam = {"camera": a.camera, "camera_mount": a.camera_mount} if a.camera != "none" else {}
+    if cam and a.camera_calibration:
+        cam["camera_calibration"] = a.camera_calibration
     urdf = robot_description(a.hardware, gripper=not a.no_gripper, prefix=a.prefix, **cam)
     if a.gripper_width is not None:
         urdf = fixed_gripper(urdf, a.gripper_width, a.prefix)

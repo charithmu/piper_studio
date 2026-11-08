@@ -28,6 +28,9 @@
   <xacro:arg name="camera" default="none" />
   <xacro:arg name="camera_mount" default="agilex_mid_stand" />
   <xacro:arg name="camera_mount_mesh" default="" />
+  <!-- camera_calibration: a yaml like config/camera_mounts/agilex_mid_stand.yaml with a measured stand and camera pose (a name in that folder,
+       or a path); replaces the nominal pose on every backend, so simulation and the real arm stay one description. Empty = nominal. -->
+  <xacro:arg name="camera_calibration" default="" />
   <xacro:arg name="camera_xyz" default="0 0 0" />
   <xacro:arg name="camera_rpy" default="0 0 0" />
   <xacro:arg name="camera_width" default="640" />
@@ -53,6 +56,10 @@
     <xacro:include filename="$(find piper_description)/urdf/cameras/$(arg camera).xacro" />
     <xacro:include filename="$(find piper_description)/urdf/mounts/$(arg camera_mount).xacro" />
     <xacro:include filename="$(find piper_description)/urdf/piper_camera.xacro" />
+    <xacro:if value="${'$(arg camera_calibration)' != '' and '$(arg camera_mount)' == 'agilex_mid_stand'}">
+      <xacro:property name="piper_mount_calibration"
+                      value="${xacro.load_yaml('$(arg camera_calibration)' if '/' in '$(arg camera_calibration)' else '$(find piper_description)/config/camera_mounts/$(arg camera_calibration).yaml')}" />
+    </xacro:if>
     <xacro:piper_camera prefix="${prefix}" parent="${prefix}gripper_base" hardware="$(arg hardware)"
                         mount_mesh="$(arg camera_mount_mesh)" mount_xyz="$(arg camera_xyz)" mount_rpy="$(arg camera_rpy)"
                         width="$(arg camera_width)" height="$(arg camera_height)"

@@ -32,10 +32,12 @@ def description_arguments() -> list:
                               description="wrist camera model (urdf/cameras/<name>.xacro)"),
         DeclareLaunchArgument("camera_mount", default_value="agilex_mid_stand",
                               description="camera mount (urdf/mounts/<name>.xacro): agilex_mid_stand | custom"),
+        DeclareLaunchArgument("camera_calibration", default_value="",
+                              description="measured stand and camera pose: a name in piper_description/config/camera_mounts or a yaml path (default: nominal)"),
         DeclareLaunchArgument("camera_mount_mesh", default_value="",
                               description="optional path of another stand mesh, or 'none' for a box (default: the mount's own mesh)"),
-        DeclareLaunchArgument("camera_xyz", default_value="0 0 0", description="camera_mount:=custom: camera position in link6"),
-        DeclareLaunchArgument("camera_rpy", default_value="0 0 0", description="camera_mount:=custom: camera orientation in link6"),
+        DeclareLaunchArgument("camera_xyz", default_value="0 0 0", description="camera_mount:=custom: camera position in gripper_base"),
+        DeclareLaunchArgument("camera_rpy", default_value="0 0 0", description="camera_mount:=custom: camera orientation in gripper_base"),
     ]
 
 
@@ -44,6 +46,8 @@ def description_mappings(arg) -> dict:
     mappings = {"prefix": normalize_prefix(arg("prefix")), "gripper": arg("gripper")}
     if arg("camera") != "none":
         mappings.update(camera=arg("camera"), camera_mount=arg("camera_mount"), camera_xyz=arg("camera_xyz"), camera_rpy=arg("camera_rpy"))
+        if arg("camera_calibration"):
+            mappings["camera_calibration"] = arg("camera_calibration")
         if arg("camera_mount_mesh"):  # default: the mount's own mesh (AgileX's stand, packaged in piper_description)
             mappings["camera_mount_mesh"] = arg("camera_mount_mesh")
     return mappings
