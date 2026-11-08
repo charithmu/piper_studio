@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build the wheels downstream projects install (no ROS needed to install them): piper_core, piper_assets and piper_mujoco.
+# Build the wheels downstream projects install (no ROS needed to install them): piper_core, piper_assets, piper_mujoco and piper_isaac.
 #   scripts/build_wheels.sh [--allow-dirty]      -> dist/*.whl   (needs the ROS environment once, to generate the assets)
 # The version is the one in each package; the source commit is written into the wheels. Refuses a dirty tree: a release comes from a commit.
 set -euo pipefail
@@ -12,8 +12,9 @@ commit=$(git rev-parse HEAD)
 rm -rf dist && mkdir dist
 python tools/release/build_assets.py
 python tools/release/build_mujoco.py
+python tools/release/build_isaac.py     # needs the USD of `scripts/isaac.sh build-usd` (and `scripts/isaac.sh check` to have passed)
 echo "SOURCE_COMMIT = \"$commit\"" > src/piper_core/piper_core/_source.py
-for pkg in piper_core piper_assets piper_mujoco; do
+for pkg in piper_core piper_assets piper_mujoco piper_isaac; do
   rm -rf "src/$pkg/build" "src/$pkg"/*.egg-info
   python -m pip wheel --no-build-isolation --no-deps -q -w dist "src/$pkg"
   rm -rf "src/$pkg/build" "src/$pkg"/*.egg-info
