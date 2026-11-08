@@ -55,7 +55,11 @@ class TestRealStartStop(unittest.TestCase):
 
     def test_1_nothing_is_commanded_from_the_slumped_pose(self):
         self.assertTrue(self.arm._outside_limits())
+        deadline = time.monotonic() + 15
         r = self.arm.activate()
+        while r.code == "STALE_FEEDBACK" and time.monotonic() < deadline:     # discovery of the driver's feedback can take a moment
+            time.sleep(0.3)
+            r = self.arm.activate()
         self.assertFalse(r)
         self.assertEqual(r.code, "NOT_STARTED", r)
         self.assertNotIn("park", self.arm.named_poses())      # internal poses are not offered downstream

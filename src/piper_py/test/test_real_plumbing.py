@@ -34,6 +34,17 @@ def generate_test_description():
     ])
 
 
+def set_fault(value: str, tries: int = 8):
+    """`ros2 param set` on the fake driver. The CLI finds nodes through the ros2 daemon, which may still be starting (a cold daemon made the
+    first call fail with `Node not found`, the flaky plumbing failure seen on 2026-11-08), so retry."""
+    for _ in range(tries):
+        r = subprocess.run(["ros2", "param", "set", "--spin-time", "3", "/fake_agx_arm_driver", "fault", value], capture_output=True)
+        if r.returncode == 0:
+            return
+        time.sleep(0.5)
+    raise AssertionError(f"could not set the fake driver's fault parameter: {r.stderr.decode()[-200:]}")
+
+
 class TestRealPlumbing(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -80,7 +91,7 @@ class TestRealPlumbing(unittest.TestCase):
         self.assertEqual(st["arm"]["arm_status_name"], "normal")
         self.assertEqual([m["name"] for m in st["motors"]], [f"joint{i}" for i in range(1, 7)])
         self.assertEqual(self.arm.faults(), [])
-        subprocess.run(["ros2", "param", "set", "/fake_agx_arm_driver", "fault", "joint3"], check=True, capture_output=True)
+        set_fault("joint3")
         deadline = time.monotonic() + 10
         while time.monotonic() < deadline and not self.arm.faults():
             time.sleep(0.2)
@@ -89,11 +100,30 @@ class TestRealPlumbing(unittest.TestCase):
         self.assertFalse(r)
         self.assertEqual(r.code, "ARM_FAULT")
         self.assertEqual(self.arm.controllers()["arm_controller"], "inactive")
-        subprocess.run(["ros2", "param", "set", "/fake_agx_arm_driver", "fault", ""], check=True, capture_output=True)
+        set_fault("")
         deadline = time.monotonic() + 10
         while time.monotonic() < deadline and self.arm.faults():
             time.sleep(0.2)
         self.assertEqual(self.arm.faults(), [])
+
+    def test_2c_a_driver_fault_stops_commands_at_the_guard(self):
+        """With a reported driver fault nothing reaches the driver (the guard drops it), and commands flow again when the fault clears."""
+        self.assertTrue(self.arm.activate())
+        time.sleep(0.5)
+        before = self.arm.joint_positions()
+        target = [q + (0.05 if i == 0 else 0.0) for i, q in enumerate(before)]
+        set_fault("joint3")
+        time.sleep(1.5)
+        self.arm.move_joints(target, 1.0)                                   # result ignored: the goal cannot be met
+        self.assert_near(self.arm.joint_positions(), before, 2e-3)           # the guard dropped the commands
+        set_fault("")
+        time.sleep(1.5)
+        r = self.arm.move_joints(target, 1.0)
+        self.assertTrue(r, r)                                               # commands flow again
+        self.assert_near(self.arm.joint_positions(), target, 5e-3)
+        r = self.arm.move_joints(before, 1.0)
+        self.assertTrue(r, r)
+        self.arm.deactivate()
 
     def test_3_activation_holds_measured_pose(self):
         r = self.arm.activate()

@@ -144,7 +144,8 @@ class Piper:
         self._move_group = ActionClient(self.node, MoveGroup, f"{self._prefix}/move_action")
         self._executor = MultiThreadedExecutor()
         self._executor.add_node(self.node)
-        self._spin = threading.Thread(target=self._executor.spin, daemon=True)
+        self._closing = False
+        self._spin = threading.Thread(target=self._run_executor, daemon=True)
         self._spin.start()
         self._named: dict[str, dict[str, float]] | None = None
         self._limits: dict[str, tuple[float, float]] | None = None
@@ -152,7 +153,17 @@ class Piper:
             self.wait_ready(wait)
 
     # ------------------------------------------------------------------ lifecycle
+    def _run_executor(self):
+        try:
+            self._executor.spin()
+        except Exception:
+            # rclpy's Executor.shutdown() destroys its guard condition while a callback may still trigger it: InvalidHandle, only at
+            # shutdown (CLEANUP C6). Anything raised while the client is running is a real error.
+            if not self._closing:
+                raise
+
     def close(self):
+        self._closing = True
         self._executor.shutdown(timeout_sec=2.0)
         self._spin.join(timeout=2.0)
         self.node.destroy_node()
@@ -336,6 +347,19 @@ class Piper:
         lim, q = self.joint_limits(), self.joint_state()
         return {j: round(max(lim[j][0] - q[j], q[j] - lim[j][1]), 4) for j in self.arm_joints
                 if j in lim and not lim[j][0] <= q[j] <= lim[j][1]}
+
+    def _wait_still(self, timeout: float = 5.0, speed: float = 0.01) -> bool:
+        """Wait until every arm joint moves slower than `speed` rad/s (a plan made while the arm still settles starts off its state)."""
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            try:
+                vel = self.joint_velocities()
+                if all(not math.isfinite(vel.get(j, 0.0)) or abs(vel.get(j, 0.0)) < speed for j in self.arm_joints):
+                    return True
+            except RuntimeError:
+                pass
+            time.sleep(0.1)
+        return False
 
     def _at_zero(self, tolerance: float = 0.02) -> bool:
         zero = self.named_poses()["zero"]
@@ -553,6 +577,7 @@ class Piper:
             r = self.activate()
         if not r:
             return r
+        self._wait_still()
         if not self._at_zero():
             r = self.move_named("zero", velocity_scaling)
             if not r:
@@ -572,6 +597,7 @@ class Piper:
         if not r:
             return r
         time.sleep(settle)
+        self._wait_still()
         if not self._at_zero():
             return Result(False, "STOP_FAILED", "the arm did not reach zero; motors left on", {"state": self.joint_state()})
         if not self._is_real():

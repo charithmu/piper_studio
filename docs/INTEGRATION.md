@@ -46,6 +46,8 @@ meshes and the SRDF are generated from it). Pin a commit or tag; see `piper.repo
 - Standalone (the arm at the world origin): `piper_description/urdf/piper.urdf.xacro`, or `ros2 launch piper_description view.launch.py`.
 - Another camera or mount (ZED, OAK-D Pro, a CAD-exported bracket): add `urdf/cameras/<model>.xacro` defining `piper_camera_model(prefix, parent, hardware, width, height, hfov_deg, update_rate, *origin)`
   or `urdf/mounts/<mount>.xacro` defining `piper_camera_mount(prefix, parent, mesh, xyz, rpy)` and properties `piper_mount_camera_xyz/rpy`, then select with `camera:=` / `camera_mount:=`.
+- A measured camera pose: copy `config/camera_mounts/agilex_mid_stand.yaml`, put the measured stand and camera poses in it, pass `camera_calibration:=<name or path>` (xacro, launch, `export_urdf.py --camera-calibration`). It replaces the nominal pose on every backend.
+- For planners (cuRobo): `ros2 run piper_sim export_urdf.py --camera d435 --gripper-width 0.07 --prefix "" --out X.urdf` writes a flat URDF with the gripper held at that opening; `piper_core.RealArm` (`start`, `execute(trajectory)`, `stop`) drives the real arm without ROS (tested against a fake SDK only).
 
 ## 2. The ROS interface (what `piper_control` + `piper_py` give you)
 

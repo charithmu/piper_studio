@@ -6,6 +6,8 @@ turns NaN into 0.0 (the vendor's exact-zero pose). This node forwards a command 
   * every value is finite,
   * every value is within the URDF position limits, never outside (arm joints: a value closer than `limit_margin` to a limit is
     clamped to the margin; a powered-off arm's slumped pose is outside the limits, so nothing can be commanded from it),
+  * the driver does not report a fault (its diagnostics feedback/arm_status and feedback/motor_status, level ERROR, no older than
+    `fault_max_age`; a driver that publishes no diagnostics is not blocked),
   * driver feedback is fresh, and
   * every arm joint target is within `max_step` rad of the measured position.
 Rejected commands are dropped (the driver keeps its last valid target) and logged.
@@ -23,6 +25,7 @@ hw/joint_states for the hardware interface, and accepted commands (hw/joint_comm
 import time
 
 import rclpy
+from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus
 from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
@@ -53,6 +56,10 @@ class CommandGuard(Node):
         self.feedback_pub = self.create_publisher(JointState, "hw/joint_states", 1)
         self.create_subscription(JointState, "hw/joint_commands", self.on_command, 1)
         self.create_subscription(JointState, "feedback/joint_states", self.on_feedback, 1)
+        self.fault_max_age = self.declare_parameter("fault_max_age", 3.0).value  # s a reported driver fault keeps commands blocked
+        self.faults: dict[str, tuple[float, str]] = {}      # status name -> (time, message) of its last ERROR; removed when it reports OK
+        for topic in ("feedback/arm_status", "feedback/motor_status"):
+            self.create_subscription(DiagnosticArray, topic, self.on_diagnostics, 10)
         self.create_service(Trigger, "go_zero", self.on_go_zero, callback_group=ReentrantCallbackGroup())
         self.create_subscription(String, "robot_description", self.on_description,
                                  QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL))
@@ -67,6 +74,17 @@ class CommandGuard(Node):
         self.feedback = (time.monotonic(), dict(zip(msg.name, msg.position)))
         self.feedback_pub.publish(msg)
 
+    def on_diagnostics(self, msg: DiagnosticArray):
+        for st in msg.status:
+            if st.level == DiagnosticStatus.ERROR:
+                self.faults[st.name] = (time.monotonic(), st.message)
+            else:
+                self.faults.pop(st.name, None)
+
+    def active_faults(self) -> list[str]:
+        now = time.monotonic()
+        return [f"{name}: {msg}" for name, (t, msg) in self.faults.items() if now - t <= self.fault_max_age]
+
     def reject(self, reason: str):
         self.rejected += 1
         self.get_logger().warn(f"command rejected: {reason}", throttle_duration_sec=1.0)
@@ -76,6 +94,9 @@ class CommandGuard(Node):
             return self.reject("no robot_description yet")
         if self.feedback is None or time.monotonic() - self.feedback[0] > self.max_feedback_age:
             return self.reject("driver feedback missing or stale")
+        faults = self.active_faults()
+        if faults:
+            return self.reject("the driver reports a fault: " + "; ".join(faults))
         verdict = check_command(msg.name, msg.position, self.limits, self.feedback[1], self.cfg())  # piper_core: the one rule set
         if not verdict.ok:
             return self.reject(verdict.reason)

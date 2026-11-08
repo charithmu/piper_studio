@@ -5,6 +5,8 @@ Written 2026-11-08 by a reading-and-checking pass, **before any test was run**. 
 > **Update (2026-11-08, later):** the arm is on its latest firmware and calibrated; firmware values now win over the vendor URDF (see `DECISIONS.md`, `CLEANUP.md` G). Resolved since this was written:
 > joint 6 is ±170° (firmware and vendor URDF agree), velocity 3.0 rad/s and acceleration 5.0 rad/s² are firmware values and in the description, the gripper stroke is 0.07 m, per-link masses
 > are in `docs/description/MASSES.md`. Still open: torque limits, jerk, measured masses, camera and stand. Read the numbers below with that in mind.
+>
+> **Update 3 (2026-11-08, end of day):** the pose rules changed (`docs/real_arm/arms/piper-01.md`, "Poses and the start / stop sequence"): `rest` is now the internal `park`; the powered-off arm is the *slumped* pose, never a target; downstream code knows only `zero` (joints 2/3 at +0.01 / -0.01 rad) and calls `Piper.start()` / `stop()`. The guard is strict (nothing outside the limits, nothing from the slumped pose). The wrist camera stand is on `gripper_base` (4.5 mm decided) with a calibration override `camera_calibration:=`. For planners: `export_urdf.py --gripper-width W` gives a flat URDF with the gripper fixed, and `piper_core.RealArm` (written, tested only against a fake SDK) is the planner-facing real-arm interface (`start`, `execute(trajectory)`, `stop`). The tables below are the original 08:00 reading, kept for the record.
 
 ## 1. Decision and organisation
 
@@ -29,7 +31,7 @@ Written 2026-11-08 by a reading-and-checking pass, **before any test was run**. 
 |---|---|
 | URDF with correct kinematics, limits, meshes | Yes. The `piper_arm` macro is generated from the official AgileX model and checked against it. |
 | Base frame and tool frame | `piper_base_link`, `piper_tcp_link` (fingertip centre = gripper_base + 0.138 m z, D7). |
-| Named poses | `zero`, `rest`, `ready` in the SRDF; `piper_core.named_poses_from_srdf`. |
+| Named poses | `zero`, `ready` (and the internal `park`) in the SRDF; `piper_core.named_poses_from_srdf`. |
 | Flat URDF a planner can parse | Probably via `piper_sim/scripts/export_urdf.py` *(not read; verify)*. |
 | Dense trajectory execution | `arm_controller` is a standard `joint_trajectory_controller` (FollowJointTrajectory) and takes multi-point timed trajectories; ends at rest as cuRobo trajectories do *(not tested with one)*. `piper_py.move_joints` sends a single segment only. |
 | Streaming joint targets (MPC, servo) | `arm_position_controller` at a 200 Hz manager rate. |
@@ -91,7 +93,7 @@ Perception side: camera mount calibration and the 4.5 mm ambiguity become requir
 0. cuRobo baseline on its bundled Franka through `gpu-run` (needs approval to install the env).
 1. Build the Piper model from this repo's expanded description: camera and stand included, fingers locked; FK parity with the URDF (target 1e-6 m), limits equal, sphere coverage metrics and a visual check, ignore matrix vs the official SRDF.
 2. Collision agreement: random configurations, cuRobo against an independent check (MoveIt `GetStateValidity` on a mock launch and/or mesh-mesh on the collision STLs). Spheres must be conservative.
-3. Planning: reachability, obstacles, start states `zero`, `ready`, `rest`, torque and payload on/off, latency.
+3. Planning: reachability, obstacles, start states `zero`, `ready`, torque and payload on/off, latency.
 4. Execution in simulation: dense trajectory to `arm_controller` on mock, then MuJoCo; executed vs planned, then a limit sweep.
 5. Perception: sim D435 with TF pose and joint state into `Mapper` and `RobotSegmenter`; verify the optical-frame convention on a known scene; sensitivity of map error to a wrong mount offset; ESDF resolution vs the small arm.
 6. Closed loop in simulation on `scene_objects.yaml`; optionally MPC through the streaming controller.
