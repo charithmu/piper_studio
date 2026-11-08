@@ -31,7 +31,7 @@ Internal (this repo only): `piper_sim` (Gazebo, MuJoCo, Isaac models, scenes, `p
 - [~] B3 `piper_core`, pure Python without ROS. Done: package `src/piper_core` with `limits_from_urdf`, `check_command` (the guard as one function, now used by `command_guard.py`) and `named_poses_from_srdf`; 8 tests; imports with no ROS; real plumbing and resting launch tests pass with the refactored guard. Open: `RealArm` (direct pyAgxArm driver, firmware-profile handling from `tools/real_arm/arm_common.py`, `execute(trajectory)` for planners such as cuRobo). It moves the real arm, so it is written with the user present and tested on the arm; also let `piper_py` use `piper_core` limits.
 - [x] B4 `piper_control` (renamed from `piper_bringup`): controllers, MoveIt, Servo, guard, `piper_control.launch_lib` (builders for other launch files) and `control.launch.py backend:=mock|real|external`. Verified: mock end to end (named pose, planned pose), `external` starts spawners, MoveIt and RViz and waits for a controller manager. Not yet verified: `external` against a real downstream simulator (B5 example).
 - [x] B5 `docs/INTEGRATION.md` (contract: macros, names, units, controllers, frames, no-ROS use, real-arm rules, versioning); its xacro snippet is a test, and `src/piper_examples` (a carrier robot with its own controller manager, non-default prefix `arm_`, mount transform, camera; `control.launch.py backend:=external`) is a launch test that drives the arm through `piper_py` and checks the TCP lands where the mount puts it. Building the example found and fixed a real bug: MoveIt ignores an SRDF whose `<robot name>` differs from the URDF's, so `control.launch.py` now has `robot_name` and `robot_description_file`. The no-ROS use is covered by the `piper_core` tests and the doc snippet; a separate no-ROS example script is not needed.
-- [~] B6 `piper.repos` written. Open: a tag (after the merge, C12).
+- [x] B6 `piper.repos` (vcstool import list) pins `v0.2.0`; the tag is pushed (2026-11-08, user approved).
 - [x] B7 The downstream overlay `~/projects/ml_tests/.../00_studio_overlay` copies `src/` and uses the old unprefixed names and tool paths: note left in `comms/FOR_OTHERS.md` (not ours to edit).
 
 ## C. Functional follow-ups
@@ -54,7 +54,7 @@ Internal (this repo only): `piper_sim` (Gazebo, MuJoCo, Isaac models, scenes, `p
 
 - [x] D1 Root now holds only `README.md`, `AGENTS.md`, `CLAUDE.md`, `artifacts.yaml`, `piper.repos` and the folders: `HANDOFF.md`, `comms/` and `VERSIONS.md` moved into `docs/` (archive or `docs/VERSIONS.md`).
 - [x] D2 `AGENTS.md` rewritten (current layout, design rules, safety, process hygiene) and `README.md` rewritten for humans (what, quick start, layout, control levels, real arm, tests).
-- [ ] D3 Not ours, dangling now: `~/projects/ros/go2_studio/AGENTS.md` and `demo/pages.py`, and `~/projects/sim/robosim/handoff/` (AGENT_AGREEMENT.md, build_handoffs.py, START_PROMPTS.md, SESSION_LOG.md) still point at `piper_studio/comms/` and `HANDOFF.md`. The user decides whether those projects are updated.
+- [x] D3 Dangling references checked (user approved the edits): go2_studio's `comms/` references point at its own `comms/`, which still exists, so nothing to change there. In `~/projects/sim/robosim/handoff/` three places named piper_studio's `HANDOFF.md` or `comms/`: `START_PROMPTS.md`, `AGENT_AGREEMENT.md` and `build_handoffs.py` (which would have regenerated `piper_studio/HANDOFF.md`); updated and committed there (robosim `8312964`).
 
 ## E. Tooling
 
@@ -83,6 +83,8 @@ Isaac and Gazebo cameras from their own sensors).
 Screenshots: 01-06 RViz (model, MoveIt, zero and ready pose, wrist close-up), 07-08 MuJoCo, 09-10 Gazebo, 11-12 Isaac (+ `11_isaac_run.mp4`).
 
 ## Log
+
+- 2026-11-08 pass 2 (later): `piper_examples` carrier example (tested), `control.launch.py` `robot_name`/`robot_description_file`, `prefix:=none`, spawner timeouts (Gazebo GUI works on a virtual display, C3), `scripts/test_all.sh`; main pushed and tagged `v0.2.0` (user approved); robosim handoff references fixed (D3). Open and why: B3 `RealArm` and C10 (need the user at the arm), C5 (measure on the mount), C9 (needs real calibration data), C4, C6, C7, C11 (small, intermittent or cosmetic; see each).
 
 - 2026-11-08 pass 2: merged the macros branch; root cleanup (D1, D2); `piper_bringup` replaced by `piper_control` + `piper_sim` (B2, B4); `piper_control.launch_lib` and `control.launch.py backend:=mock|real|external`; `piper_description` is now pure xacro/meshes/`robot_description()`. Re-verified: 30 offline tests, launch tests mock, Gazebo, MuJoCo, Isaac, real plumbing and resting, `run_demo.sh mock` 11/11, `isaac.sh build-usd`/`check`. Launch entry changed: `ros2 launch piper_sim piper.launch.py` (was `piper_bringup`).
 - 2026-11-08 pass 1 (later): A1-A9, B1, B7, C1, C2 done; B3 (guard, limits, poses), B5 (INTEGRATION.md, snippet is a test), B6 (`piper.repos`) partly done. Tests: 31 offline (`piper_description`, `piper_bringup`, `piper_core`), launch tests per backend. Next pass: B2 (`piper_sim` split) and B4 (`piper_control`), then `RealArm` (B3) with the user at the arm, C3-C5, C7-C11, merge (C12).

@@ -5,4 +5,4 @@ repositories:
   piper_studio:
     type: git
     url: git@github.com:charithmu/piper_studio.git
-    version: main
+    version: v0.2.0
