@@ -9,7 +9,7 @@ description = "The Piper arm in Isaac Sim without ROS: PiperIsaacSim, an ArmBack
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "Apache-2.0" }
-dependencies = ["numpy>=1.24", "piper_core>=0.3.0", "piper_assets>=0.3.0"]
+dependencies = ["numpy>=1.24", "piper_core>=0.4.0", "piper_assets>=0.4.0"]
 
 [tool.setuptools]
 packages = ["piper_isaac"]

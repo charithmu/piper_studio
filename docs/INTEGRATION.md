@@ -23,7 +23,7 @@ Three wheels, one version, built from a commit by `scripts/build_wheels.sh` (nee
 the release. A downstream project installs them into its own venv (Python 3.10 or newer) and never reads this repo's `install/`:
 
 ```bash
-uv pip install --no-deps piper_core-0.3.0-py3-none-any.whl piper_assets-0.3.0-py3-none-any.whl piper_mujoco-0.3.0-py3-none-any.whl piper_isaac-0.4.0-py3-none-any.whl
+uv pip install --no-deps piper_core-0.4.0-py3-none-any.whl piper_assets-0.4.0-py3-none-any.whl piper_mujoco-0.4.0-py3-none-any.whl piper_isaac-0.4.0-py3-none-any.whl
 ```
 
 | Package | Gives | Needs |
