@@ -126,7 +126,7 @@ python src/piper_description/tools/piper_arm_macro.py check                     
 
 RViz, the MuJoCo viewer and the MuJoCo camera need a display with GLX, which a TurboVNC desktop does not have (`scripts/session.sh` defines `gl` for `vglrun -d egl`).
 For checks and screenshots use a private virtual display: `Xvfb :96 -screen 0 2560x1440x24 +extension GLX &`, then `DISPLAY=:96 ros2 launch ...` and `DISPLAY=:96 import -window root shot.png`.
-The Gazebo GUI does not come up there yet (CLEANUP C3); the Gazebo and Isaac cameras need no display.
+The Gazebo GUI also comes up there (its default view is far from the arm); the Gazebo and Isaac cameras need no display.
 
 ## Status
 

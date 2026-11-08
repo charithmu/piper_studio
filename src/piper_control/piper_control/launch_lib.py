@@ -102,6 +102,10 @@ def robot_state_publisher(config, sim_time: dict) -> Node:
                 parameters=[config.robot_description, sim_time], output="log")
 
 
+# A loaded machine (a software-rendered simulator GUI, say) can take longer than the defaults to answer controller_manager services.
+SPAWNER_TIMEOUTS = ["--controller-manager-timeout", "60", "--service-call-timeout", "30", "--switch-timeout", "30"]
+
+
 def spawners(gripper: str, real: bool) -> list:
     """Spawn the controllers. On the real arm the command controllers start inactive (activate with `piper activate`)."""
     commanders = ["arm_controller"] + (["gripper_controller"] if gripper == "true" else [])
@@ -111,9 +115,9 @@ def spawners(gripper: str, real: bool) -> list:
         active, inactive = ["joint_state_broadcaster", *commanders], ["arm_position_controller"]
     return [
         Node(package="controller_manager", executable="spawner",
-             arguments=[*active, "--controller-manager-timeout", "60"], output="screen"),
+             arguments=[*active, *SPAWNER_TIMEOUTS], output="screen"),
         Node(package="controller_manager", executable="spawner",
-             arguments=[*inactive, "--inactive", "--controller-manager-timeout", "60"], output="screen"),
+             arguments=[*inactive, "--inactive", *SPAWNER_TIMEOUTS], output="screen"),
     ]
 
 
