@@ -41,3 +41,10 @@ The tested combination. Source revisions are authoritative in git (submodule pin
 | real arm | S-V1.9-1: read-out, enable test and a first supervised `move_j` to the zero pose done 2026-10-14 (SDK tools); not yet driven through the ROS stack | `docs/real_arm/arms/piper-01.md` |
 | MuJoCo 3.12 + MoveIt + piper_py | pass (provisional actuator model) | `piper_py/test/test_bringup.py` [mujoco]; `piper_sim/test/test_mujoco_model.py` (FK = official to 1e-6 m, finger coupling) |
 | Isaac Sim 6.1 + MoveIt + piper_py | pass (opt-in: uses the GPU) | `PIPER_TEST_BACKENDS=isaac`; fingers verified against Isaac ground truth (±0.5 × gripper) |
+
+## v0.5.0 (2026-11-10)
+
+All four Python wheels use 0.5.0. The Isaac client defaults to 250/250 Hz control/physics; headless recording renders at video fps with threaded encoding.
+`PiperIsaacSim(gui=True)` / `python -m piper_isaac --gui` and `scripts/isaac.sh run --gui` select the full editor. Headless remains the default.
+
+Verification (2026-11-10): offline suite 99 passed, 6 GPU tests skipped by default; the six GPU tests passed separately (parity 0.0210 rad vs MuJoCo 0.0212). Isaac ROS launch test and carrier example passed. Both fake-driver plumbing tests failed in the combined run, then passed on fresh domain 157 (48.76 s); this was a transient failure, not a fully green first run. Both full GUI runners opened and exited cleanly; the ROS runner stops the timeline before stage teardown to avoid the installed full-editor debug-draw crash. GUI idle time did not advance physics. Four-second recording: exactly 120 frames at 30 fps, no stale pairs; 0.88x real time (plain 1.29x, render-enabled 1.28x), identical final joints. USD checks passed with and without D435 (fingertip max 0.001 mm). Registry check: 0 failures, 6 existing machine warnings. No new network exposure.

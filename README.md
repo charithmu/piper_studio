@@ -46,7 +46,7 @@ ros2 launch piper_sim piper.launch.py                                   # mock h
 ros2 launch piper_sim piper.launch.py rviz:=true                        # with RViz
 ros2 launch piper_sim piper.launch.py backend:=gazebo [gui:=true]       # Gazebo Harmonic
 ros2 launch piper_sim piper.launch.py backend:=mujoco [gui:=true]       # MuJoCo (model generated at launch)
-ros2 launch piper_sim piper.launch.py backend:=isaac                    # Isaac Sim on the GPU, own process (isaac/README.md)
+ros2 launch piper_sim piper.launch.py backend:=isaac [gui:=true]        # Isaac Sim on the GPU, own process (isaac/README.md)
 ros2 launch piper_sim piper.launch.py backend:=gazebo camera:=d435      # simulated wrist D435 on /camera/color/image_raw etc. (also mujoco, isaac)
 ros2 launch piper_control control.launch.py                             # the control stack alone: mock, real, or on your own controller manager
 ros2 launch piper_description view.launch.py camera:=d435               # the model only, joint sliders; same description options as the launches

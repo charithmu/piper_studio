@@ -183,3 +183,30 @@ def test_defaults_are_the_real_time_rates():
     import inspect
     p = inspect.signature(PiperIsaacSim.__init__).parameters
     assert p["ctrl_hz"].default == 250.0 and p["physics_hz"].default == 250.0
+
+
+@pytest.mark.parametrize("gui", [False, True])
+def test_launcher_preserves_display_only_for_gui(monkeypatch, tmp_path, gui):
+    from piper_isaac import sim as module
+
+    env_sh = tmp_path / "env.sh"
+    env_sh.touch()
+    monkeypatch.setenv("DISPLAY", ":96")
+    monkeypatch.setenv("XAUTHORITY", "/tmp/piper-test-auth")
+    launched = []
+    monkeypatch.setattr(module.subprocess, "Popen", lambda cmd, **kw: launched.append(cmd))
+    monkeypatch.setattr(PiperIsaacSim, "_connect", lambda *a: None)
+    sim = PiperIsaacSim.__new__(PiperIsaacSim)
+    sim.gui, sim.scene = gui, "table"
+    sim.ctrl_hz = sim.physics_hz = 250.0
+    sim.gripper_width = 0.07
+    try:
+        sim._launch(tmp_path / "model.usda", env_sh, gui, 1.0)
+        cmd = launched[0]
+        assert ("--gui" in cmd) == gui
+        assert ("--render" in cmd) == gui
+        assert ("DISPLAY=:96" in cmd) == gui
+        assert ("XAUTHORITY=/tmp/piper-test-auth" in cmd) == gui
+    finally:
+        sim._log.close()
+        shutil.rmtree(sim._dir)

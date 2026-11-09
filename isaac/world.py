@@ -17,6 +17,7 @@ inside a method. Nothing Piper-specific is installed into Isaac's environment: t
 from __future__ import annotations
 
 import math
+import time
 from pathlib import Path
 
 import numpy as np
@@ -41,7 +42,12 @@ class World:
         self.app, self.prefix, self.ctrl_hz, self.physics_hz = app, prefix, float(ctrl_hz), float(physics_hz)
         self.ctrl_dt = 1.0 / self.ctrl_hz
         self.steps = 0
-        self.hooks = []                                     # called after every step with the world (video recording)
+        self.hooks = []                                     # called after every step with the world (video recording); `rendered` says whether this step drew a frame
+        self.render_hz = 0.0                                # frames per simulated second the app renders at (0 = never: physics only); a front end sets it when it needs pixels
+        self.rendered = False
+        self._next_render = 0.0
+        self.gui = False
+        self._last_gui_render = 0.0
         self.objects = {}                                   # name -> (path, initial position, initial quaternion wxyz)
         self._contact_cb = None
         self.contacts = contacts                            # apply the PhysX contact report schema (must happen BEFORE start(): applying it to a running body invalidates the tensor views)
@@ -55,7 +61,7 @@ class World:
         for _ in range(5):
             app.update()
 
-        s = carb.settings.get_settings()                    # manual stepping: one app.update advances the simulation by exactly 1 / ctrl_hz
+        s = carb.settings.get_settings()                    # app.update only renders (see start()); the loop settings keep the timeline and its clock fixed-rate
         s.set("/app/runLoops/main/rateLimitFrequency", self.ctrl_hz)
         s.set("/app/runLoops/main/rateLimitEnabled", False)
         s.set("/app/runLoops/present/rateLimitEnabled", False)
@@ -154,21 +160,27 @@ class World:
     # ------------------------------------------------------------------ run
     def start(self, zero, gripper_width):
         """Play, create the articulation, put the arm at `zero` (6 values) with the gripper at `gripper_width`."""
+        import carb.settings
         import isaacsim.core.experimental.utils.app as app_utils
         import omni.timeline
         from isaacsim.core.experimental.prims import Articulation, RigidPrim
         from omni.kit.loop import _loop as omni_loop
+        from omni.physx import get_physx_simulation_interface
 
         timeline = omni.timeline.get_timeline_interface()
         timeline.set_time_codes_per_second(self.ctrl_hz)
         loop = omni_loop.acquire_loop_interface()
         loop.set_manual_mode(True)
-        loop.set_manual_step_size(self.ctrl_dt)             # each app.update advances the simulation by exactly this much
+        loop.set_manual_step_size(self.ctrl_dt)             # the timeline clock advances by this much per rendered frame; physics time is World.time
         self.robot = Articulation(self.robot_path)
         self.rigid = {n: RigidPrim(p) for n, (p, _, _) in self.objects.items()}
         app_utils.play(commit=True)
         for _ in range(3):
             self.app.update()
+        # Physics and rendering are decoupled (as in Isaac Lab): from here app.update() draws and syncs the stage but does not advance physics; step() advances
+        # PhysX itself, once per control step, and calls app.update() only when a frame is due.
+        carb.settings.get_settings().set_bool("/app/player/playSimulations", False)
+        self._physx = get_physx_simulation_interface()
         names = list(self.robot.dof_names)
         self.names = names
         self.i_arm = [names.index(f"{self.prefix}joint{i}") for i in range(1, 7)]
@@ -192,6 +204,7 @@ class World:
             self.rigid[name].set_world_poses(positions=pos.reshape(1, 3), orientations=quat.reshape(1, 4))
             self.rigid[name].set_velocities(linear_velocities=np.zeros((1, 3)), angular_velocities=np.zeros((1, 3)))
         self.steps = 0
+        self._next_render = 0.0
 
     @property
     def time(self):
@@ -205,10 +218,24 @@ class World:
         self.robot.set_dof_position_targets(self.target.reshape(1, -1))
         self.robot.set_dof_position_targets((self.ratios * self.target[self.i_grip]).reshape(1, -1), dof_indices=self.i_fingers)
 
+    def render(self):
+        """Draw one frame now (no physics time passes). Render products and the stage reflect the state after the last step."""
+        self.app.update()
+        self._last_gui_render = time.monotonic()
+
     def step(self, n=1):
+        """n control steps of physics (1 / ctrl_hz each; PhysX substeps at physics_hz); a frame is drawn only when `render_hz` says one is due."""
         for _ in range(n):
-            self.app.update()
+            self._physx.simulate(self.ctrl_dt, self.time)
+            self._physx.fetch_results()
             self.steps += 1
+            self.rendered = self.render_hz > 0 and self.time >= self._next_render - 1e-9
+            gui_due = self.gui and time.monotonic() - self._last_gui_render >= 1 / 30
+            if self.rendered:
+                self._next_render = max(self._next_render + 1.0 / self.render_hz, self.time - 1.0 / self.render_hz)
+            if self.rendered or gui_due:
+                self.render()
+                self.rendered = True
             for h in self.hooks:
                 h(self)
 

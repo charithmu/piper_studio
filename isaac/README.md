@@ -11,7 +11,7 @@ is a **separate process in its own environment**; the two sides exchange ROS 2 t
 ```
 
 Nothing Piper-specific is installed into Isaac's environment, and nothing from Isaac into `.venv`. Each run is
-its own headless process (not the shared live session on port 8226), so several agents can use Isaac at once;
+its own process (headless by default) (not the shared live session on port 8226), so several agents can use Isaac at once;
 the only shared resource is the GPU (about 3 GB for this scene).
 
 ## Use
@@ -26,6 +26,20 @@ PIPER_TEST_BACKENDS=isaac colcon test --packages-select piper_py   # opt-in test
 
 Use a unique `ROS_DOMAIN_ID` (the runner inherits it). Standalone runner options: `scripts/isaac.sh run --seconds 30
 --video out.mp4 [--gui]`.
+
+For the full Isaac editor (viewport, stage tree, properties and Isaac tools), use a display with NVIDIA graphics support:
+
+```bash
+scripts/isaac.sh run --gui                           # ROS runner; also accepts --seconds N
+ros2 launch piper_sim piper.launch.py backend:=isaac gui:=true
+# With the ROS-free wheels installed into your project environment:
+python -m piper_isaac --gui --scene table             # interactive prompt with `sim`
+```
+
+The ROS-free Python equivalent is `PiperIsaacSim(scene="table", gui=True)`. It enables recording too. The editor stays responsive between
+client calls; rendering idle frames does not advance physics. Use the client to step and control the simulation. `DISPLAY` and `XAUTHORITY`
+are forwarded into Isaac's clean environment. Close the interactive session with Ctrl-D to stop its server and release the GPU.
+For direct server use, add `--gui` to `isaac/run_server.py` with its required `--usd` and `--socket` arguments (always through `gpu-run`).
 
 ## What it does
 
@@ -53,12 +67,16 @@ setpoints in chunks of 25 control steps; the server holds no rules. Differences 
 
 | | `run_piper.py` (ROS) | `run_server.py` (no ROS) |
 |---|---|---|
-| Time | paced to wall clock, `/clock` | simulation time only: the world advances only while a command runs; as fast as the GPU allows (about 150 control steps/s here with 2 physics substeps each) |
+| Time | paced to wall clock, `/clock` | simulation time only: the world advances only while a command runs; as fast as the GPU allows; physics steps directly through PhysX, independently of rendering |
 | Rates | frame rate 240 Hz (90 Hz with a camera), physics >= 240 Hz | control 250 Hz, physics 250 Hz (each PhysX step costs about 2 ms whatever its size, so 500/1000 Hz runs at 0.3x real time and 250/250 at 1.0x; accuracy is the same, 0.021 rad on the parity plan; `ctrl_hz=500, physics_hz=1000` as `PiperSim` is still available; note the guard's 0.15 rad step limit is per control step) |
 | Scene objects | static colliders | free bodies, mass 0.05 kg, friction 1.0 (larger of the two bodies wins), like the MuJoCo `table` scene; table top at z = 0, ground plane 0.5 m lower |
 | Output | joint states on a topic | measured joints per control step and arm contacts (penetrations of an arm link with the table, an object or another link) |
 
 `world.py` is not yet used by `run_piper.py`: moving the ROS runner onto it is open (CLEANUP G13, phase 2) and needs the Isaac launch test and `scripts/isaac.sh check`.
+Recording (`render=True`, or `gui=True`) renders at the requested video fps, with H.264 encoding on a bounded worker queue. Merely enabling
+headless recording adds no per-step rendering cost. `python isaac/bench_step.py --seconds 4` benchmarks plain, render-enabled and recording modes
+from the workspace environment with the source packages on `PYTHONPATH` (or the wheels installed).
+
 Contacts come from the PhysX contact report; the schema has to be applied before the simulation starts (applying it to a running body invalidates PhysX's
 tensor views). Self-collision is off in the USD (`convert_urdf.py`: `allow_self_collision=False`), so self-contacts are not reported, unlike `PiperSim`.
 The servo gains are the provisional ones, equal to MuJoCo's: tracking numbers from this server do not describe the real arm.

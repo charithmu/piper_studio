@@ -52,10 +52,11 @@ class PiperIsaacSim:
     joint_names = list(ARM_JOINTS)
 
     def __init__(self, scene: str = "empty", gripper_width: float = 0.07, ctrl_hz: float = 250.0, physics_hz: float = 250.0, render: bool = False,
-                 usd: str | Path | None = None, isaac_env: str | Path | None = None, connect: str | Path | None = None, startup_timeout: float = 240.0):
+                 usd: str | Path | None = None, isaac_env: str | Path | None = None, connect: str | Path | None = None, startup_timeout: float = 240.0,
+                 gui: bool = False):
         """Starts the Isaac server (one process per instance, through gpu-run) and connects. `connect` attaches to an already running server instead
         (tests). `isaac_env` is the script that activates Isaac's environment (default $ISAAC_ENV_SH, else ~/projects/sim/robosim/env.sh).
-        `render=True` enables recording (`record_start`) and costs about 6 ms per control step."""
+        `render=True` enables recording (`record_start`) and renders only at the video frame rate. `gui=True` opens the full editor and enables recording."""
         if scene not in ("empty", "table"):
             raise ValueError("scene must be 'empty' or 'table'")
         self.limits_info = piper_assets.limits()
@@ -64,13 +65,14 @@ class PiperIsaacSim:
         self.scene, self.ctrl_hz, self.ctrl_dt, self.physics_hz, self.gripper_width = scene, float(ctrl_hz), 1.0 / ctrl_hz, float(physics_hz), gripper_width
         self.limits = dict(self.limits_info.hard)
         self.margin = self.limits_info.margin
-        self.render_enabled = render
+        self.gui = gui
+        self.render_enabled = render or gui
         self._proc = self._sock = self._file = self._dir = None
         self._external = connect is not None
         atexit.register(self.close)
         try:
             if connect is None:
-                self._launch(Path(usd) if usd else usd_path(), isaac_env, render, startup_timeout)
+                self._launch(Path(usd) if usd else usd_path(), isaac_env, self.render_enabled, startup_timeout)
             else:
                 self._connect(str(connect), startup_timeout)
             hello = self._rpc(cmd="hello")
@@ -90,10 +92,11 @@ class PiperIsaacSim:
         (Path(self._dir) / "scene.json").write_text(json.dumps(piper_assets.scene()))
         sock, pid = os.path.join(self._dir, "s"), os.path.join(self._dir, "pid")
         home = str(Path.home())
-        cmd = ["env", "-i", f"HOME={home}", f"PATH=/usr/bin:/bin:{home}/.local/bin", f"PIPER_ISAAC_PIDFILE={pid}", "bash", "-c", 'source "$0"; exec gpu-run "$@"', env_sh,
+        display_env = [f"{k}={os.environ[k]}" for k in ("DISPLAY", "XAUTHORITY") if k in os.environ] if self.gui else []
+        cmd = ["env", "-i", f"HOME={home}", f"PATH=/usr/bin:/bin:{home}/.local/bin", f"PIPER_ISAAC_PIDFILE={pid}", *display_env, "bash", "-c", 'source "$0"; exec gpu-run "$@"', env_sh,
                "python", str(runner_dir() / "run_server.py"), "--usd", str(usd), "--socket", sock, "--scene", self.scene, "--scene-json", os.path.join(self._dir, "scene.json"),
                "--zero", json.dumps(list(piper_assets.zero_pose())), "--gripper-width", str(self.gripper_width), "--ctrl-hz", str(self.ctrl_hz),
-               "--physics-hz", str(self.physics_hz)] + (["--render"] if render else [])
+               "--physics-hz", str(self.physics_hz)] + (["--render"] if render else []) + (["--gui"] if self.gui else [])
         self._log = open(os.path.join(self._dir, "server.log"), "w")
         self._pidfile = pid
         self._proc = subprocess.Popen(cmd, cwd=self._dir, stdout=self._log, stderr=subprocess.STDOUT, start_new_session=True)

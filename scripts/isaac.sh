@@ -24,6 +24,7 @@ in_isaac() {
   env -i HOME="$HOME" PATH="/usr/bin:/bin:$HOME/.local/bin" \
     RMW_IMPLEMENTATION=rmw_fastrtps_cpp ROS_DOMAIN_ID="${ROS_DOMAIN_ID:-0}" PIPER_ISAAC_PIDFILE="$PIDFILE" ${PIPER_ISAAC_FRAME_HZ:+PIPER_ISAAC_FRAME_HZ="$PIPER_ISAAC_FRAME_HZ"} \
     ${GZ_PARTITION:+GZ_PARTITION="$GZ_PARTITION"} \
+    ${DISPLAY:+DISPLAY="$DISPLAY"} ${XAUTHORITY:+XAUTHORITY="$XAUTHORITY"} \
     bash -c 'source "$0"; export LD_LIBRARY_PATH="$ISAAC_SIM_DIR/exts/isaacsim.ros2.core/jazzy/lib"; exec gpu-run "$@"' \
     "$ISAAC_ENV_SH" "$@"
 }

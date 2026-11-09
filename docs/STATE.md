@@ -1,6 +1,6 @@
 # Current state: read this first when starting a new session
 
-Snapshot of 2026-11-08, after the restructure and cleanup (branch `main`, tag `v0.2.0`, remote `origin` = github.com/charithmu/piper_studio).
+Orientation from 2026-11-08, updated for v0.5.0 on 2026-11-10 (branch `main`, remote `origin` = github.com/charithmu/piper_studio).
 Facts that change are in `CLEANUP.md` (to-do, verification log) and `VERSIONS.md` (qualified versions); this file is the orientation and the hard-won gotchas.
 
 ## What this is

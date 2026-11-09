@@ -64,3 +64,20 @@ artifacts:
     runtime: one-shot
     workdir: .
     start: scripts/bootstrap.sh
+  - id: piper-isaac-gui
+    type: job
+    title: Interactive Piper in the full Isaac Sim editor
+    desc: "ROS-free interactive session; needs the four Piper wheels, Isaac environment, GPU and an NVIDIA-capable display. Ctrl-D stops it."
+    runtime: one-shot
+    workdir: .
+    start: python -m piper_isaac --gui --scene table
+    data: none
+    notes: "PiperIsaacSim starts a private server through gpu-run; local unix socket only, no TCP port. DISPLAY and XAUTHORITY are forwarded."
+  - id: piper-isaac-benchmark
+    type: job
+    title: Benchmark Isaac physics and recording
+    desc: "Compare plain, render-enabled and recording modes with one trajectory; needs the Piper wheels and Isaac GPU environment."
+    runtime: one-shot
+    workdir: .
+    start: python isaac/bench_step.py --seconds 4
+    data: none

@@ -42,7 +42,9 @@ from isaacsim import SimulationApp  # noqa: E402
 _needs_render = bool(args.video) or args.gui or args.camera != "none"
 args.frame_hz = args.frame_hz or (90.0 if _needs_render else 240.0)
 app = SimulationApp({"headless": not args.gui, "width": 1280, "height": 720,
-                     "disable_viewport_updates": not _needs_render})
+                     "disable_viewport_updates": not _needs_render,
+                     "extra_args": ["--/isaac/startup/ros_bridge_extension="] if args.gui else []},
+                    experience=str(Path(os.environ["ISAAC_SIM_DIR"]) / "apps/isaacsim.exp.full.kit") if args.gui else "")
 
 import numpy as np  # noqa: E402
 import omni.graph.core as og  # noqa: E402
@@ -285,4 +287,8 @@ if video is not None:
 print("[piper_isaac] stopping", flush=True)
 if pid_file:
     pid_file.unlink(missing_ok=True)
+if args.gui:
+    # Full-editor tools clear debug overlays on Stop; do it while the stage and renderer still exist.
+    timeline.stop()
+    app.update()
 app.close()
