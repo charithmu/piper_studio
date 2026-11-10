@@ -42,6 +42,8 @@ DRIVER_FAULT_BITS = ("voltage_too_low", "motor_overheating", "driver_overcurrent
                      "collision_status", "driver_error_status", "stall_status")
 
 
+AUTO_LAG_BASE_S, AUTO_LAG_PER_RAD_S = 0.035, 0.073     # the arm trails a streamed setpoint by about 35 ms + 73 ms per rad/s (joint 1, 2026-11-10: 45 / 75 / 95 / 115 ms at 0.14 / 0.55 / 0.82 / 1.10 rad/s)
+AUTO_LOOKAHEAD_MAX = 6
 GRIPPER_STROKE = 0.07          # m, firmware-reported (max_range_config), docs/real_arm/arms/piper-01.md
 GRIPPER_DEFAULT_EFFORT = 1.0   # N, the vendor default (agx_arm_ctrl `gripper_default_effort`)
 GRIPPER_MAX_EFFORT = 3.0       # N, OUR cap for commands, not a vendor figure (none documented). Raise it deliberately: arm.gripper_max_effort = 5.0
@@ -471,6 +473,11 @@ class RealArm:
         ok = st is not None and int(st.msg.arm_status) == 0 and not self.enabled
         return Outcome(ok, "parked, e-stopped, reset: motors off, arm still powered" if ok else "e-stop sent but the arm did not report status normal with motors off")
 
+    @staticmethod
+    def auto_lookahead(speed: float, dt: float) -> int:
+        """Setpoints to send ahead of the clock for a segment at `speed` rad/s: the arm's measured lag (35 ms + 73 ms per rad/s) in whole steps, 0..6."""
+        return int(min(AUTO_LOOKAHEAD_MAX, max(0, round((AUTO_LAG_BASE_S + AUTO_LAG_PER_RAD_S * speed) / dt))))
+
     def abort(self) -> None:
         """Stop a running execute() from another thread (or a signal handler): it holds the present pose and returns ExecResult(False, 'stopped'). Safe to call when idle."""
         self._abort.set()
@@ -521,7 +528,7 @@ class RealArm:
         return ExecResult(r.ok, "done" if r else "guard:rejected", "" if r else r.message, np.array([self._now()]),
                           np.array([[target[j] for j in JOINTS]]), np.array([[qn.get(j, np.nan) for j in JOINTS]]))
 
-    def execute(self, traj, *, margin_percent: float = 20.0, blocking: bool = True, mode: str = "fixed", lookahead: int = 0, min_percent: int = 5) -> ExecResult:
+    def execute(self, traj, *, margin_percent: float = 20.0, blocking: bool = True, mode: str = "fixed", lookahead: int | str = 0, min_percent: int = 5) -> ExecResult:
         """Follow a trajectory with one move_j per trajectory point (each is a position target the firmware smooths toward; the points are sent on the trajectory's own clock).
 
         The whole trajectory is checked before anything moves (`check_trajectory`: limits, margin, step, velocity; `check_start`); nothing is clamped. Refused (nothing sent) when the motors are
@@ -532,12 +539,16 @@ class RealArm:
           mode="fixed"      one speed percent for the whole trajectory: the fastest segment x (1 + margin_percent/100) of 3.0 rad/s (100 % = 3.0 rad/s, confirmed at 10 %).
           mode="per_point"  the speed percent is re-set before each move_j from the segment's own velocity (at least `min_percent`), so slow parts are not driven at the peak speed.
           lookahead=n       send the point n steps ahead of the clock (the firmware always has a target in front of the arm); the guard's 0.15 rad step limit applies to what is sent.
+                            Measured on joint 1 at 25 ms: n=0 leaves a lag of 45 ms, n=2 removes it at low speed (rms 0.04 deg), but the lag grows with speed (25 / 45 / 65 ms left at 0.55 / 0.82 / 1.10 rad/s).
+          lookahead="auto"  n follows the segment speed: the expected lag 35 ms + 73 ms per rad/s, rounded to whole steps, at most 6 (fitted on joint 1; check other joints), and backed off
+                            until the point sent is within 90 % of the guard's 0.15 rad step from the measured pose (so at about 1.2 rad/s and above it compensates less instead of being rejected).
         After the run `self.last_stream` holds the send times, the percent used and a fine log of the measured joints (about every 5 ms) for `piper_core.stream_metrics.analyze`.
         """
         if not blocking:
             raise NotImplementedError("RealArm.execute is blocking only")
-        if mode not in ("fixed", "per_point") or not (isinstance(lookahead, int) and 0 <= lookahead <= 10):
-            return ExecResult(False, "bad_trajectory", "mode must be 'fixed' or 'per_point' and lookahead an integer 0..10")
+        auto = lookahead == "auto"
+        if mode not in ("fixed", "per_point") or not (auto or (isinstance(lookahead, int) and not isinstance(lookahead, bool) and 0 <= lookahead <= 10)):
+            return ExecResult(False, "bad_trajectory", "mode must be 'fixed' or 'per_point' and lookahead an integer 0..10 or 'auto'")
         try:
             traj = traj if isinstance(traj, Trajectory) else Trajectory.from_pairs(traj)
         except (ValueError, TypeError) as e:
@@ -564,11 +575,19 @@ class RealArm:
 
         def percent(v):
             return int(min(100, max(1, math.ceil(float(v) * scale))))
-        first = percent(seg.max()) if mode == "fixed" else max(min_percent, percent(seg[: 1 + lookahead].max()))
+        def ahead(k):                                             # steps ahead of the clock for the point sent at index k
+            if not auto:
+                return lookahead
+            steps = self.auto_lookahead(float(seg[k - 1:k + 1].max()), float(traj.t[k] - traj.t[k - 1]))
+            pos = self.positions()
+            while steps > 0 and pos and max(abs(float(traj.q[min(k + steps, n - 1)][i]) - pos[j]) for i, j in enumerate(JOINTS)) > 0.9 * MAX_STEP:
+                steps -= 1                                         # the guard would reject a point this far from the measured pose
+            return steps
+        first = percent(seg.max()) if mode == "fixed" else max(min_percent, percent(seg[: 1 + (AUTO_LOOKAHEAD_MAX if auto else lookahead)].max()))
         cfg = self._configure(first)
         if not cfg:
             return ExecResult(False, "fault", cfg.message)
-        log_t, log_c, log_m, events, fine_t, fine_q, used = [], [], [], [], [], [], []
+        log_t, log_c, log_m, events, fine_t, fine_q, used, used_ahead = [], [], [], [], [], [], [], []
         self._abort.clear()
         self._executing = True
         t_start = self._now()
@@ -580,11 +599,11 @@ class RealArm:
                 fine_q.append([q[j] for j in JOINTS])
 
         def result(ok, reason, detail=""):
-            self.last_stream = {"mode": mode, "lookahead": lookahead, "t_sched": traj.t[1:len(log_t) + 1].tolist(), "t_sent": list(log_t), "percent": used,
+            self.last_stream = {"mode": mode, "lookahead": lookahead, "lookahead_used": list(used_ahead), "t_sched": traj.t[1:len(log_t) + 1].tolist(), "t_sent": list(log_t), "percent": used,
                                 "t": fine_t, "q": fine_q}
             return ExecResult(ok, reason, detail, np.array(log_t), np.array(log_c).reshape(-1, 6), np.array(log_m).reshape(-1, 6), events)
         try:
-            n = len(traj.t)
+            n = len(traj.t)                                          # (also used by ahead())
             sample()
             for k in range(1, n):
                 while True:                                               # wait for the clock, sampling the measured joints about every 5 ms
@@ -602,12 +621,14 @@ class RealArm:
                     self._hold()
                     events.append((float(traj.t[k]), "fault", "; ".join(bad)))
                     return result(False, "fault", "aborted, holding: " + "; ".join(bad))
-                j = min(k + lookahead, n - 1)
+                steps = ahead(k)
+                j = min(k + steps, n - 1)
                 g = self._guard(dict(zip(JOINTS, map(float, traj.q[j]))), max_step=MAX_STEP)
                 if not g:
                     self._hold()
                     events.append((float(traj.t[k]), "guard:rejected", g.message))
                     return result(False, "guard:rejected", f"point at t={traj.t[k]:.3f}: {g.message}; holding")
+                used_ahead.append(steps)
                 if mode == "per_point":
                     pct = max(min_percent, percent(seg[k - 1:j].max()))
                     if not used or pct != used[-1]:

@@ -210,6 +210,13 @@ def test_lookahead_sends_points_ahead_of_the_clock():
     assert not arm.execute(tr, lookahead=11).ok and not arm.execute(tr, mode="turbo").ok
 
 
+def test_auto_lookahead_follows_the_measured_lags_and_bad_values_are_refused():
+    assert [RealArm.auto_lookahead(v, 0.025) for v in (0.0, 0.137, 0.548, 0.822, 1.095, 3.0)] == [1, 2, 3, 4, 5, 6]     # joint 1 on the arm: lags 45 / 75 / 95 / 115 ms, capped at 6
+    sdk, arm = started()
+    assert arm.execute(accel_ramp(arm, seconds=3.0, amount=0.3), lookahead="auto").ok
+    assert not arm.execute(accel_ramp(arm), lookahead="soon").ok and not arm.execute(accel_ramp(arm), lookahead=True).ok
+
+
 def test_the_run_leaves_a_fine_log_and_metrics_find_the_lag():
     sdk, arm = started()
     tr = ramp(arm, seconds=2.0, amount=0.3)
