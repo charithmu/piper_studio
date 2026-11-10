@@ -8,6 +8,8 @@ Motion needs the operator: every action that moves or switches the motors waits 
 
 Keys:  s start (enable, go to zero)   z zero   p park   r ready (big move)   j jog a joint (1-6, then + / - or arrows, j or Esc leaves)
        t end session (zero, park, e-stop, reset)   d disable motors (the arm sags)   c clear the e-stop (reset)   [ ] speed   , . jog step   q quit
+       o open the gripper   l close it (Enter confirms; a close on an object ends 'stalled' with the width and force)   f gripper force   g gripper step mode (+ / - 5 mm)
+Gripper force starts at 1.0 N (the vendor default) and is capped at 3.0 N by RealArm.gripper_max_effort; `f` cycles 0.5 1 1.5 2 3 N.
 The guard is the one in piper_core: nothing is commanded outside the stored limits (0.01 rad margin), nothing while a fault is reported, nothing from the slumped pose except
 the single move to zero in `s`. Speed starts at 10 % (about 17 deg/s on one joint); `]` raises it in steps up to 50 %. Quitting leaves the motors as they are.
 This arm has no e-stop button: keep a hand on the power switch.
@@ -25,16 +27,23 @@ import time
 import tty
 from collections import deque
 
-from piper_core.real_arm import DONE_TOLERANCE, JOINTS, RealArm, RealArmError
+from piper_core.real_arm import DONE_TOLERANCE, JOINTS, GripperWatch, RealArm, RealArmError
 
 MARGIN = 0.01
 SPEEDS = (3, 5, 10, 15, 20, 30, 40, 50)
 JOG_STEPS = (0.25, 0.5, 1.0, 2.0)               # degrees
 JOG_SPEED_MAX = 5
+GRIP_FORCES = (0.5, 1.0, 1.5, 2.0, 3.0)         # N, `f` cycles; RealArm.gripper_max_effort (3 N) is the hard cap
+GRIP_STEPS = (1.0, 2.0, 5.0, 10.0)              # mm per + / - in gripper step mode
+GRIP_TIMEOUT = 6.0
 READY = [0.0, 1.0, -1.0, 0.0, 1.0, 0.0]         # SRDF group state `ready` (rad)
 POSE_KEYS = {"z": "zero", "p": "park", "r": "ready"}
 DEG = 180.0 / math.pi
 B, DIM, RED, GRN, YEL, CYN, REV, RST = "\x1b[1m", "\x1b[2m", "\x1b[31m", "\x1b[32m", "\x1b[33m", "\x1b[36m", "\x1b[7m", "\x1b[0m"
+
+
+def mm(v):
+    return "---" if v is None else f"{v * 1000:.1f}"
 
 
 class Console:
@@ -50,6 +59,7 @@ class Console:
         self.jog_joint = None       # None: jog mode off; else 0..5 once chosen; -1 while waiting for the joint digit
         self.jog_target = None
         self.jog_step = 0.5
+        self.grip_force, self.grip_step, self.grip_mode, self.grip_active = arm.gripper_effort, 5.0, False, False
         self.quit = False
         self.snap = {}
         self.refresh()
@@ -230,6 +240,59 @@ class Console:
         out = self.arm.disable()
         self.log(out.message)
 
+    def _t_gripper(self, width, label):
+        a = self.arm
+        self.refresh()
+        s = self.snap
+        if a.gripper is None:
+            self.log("refused: no gripper driver")
+            return
+        if s["problems"]:
+            self.log("refused: " + "; ".join(s["problems"]))
+            return
+        yield ("confirm", f"GRIPPER: {label} to {width * 1000:.0f} mm at {self.grip_force} N (now {mm(s['width'])} mm). Enter = go")
+        out = a.gripper_command(width, self.grip_force)
+        if not out:
+            self.log(f"refused: {out.message}")
+            return
+        self.grip_active = True
+        try:
+            watch, t0 = GripperWatch(width, self.now, self.snap["width"]), self.now()
+            while True:
+                yield
+                self.refresh()
+                w = self.snap["width"]
+                reason = watch.update(w) if w is not None else None
+                self.progress = f"gripper {mm(w)} mm -> {width * 1000:.0f} mm"
+                if reason is None and self.now() - t0 > GRIP_TIMEOUT:
+                    reason = "timeout"
+                if reason:
+                    if reason != "reached" and w is not None:
+                        a.gripper_command(w, self.grip_force)               # stop pushing: aim at where it is
+                    f = self.snap["force"]
+                    self.log(f"gripper {reason}: {mm(w)} mm, force {'---' if f is None else format(f, '.2f')} N"
+                             + (" (stopped short: object or end stop)" if reason == "stalled" else " (no movement: is it powered and enabled?)" if reason == "no_motion" else ""))
+                    return
+        finally:
+            self.grip_active = False
+
+    def _grip_key(self, k):
+        if k in ("g", "G", "ESC", "q"):
+            self.grip_mode = False
+            self.log("gripper step mode off")
+        elif k in (",", "."):
+            i = GRIP_STEPS.index(self.grip_step)
+            self.grip_step = GRIP_STEPS[max(i - 1, 0)] if k == "," else GRIP_STEPS[min(i + 1, len(GRIP_STEPS) - 1)]
+        elif k in ("+", "=", "RIGHT", "UP", "-", "_", "LEFT", "DOWN"):
+            self.refresh()
+            w = self.snap["width"]
+            if w is None:
+                self.log("gripper step refused: no width reading")
+                return
+            new = min(max(w + (1 if k in ("+", "=", "RIGHT", "UP") else -1) * self.grip_step / 1000.0, 0.0), self.arm.gripper_stroke)
+            out = self.arm.gripper_command(new, self.grip_force)
+            self.log(f"gripper -> {new * 1000:.1f} mm at {self.grip_force} N" if out else f"gripper step refused: {out.message}")
+
     def _t_quit(self):
         if any(self.snap["enabled"]):
             yield ("confirm", "The motors are ON; quitting leaves them enabled and holding (nothing stops them). Enter = quit")
@@ -267,9 +330,12 @@ class Console:
         self.log("electronic e-stop sent: the arm lowers under damping. c clears it")
 
     def hold(self):
+        grip = self.grip_active
         was = self.task is not None or self.jog_joint is not None
         self._cancel("HOLD: stopped where it is, motors still on")
         self.jog_joint = self.jog_target = None
+        if grip and self.snap.get("width") is not None:
+            self.arm.gripper_command(self.snap["width"], self.grip_force)       # gripper: aim at where it is, stops pushing
         if was and any(self.snap.get("enabled", [])):
             self.arm._hold()
 
@@ -290,6 +356,8 @@ class Console:
             return
         if self.jog_joint is not None:
             return self._jog_key(k)
+        if self.grip_mode:
+            return self._grip_key(k)
         self.refresh()
         if k in ("s", "S"):
             self._start(self._t_start())
@@ -305,6 +373,21 @@ class Console:
             self._start(self._t_quit())
         elif k in ("j", "J"):
             self._jog_enter()
+        elif k in ("o", "O"):
+            self._start(self._t_gripper(self.arm.gripper_stroke, "OPEN"))
+        elif k in ("l", "L"):
+            self._start(self._t_gripper(0.0, "CLOSE"))
+        elif k in ("g", "G"):
+            if self.arm.gripper is None or self.snap["problems"]:
+                self.log("refused: " + ("no gripper driver" if self.arm.gripper is None else "; ".join(self.snap["problems"])))
+            else:
+                self.grip_mode = True
+                self.log(f"GRIPPER STEP at {self.grip_force} N: + / - move {self.grip_step} mm, , . change the step, g / Esc leave")
+        elif k in ("f", "F"):
+            i = GRIP_FORCES.index(self.grip_force) if self.grip_force in GRIP_FORCES else 1
+            self.grip_force = GRIP_FORCES[(i + 1) % len(GRIP_FORCES)]
+            self.grip_force = min(self.grip_force, self.arm.gripper_max_effort)
+            self.log(f"gripper force {self.grip_force} N (cap {self.arm.gripper_max_effort} N)")
         elif k == "[":
             self.speed = SPEEDS[max(SPEEDS.index(self.speed) - 1, 0)] if self.speed in SPEEDS else 10
         elif k == "]":
@@ -389,19 +472,21 @@ class Console:
             mark = f"{CYN}<{RST}" if self.jog_joint == i else " "
             out.append(f"  j{i + 1} {v}°  {DIM}[{lo * DEG:7.1f}, {hi * DEG:6.1f}]{RST} {mark}")
         w, f = s["width"], s["force"]
-        out.append(f"  gripper {'---' if w is None else f'{w * 1000:.1f} mm'}   force {'---' if f is None else f'{f:.2f} N'}")
+        out.append(f"  gripper {mm(w)} mm   force {'---' if f is None else format(f, '.2f')} N   {DIM}command force {self.grip_force} N{RST}")
         out.append("")
         if self.prompt:
             out.append(f"{REV} {self.prompt} {RST}   (anything else cancels)")
         elif self.task is not None:
             out.append(f"{YEL}{self.progress or 'working...'}{RST}   SPACE = hold here · e = EMERGENCY STOP")
+        elif self.grip_mode:
+            out.append(f"{CYN}GRIPPER STEP: + / - {self.grip_step} mm at {self.grip_force} N   , . step   g / Esc leave{RST}")
         elif self.jog_joint is not None:
             out.append(f"{CYN}JOG: " + ("choose a joint 1-6" if self.jog_joint < 0 else f"joint {self.jog_joint + 1}: + / - (or arrows)") + f"   , . step   j / Esc leave{RST}")
         else:
             out.append("")
         out += [f"  {DIM}{x}{RST}" for x in self.log_lines]
         out += ["", f"{B}s{RST} start(enable+zero)  {B}z{RST} zero  {B}p{RST} park  {B}r{RST} ready  {B}j{RST} jog  {B}t{RST} end session  {B}d{RST} disable  {B}c{RST} clear e-stop",
-                f"{B}[ ]{RST} speed   {B}SPACE{RST} hold   {RED}{B}e EMERGENCY STOP{RST}   {B}q{RST} quit"]
+                f"{B}o{RST} open grip  {B}l{RST} close grip  {B}g{RST} grip steps  {B}f{RST} grip force   {B}[ ]{RST} speed   {B}SPACE{RST} hold   {RED}{B}e EMERGENCY STOP{RST}   {B}q{RST} quit"]
         return "\n".join(out)
 
 

@@ -107,6 +107,8 @@ class ArmState:
     q: np.ndarray           # (6,) rad
     dq: np.ndarray          # (6,) rad/s; NaN where the backend cannot measure it (the real arm)
     stamp: float            # when the feedback was produced; the guard rejects stale feedback by this
+    gripper_width: float = math.nan     # m, measured (0 closed .. stroke open); NaN where the backend has no gripper reading
+    gripper_force: float = math.nan     # N, measured
 
 
 @dataclass

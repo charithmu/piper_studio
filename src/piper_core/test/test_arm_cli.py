@@ -10,10 +10,38 @@ from piper_core.arm_cli import DEG, Console, _keys
 from piper_core.real_arm import JOINTS, RealArm
 
 
+class FakeGripper:
+    """Width follows the target at 20 mm/s; an `obstacle` width stops a closing move (a held object); `frozen` ignores commands (not responding)."""
+
+    def __init__(self):
+        self.width, self.target, self.force, self.obstacle, self.frozen, self.sent = 0.0, 0.0, 0.0, None, False, []
+
+    def advance(self, dt):
+        step = 0.02 * dt
+        w = self.width + max(-step, min(step, self.target - self.width))
+        if self.obstacle is not None and self.target < self.obstacle <= self.width:
+            w = max(w, self.obstacle)
+        self.force = 0.0 if w == self.target else (1.0 if self.obstacle is not None and w == self.obstacle else 0.0)
+        self.width = w
+
+    def move_gripper_m(self, value=0.0, force=1.0):
+        self.sent.append((value, force))
+        if not self.frozen:
+            self.target = value
+
+    def get_gripper_status(self):
+        return NS(msg=NS(value=self.width, force=self.force))
+
+
 class Fake(FakeSdk):
     def __init__(self, q):
         super().__init__(q)
         self.estops, self.resets, self.estopped = 0, 0, False
+        self.grip = FakeGripper()
+
+    def advance(self, dt):
+        super().advance(dt)
+        self.grip.advance(dt)
 
     def get_arm_status(self):
         st = super().get_arm_status()
@@ -36,6 +64,7 @@ def make(q=SLUMPED):
         now[0] += s
         sdk.advance(s)
     arm = RealArm(sdk, clock=lambda: now[0], sleep=sleep)
+    arm.gripper = sdk.grip
     return sdk, arm, Console(arm, speed=10)
 
 
@@ -265,6 +294,120 @@ def test_key_parser():
 
 def test_gripper_reads():
     sdk, arm, c = make()
+    arm.gripper = None
     assert arm.gripper_opening() is None and arm.gripper_force() is None
     arm.gripper = NS(get_gripper_status=lambda: NS(msg=NS(value=0.0123, force=1.5)))
     assert arm.gripper_opening() == pytest.approx(0.0123) and arm.gripper_force() == pytest.approx(1.5)
+
+
+# ---------------------------------------------------------------------- gripper
+def test_open_and_close_ask_first_then_reach_the_width():
+    sdk, arm, c = make()
+    c.key("o")
+    assert "OPEN" in c.prompt and sdk.grip.sent == []
+    c.key("ENTER")
+    until(c, lambda: c.task is None)
+    assert sdk.grip.sent[0] == pytest.approx((0.07, 1.0)) and sdk.grip.width == pytest.approx(0.07, abs=1e-3)
+    assert any("reached" in x for x in c.log_lines)
+    c.key("l")
+    c.key("ENTER")
+    until(c, lambda: c.task is None)
+    assert sdk.grip.width == pytest.approx(0.0, abs=1e-3) and sdk.grip.sent[-1][0] == 0.0
+
+
+def test_closing_on_an_object_ends_stalled_with_width_and_force():
+    sdk, arm, c = make()
+    sdk.grip.width = sdk.grip.target = 0.07
+    sdk.grip.obstacle = 0.03
+    c.key("l")
+    c.key("ENTER")
+    until(c, lambda: c.task is None)
+    assert any("stalled" in x and "30.0 mm" in x and "1.00 N" in x for x in c.log_lines), list(c.log_lines)
+    assert sdk.grip.sent[-1][0] == pytest.approx(0.03, abs=1e-3)         # stopped pushing: aimed at where it stopped
+
+
+def test_a_gripper_that_does_not_move_is_reported():
+    sdk, arm, c = make()
+    sdk.grip.frozen = True
+    c.key("o")
+    c.key("ENTER")
+    until(c, lambda: c.task is None)
+    assert any("no_motion" in x for x in c.log_lines)
+
+
+def test_gripper_commands_are_guarded():
+    sdk, arm, c = make()
+    for width, effort in ((0.08, 1.0), (-0.01, 1.0), (0.03, 0.0), (0.03, 3.5), (float("nan"), 1.0), (0.03, float("nan"))):
+        assert not arm.gripper_command(width, effort)
+    assert sdk.grip.sent == []
+    assert arm.gripper_command(0.03, 3.0) and sdk.grip.sent[-1] == (0.03, 3.0)
+    arm.gripper_max_effort = 5.0                                              # raising the cap is a deliberate act
+    assert arm.gripper_command(0.03, 4.0)
+    sdk.estopped = True                                                       # e-stop: no gripper commands
+    n = len(sdk.grip.sent)
+    assert not arm.gripper_command(0.03, 1.0) and len(sdk.grip.sent) == n
+
+
+def test_space_stops_the_gripper_where_it_is():
+    sdk, arm, c = make()
+    c.key("o")
+    c.key("ENTER")
+    run(c, 0.8)
+    assert c.task is not None
+    w = sdk.grip.width
+    c.key(" ")
+    assert c.task is None and sdk.grip.sent[-1][0] == pytest.approx(w, abs=2e-3)
+    run(c, 1.0)
+    assert sdk.grip.width == pytest.approx(w, abs=2e-3)
+
+
+def test_force_key_cycles_and_never_exceeds_the_cap():
+    sdk, arm, c = make()
+    seen = []
+    for _ in range(7):
+        c.key("f")
+        seen.append(c.grip_force)
+    assert seen[:5] == [1.5, 2.0, 3.0, 0.5, 1.0] and max(seen) <= arm.gripper_max_effort
+    c.key("l")
+    c.key("ENTER")
+    until(c, lambda: c.task is None)
+    assert sdk.grip.sent[-1][1] <= arm.gripper_max_effort
+
+
+def test_gripper_step_mode():
+    sdk, arm, c = make()
+    c.key("g")
+    assert c.grip_mode
+    c.key("+")
+    assert sdk.grip.sent[-1][0] == pytest.approx(0.005)
+    run(c, 0.5)
+    c.key("+")
+    assert sdk.grip.sent[-1][0] == pytest.approx(sdk.grip.width + 0.005, abs=1e-3)
+    c.key(",")
+    assert c.grip_step == 2.0
+    c.key("-")
+    for _ in range(5):
+        c.key("-")
+    assert sdk.grip.sent[-1][0] >= 0.0
+    c.key("ESC")
+    assert not c.grip_mode
+
+
+def test_set_gripper_blocks_and_reports_how_it_ended():
+    sdk, arm, c = make()
+    w = arm.set_gripper(0.05, effort=1.5)
+    assert w == pytest.approx(0.05, abs=1e-3) and arm.last_gripper.reason == "reached"
+    sdk.grip.obstacle = 0.02
+    w = arm.set_gripper(0.0)
+    assert w == pytest.approx(0.02, abs=1e-3) and arm.last_gripper.reason == "stalled" and arm.last_gripper.force == pytest.approx(1.0)
+    with pytest.raises(Exception, match="outside"):
+        arm.set_gripper(0.2)
+
+
+def test_state_carries_the_gripper_reading():
+    sdk, arm, c = make()
+    sdk.grip.width = 0.0123
+    st = arm.state()
+    assert st.gripper_width == pytest.approx(0.0123) and st.gripper_force == pytest.approx(0.0)
+    arm.gripper = None
+    assert math.isnan(arm.state().gripper_width)

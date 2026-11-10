@@ -20,6 +20,8 @@ from __future__ import annotations
 import math
 import os
 import time
+from collections import deque
+from dataclasses import dataclass
 
 import numpy as np
 
@@ -38,6 +40,48 @@ DRIVER_FAULT_BITS = ("voltage_too_low", "motor_overheating", "driver_overcurrent
                      "collision_status", "driver_error_status", "stall_status")
 
 
+GRIPPER_STROKE = 0.07          # m, firmware-reported (max_range_config), docs/real_arm/arms/piper-01.md
+GRIPPER_DEFAULT_EFFORT = 1.0   # N, the vendor default (agx_arm_ctrl `gripper_default_effort`)
+GRIPPER_MAX_EFFORT = 3.0       # N, OUR cap for commands, not a vendor figure (none documented). Raise it deliberately: arm.gripper_max_effort = 5.0
+
+
+@dataclass
+class GripperResult:
+    reason: str        # "reached" | "stalled" (stopped before the target: an object or the end stop) | "no_motion" | "timeout"
+    width: float       # m, last measured
+    force: float | None
+
+
+class GripperWatch:
+    """Decides when a gripper move is over, from measured widths only. Closing on an object never reaches the target, so 'stopped moving' counts."""
+    TOL, HOLD, WINDOW, STILL, MOVED, NO_MOTION_S = 0.001, 0.3, 0.5, 0.0003, 0.0015, 1.0
+
+    def __init__(self, target: float, clock=time.monotonic, width0: float | None = None):
+        self.target, self.now, self.w0, self.t0 = target, clock, width0, clock()
+        self.hist, self.near_since = deque(), None
+
+    def update(self, w: float) -> str | None:
+        t = self.now()
+        if self.w0 is None:
+            self.w0 = w
+        self.hist.append((t, w))
+        while self.hist and t - self.hist[0][0] > 2 * self.WINDOW:
+            self.hist.popleft()
+        if abs(w - self.target) <= self.TOL:
+            self.near_since = self.near_since or t
+            if t - self.near_since >= self.HOLD:
+                return "reached"
+        else:
+            self.near_since = None
+        if abs(w - self.w0) >= self.MOVED and any(t - x >= self.WINDOW for x, _ in self.hist):
+            recent = [v for x, v in self.hist if t - x <= self.WINDOW]
+            if max(recent) - min(recent) < self.STILL:
+                return "stalled"
+        if t - self.t0 >= self.NO_MOTION_S and abs(w - self.w0) < self.MOVED:
+            return "no_motion"
+        return None
+
+
 class RealArmError(BackendError):
     """A refused or aborted action. The arm is left holding (motors on) unless the message says otherwise."""
 
@@ -50,7 +94,9 @@ class RealArm:
         self._now, self._sleep = clock, sleep
         self.limits = limits or self._stored_limits()
         self.enabled = False
-        self.gripper = None          # the SDK gripper driver (read-only until set_gripper exists); set by connect()
+        self.gripper = None          # the SDK gripper driver; set by connect()
+        self.gripper_stroke, self.gripper_effort, self.gripper_max_effort = GRIPPER_STROKE, GRIPPER_DEFAULT_EFFORT, GRIPPER_MAX_EFFORT
+        self.last_gripper: GripperResult | None = None
 
     @classmethod
     def connect(cls, canbus: str = "can0", gripper: bool = True, **kwargs) -> "RealArm":
@@ -125,6 +171,42 @@ class RealArm:
         """Measured gripper force in newtons, None if unavailable. Reads only."""
         gs = self.gripper.get_gripper_status() if self.gripper is not None else None
         return None if gs is None else float(gs.msg.force)
+
+    def gripper_command(self, width_m: float, effort: float | None = None) -> Outcome:
+        """Send one gripper target (non-blocking). Refused, nothing sent: no gripper, width outside [0, stroke], effort not in (0, max], a fault or e-stop reported.
+        To raise the force limit set `arm.gripper_max_effort` (our cap, 3 N); the default effort is `arm.gripper_effort` (1 N, the vendor default)."""
+        effort = self.gripper_effort if effort is None else float(effort)
+        if self.gripper is None:
+            return Outcome(False, "no gripper driver (connect with gripper=True)")
+        if not (math.isfinite(width_m) and -1e-9 <= width_m <= self.gripper_stroke + 1e-9):
+            return Outcome(False, f"gripper width {width_m} m is outside [0, {self.gripper_stroke}]")
+        if not (math.isfinite(effort) and 0.0 < effort <= self.gripper_max_effort):
+            return Outcome(False, f"gripper effort {effort} N is outside (0, {self.gripper_max_effort}] (raise arm.gripper_max_effort deliberately)")
+        bad = self.problems()
+        if bad:
+            return Outcome(False, "; ".join(bad))
+        self.gripper.move_gripper_m(value=min(max(float(width_m), 0.0), self.gripper_stroke), force=effort)
+        return Outcome(True)
+
+    def set_gripper(self, width_m: float, effort: float | None = None, timeout: float = 5.0) -> float:
+        """Move the gripper and block until it reached the width, stopped short of it (object or end stop) or `timeout`. Returns the measured width in metres.
+        `self.last_gripper` says how it ended ('reached' | 'stalled' | 'no_motion' | 'timeout'), the width and the force then; a stalled close is how a held object shows.
+        Raises RealArmError when the command is refused (nothing was sent)."""
+        out = self.gripper_command(width_m, effort)
+        if not out:
+            raise RealArmError(out.message)
+        watch, t0 = GripperWatch(float(width_m), self._now, self.gripper_opening()), self._now()
+        while True:
+            self._sleep(0.02)
+            w = self.gripper_opening()
+            reason = watch.update(w) if w is not None else None
+            if reason is None and self._now() - t0 > timeout:
+                reason = "timeout"
+            if reason:
+                if reason != "reached" and w is not None:               # stop pushing: aim at where it is
+                    self.gripper.move_gripper_m(value=min(max(w, 0.0), self.gripper_stroke), force=self.gripper_effort if effort is None else float(effort))
+                self.last_gripper = GripperResult(reason, w if w is not None else math.nan, self.gripper_force())
+                return self.last_gripper.width
 
     def pose_state(self) -> str:
         """'zero' | 'valid' | 'slumped' | 'invalid' (piper_core.classify_state on the measured joints)."""
@@ -263,7 +345,9 @@ class RealArm:
         now = self._now()
         ja = self.sdk.get_joint_angles()
         stamp = float(getattr(ja, "timestamp", None) or now)
-        return ArmState(now, np.array([q[j] for j in JOINTS]), np.full(6, np.nan), stamp)
+        gw, gf = self.gripper_opening(), self.gripper_force()
+        return ArmState(now, np.array([q[j] for j in JOINTS]), np.full(6, np.nan), stamp,
+                        math.nan if gw is None else gw, math.nan if gf is None else gf)
 
     def hold(self) -> None:
         self._hold()
