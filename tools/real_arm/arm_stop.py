@@ -43,7 +43,7 @@ def main():
     g.add_argument("--reset", action="store_true", help="e-stop, 1 s, reset (powers the arm off)")
     args = ap.parse_args()
     try:
-        arm, _, fw, profile = open_arm(resolve_canbus(args.canbus))
+        arm, _, fw, profile = open_arm(resolve_canbus(args.canbus), lock=False)
     except RuntimeError as e:
         raise SystemExit(f"{e}\nNothing was sent to the arm except the firmware query.")
     try:

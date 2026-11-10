@@ -1,5 +1,7 @@
 """What piper_pick relies on from RealArm, as tests against the fake SDK: results, refusals that never move the arm, hold, abort, start/stop, streaming options, metrics."""
 
+from types import SimpleNamespace as NS
+
 import numpy as np
 import pytest
 from test_real_arm import SLUMPED, FakeSdk, at, make
@@ -64,9 +66,9 @@ def test_a_disabled_arm_is_refused_instead_of_silently_ignored():
     sdk.q, sdk.target = list(arm.zero().values()), list(arm.zero().values())        # still at a valid pose, but the motors are off
     n = len(sdk.sent)
     r = arm.execute(ramp(arm))
-    assert not r.ok and r.reason == "fault" and "not all enabled" in r.message
+    assert not r.ok and r.reason == "not_ready" and "not started" in r.message and "slump" not in r.message
     assert not arm.move_to(arm.zero()) and len(sdk.sent) == n
-    with pytest.raises(Exception, match="not all enabled"):
+    with pytest.raises(Exception, match="not started"):
         arm.command(list(arm.zero().values()))
     assert len(sdk.sent) == n
 
@@ -105,13 +107,14 @@ def test_hold_at_a_valid_pose_sends_the_measured_pose_exactly():
     assert sdk.sent[-1] == pytest.approx([q[j] for j in JOINTS], abs=1e-12)        # not clamped: it is inside the limits
 
 
-def test_hold_cannot_keep_a_pose_outside_the_limits_it_aims_at_the_limit():
-    """Joints 2/3 rest about 2 deg outside their range when powered off; a hold at that pose is aimed at the range edge (the firmware does not accept targets past it)."""
+def test_hold_does_nothing_unless_the_arm_is_started():
+    """Where a powered-off arm rests is not something downstream code can hold: hold() only acts on a started arm (the internal _hold aims at the range edge there)."""
     sdk, arm = make(SLUMPED)
     sdk.on = True
     arm.hold()
+    assert sdk.sent == []
+    arm._hold()
     assert sdk.sent[-1][1] == pytest.approx(arm.limits["joint2"][0]) and sdk.sent[-1][2] == pytest.approx(arm.limits["joint3"][1])
-    assert sdk.sent[-1][1] != pytest.approx(SLUMPED[1])
 
 
 # ---------------------------------------------------------------- abort / stop
@@ -169,7 +172,7 @@ def test_stop_goes_to_zero_then_park_then_estop_then_reset():
 def test_start_after_stop_works_at_once():
     sdk, arm = started()
     assert arm.stop(settle=0.2)
-    assert arm.start() and arm.pose_state() == "zero" and sdk.on
+    assert arm.start() and arm._pose_state() == "zero" and sdk.on
 
 
 # ---------------------------------------------------------------- streaming options
@@ -246,3 +249,116 @@ def test_stream_plans_start_and_end_at_rest_at_q0():
     r = ramp(q0, 4, -0.3, 2.0)
     assert r.q[0] == pytest.approx(q0) and r.q[-1] == pytest.approx(q0) and r.q[:, 4].min() == pytest.approx(-0.3, abs=1e-6) and peak_speed(r) == pytest.approx(1.875 * 0.3 / 2.0, rel=0.03)
     assert required_percent(c) == int(np.ceil(peak_speed(c) * 1.2 * 100 / 3.0))
+
+
+# ---------------------------------------------------------------- start / stop from any state, status, e-stop, stale feedback, bus lock
+def test_start_clears_an_active_estop_and_works():
+    sdk, arm = make(SLUMPED)
+    sdk.estopped = True
+    assert arm.status().e_stop and not arm.status().started
+    r = arm.start()
+    assert r and "cleared an e-stop" in r.message and sdk.resets == 1 and not sdk.estopped and arm.status().started and arm.status().at_zero
+
+
+def test_start_twice_and_stop_twice_are_harmless():
+    sdk, arm = make(SLUMPED)
+    assert arm.start() and arm.start() and arm.status().started
+    assert arm.stop(settle=0.2) and not arm.status().started
+    r = arm.stop(settle=0.2)
+    assert r and "already stopped" in r.message and sdk.estops == 1
+    assert arm.start() and arm.status().started
+
+
+def test_stop_clears_an_estop_and_stops_a_half_started_arm():
+    sdk, arm = make(SLUMPED)
+    sdk.estopped = True
+    r = arm.stop()
+    assert r and "e-stop cleared" in r.message and not sdk.estopped
+    sdk, arm = make(SLUMPED)
+    sdk.on = True                                              # enabled but never moved to zero (a start() that was interrupted)
+    r = arm.stop(settle=0.2)
+    assert r and sdk.estops == 1 and not sdk.on and arm._pose_state() == "slumped"
+
+
+def test_stop_with_a_fault_commands_nothing_and_leaves_the_operator_to_estop():
+    sdk, arm = make(SLUMPED)
+    assert arm.start()
+    n = len(sdk.sent)
+    sdk.fault = True
+    r = arm.stop()
+    assert not r and "operator" in r.message and sdk.on and len(sdk.sent) == n and sdk.estops == 0
+
+
+def test_status_says_why_and_never_mentions_the_off_pose():
+    sdk, arm = make(SLUMPED)
+    st = arm.status()
+    assert not st.started and not st.enabled and not st.at_zero and st.faults == [] and not st.e_stop
+    assert arm.start() and arm.status().started
+    sdk.fault = True
+    st = arm.status()
+    assert not st.started and st.faults
+    sdk.fault = False
+    sdk.on = False
+    for text in (arm.execute(ramp(arm)).message, str(arm.status()), arm.stop().message):
+        assert "slump" not in text.lower()
+
+
+class StampedSdk(FakeSdk):
+    """get_joint_angles carries a receive stamp like the real SDK; `frozen` stops it advancing (arm silent / CAN lost)."""
+
+    def __init__(self, q, clock):
+        super().__init__(q)
+        self.clock, self.frozen, self.stamp = clock, False, 0.0
+
+    def get_joint_angles(self):
+        if not self.frozen:
+            self.stamp = self.clock()
+        return NS(msg=list(self.q), timestamp=self.stamp + 1.7e9)         # any epoch: only the advance matters
+
+
+def test_stale_feedback_is_a_fault_and_stops_a_run():
+    from types import SimpleNamespace as NS_
+    now = [0.0]
+    sdk = StampedSdk(SLUMPED, lambda: now[0])
+    sdk.estops = sdk.resets = 0
+    sdk.estopped = False
+
+    def sleep(sec):
+        now[0] += sec
+        sdk.advance(sec)
+    arm = RealArm(sdk, clock=lambda: now[0], sleep=sleep)
+    assert arm.start() and arm.problems() == []
+    hook_sleep(arm, sdk, lambda i: setattr(sdk, "frozen", True) if i == 80 else None)
+    r = arm.execute(ramp(arm, seconds=2.0))
+    assert not r.ok and r.reason == "fault" and "stale" in r.message and sdk.on
+    assert not arm.status().started and "stale" in " ".join(arm.status().faults)
+    sdk.frozen = False
+    assert arm.problems() == []                                              # fresh again
+
+
+def test_a_can_error_in_the_middle_of_a_run_is_reported_and_holds_if_it_can():
+    sdk, arm = started()
+    boom = {"n": 0}
+    real_move = sdk.move_j
+
+    def flaky(q):
+        boom["n"] += 1
+        if boom["n"] == 10:
+            raise OSError("can0: network is down")
+        real_move(q)
+    sdk.move_j = flaky
+    r = arm.execute(ramp(arm, seconds=2.0))
+    assert not r.ok and r.reason == "fault" and "CAN/SDK error" in r.message and not arm._executing
+
+
+def test_bus_lock_allows_one_owner(tmp_path, monkeypatch):
+    from piper_core.bus_lock import BusBusyError, BusLock
+    monkeypatch.setenv("XDG_RUNTIME_DIR", str(tmp_path))
+    a, b = BusLock("can9"), BusLock("can9")
+    a.acquire()
+    with pytest.raises(BusBusyError, match="in use by pid"):
+        b.acquire()
+    BusLock("can8").acquire().release()                                      # another bus is independent
+    a.release()
+    b.acquire()
+    b.release()

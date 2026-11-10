@@ -92,7 +92,7 @@ Names below are for the default prefix; with another prefix, joints and frames f
 | Gripper | action `/gripper_controller/gripper_cmd` (`ParallelGripperCommand`) | width in metres |
 | Planning | MoveIt `move_group`, group `arm` (end effector group `gripper`) | OMPL and Pilz (LIN, PTP, CIRC) |
 | Servo | MoveIt Servo `~/delta_twist_cmds`, `~/pose_target_cmds`, `~/delta_joint_cmds` | publishes to the streaming controller |
-| Named poses | SRDF group states `zero`, `ready` (and the internal `park`) | `zero`: start and end pose of every session. `park` and the powered-off (slumped) pose are Piper Studio internals, handled by `start()` / `stop()` |
+| Named poses | SRDF group states `zero`, `ready` (and the internal `park`) | `zero`: start and end pose of every session. `park` is a Piper Studio internal used by `stop()` |
 | Driver health (real arm) | `/feedback/arm_status`, `/feedback/motor_status`, `/feedback/gripper_status` | vendor `diagnostic_msgs/DiagnosticArray`, 2 Hz; `Piper.status()`, `Piper.faults()`, `piper status`; `activate()` refuses (`ARM_FAULT`) while one is reported. Simulators publish none. |
 | Camera | `/camera/color/image_raw`, `/camera/color/camera_info`, `/camera/aligned_depth_to_color/image_raw` | RealSense topic names, in simulation and (planned) with the real driver |
 
@@ -114,14 +114,28 @@ cfg = GuardConfig(arm_joints=tuple(f"joint{i}" for i in range(1, 7)))
 verdict = check_command(names, positions, limits, measured, cfg)   # verdict.ok, verdict.reason, verdict.positions (clamped)
 ```
 
-Apply the guard to every point of a planner's joint trajectory before it goes to the arm. It is the same function the ROS `command_guard` uses. A direct driver
-wrapper (`RealArm`: state, gripper, enable/disable, `execute(trajectory)` with the guard) is *planned*; until then use `tools/real_arm/` (SDK scripts) and read
-`docs/real_arm/REAL_ARM.md` before touching the real arm.
+Apply the guard to every point of a planner's joint trajectory before it goes to the arm. It is the same function the ROS `command_guard` uses.
+
+### The real arm without ROS: `RealArm` (`pip install piper_core[arm]`, needs `pyAgxArm`)
+
+```python
+from piper_core import RealArm
+arm = RealArm.connect("can0")            # fails clearly if the CAN bus is down or another program drives the arm
+arm.start()                              # the only way in: clears an e-stop, motors on, to zero. Safe to repeat
+arm.status()                             # started? enabled? e_stop? faults? feedback age?
+arm.execute(trajectory)                  # ExecResult(ok, reason, detail, ...) ; refused whole or executed; nothing outside the bounds is ever sent
+arm.set_gripper(0.0, effort=1.0)         # blocks; returns the width; arm.last_gripper.reason: reached | stalled (an object) | no_motion | timeout
+arm.stop()                               # the only way out: zero, park, e-stop, clear. From any state. Then start() works at once
+```
+
+Everything else follows the same `ArmBackend` contract as the simulators (`piper_core.backend`). Rules: the arm is only commanded inside its bounds and only after `start()`; a refused call sends nothing; a fault, stale feedback,
+`abort()` (any thread) or Ctrl-C while running stops and holds the pose; if the process dies the arm keeps holding and the operator stops it (`piper-arm`, key `e`). One program drives the arm at a time (a second `connect` fails with the holder's pid).
+Gripper effort defaults to 1.0 N and is capped at 3.0 N (`arm.gripper_max_effort`). Hand-off note with the details and what is verified on the arm: `docs/FINDINGS.md`. Operator tools: `piper-arm` (cockpit), `docs/real_arm/REAL_ARM.md`.
 
 ## 4. Real arm rules (do not weaken in a wrapper)
 
 Motors are not enabled at start. The arm speed is set explicitly. Command controllers start inactive and are activated only after fresh, consistent feedback
-(`piper activate`). Commands pass the guard. Every session starts with `piper start` (`Piper.start()`: motors, leave the powered-off pose, checked arrival at zero, controllers active) and ends at `zero` with `piper stop` (zero, park, motors off). Nothing is ever commanded from outside the limits.
+(`piper activate`). Commands pass the guard. Every session starts with `piper start` (`Piper.start()`: motors, one checked move to zero, controllers active) and ends at `zero` with `piper stop` (zero, park, motors off). Nothing is ever commanded from outside the limits.
 Anything that can move the real arm needs the user present and approving.
 
 ## 5. Versioning

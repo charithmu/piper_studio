@@ -74,7 +74,7 @@ def started():
     c.key("s")
     c.key("ENTER")
     until(c, lambda: c.task is None)
-    assert sdk.on and arm.pose_state() == "zero"
+    assert sdk.on and arm._pose_state() == "zero"
     return sdk, arm, c
 
 
@@ -85,9 +85,20 @@ def test_start_waits_for_enter_then_enables_and_goes_to_zero():
     assert not sdk.on and not sdk.sent                       # nothing happened before Enter
     c.key("ENTER")
     until(c, lambda: c.task is None)
-    assert sdk.on and arm.pose_state() == "zero"
+    assert sdk.on and arm._pose_state() == "zero"
     assert sdk.sent[0] == pytest.approx([arm.zero()[j] for j in JOINTS])
     assert any("READY" in x for x in c.log_lines)
+
+
+def test_start_clears_an_estop_after_enter():
+    sdk, arm, c = make()
+    c.key("e")
+    assert sdk.estopped
+    c.key("s")
+    assert "clear the e-stop" in c.prompt and sdk.resets == 0
+    c.key("ENTER")
+    until(c, lambda: c.task is None)
+    assert sdk.resets == 1 and not sdk.estopped and sdk.on and arm._pose_state() == "zero"
 
 
 def test_any_other_key_cancels_a_prompt():

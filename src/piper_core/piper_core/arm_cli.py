@@ -86,7 +86,7 @@ class Console:
             for name in ("zero", "park", "ready"):
                 if max(abs(x - g) for x, g in zip(q, self.targets(name))) < 0.015:
                     near = name
-        self.snap = {"q": q, "enabled": en, "problems": a.problems(), "pose": a.pose_state() if q is not None else "no feedback", "near": near,
+        self.snap = {"q": q, "enabled": en, "problems": a.problems(), "pose": a._pose_state() if q is not None else "no feedback", "near": near,
                      "arm_status": None if st is None else int(st.msg.arm_status), "width": a.gripper_opening(), "force": a.gripper_force()}
 
     def moves_allowed(self, goal, allow_slumped=False):
@@ -167,7 +167,8 @@ class Console:
         a = self.arm
         self.refresh()
         s = self.snap
-        if s["problems"]:
+        estop = s["arm_status"] == 1
+        if s["problems"] and not estop:
             self.log("not starting: " + "; ".join(s["problems"]))
             return
         if s["pose"] == "invalid":
@@ -178,13 +179,23 @@ class Console:
             return
         goal = self.targets("zero")
         big = max(abs(x - g) for x, g in zip(s["q"], goal)) * DEG
-        what = "enable the motors and " if not all(s["enabled"]) else ""
+        what = ("clear the e-stop, " if estop else "") + ("enable the motors and " if not all(s["enabled"]) else "")
         yield ("confirm", f"START: {what}move to ZERO ({big:.1f} deg, speed {self.speed} %). Arm clear, hand on the power switch. Enter = go")
+        if estop:
+            cleared = a._clear_estop()
+            if not cleared:
+                self.log(f"not starting: {cleared.message}")
+                return
+            self.log("e-stop cleared")
+            self.refresh()
+            if self.snap["problems"]:
+                self.log("not starting: " + "; ".join(self.snap["problems"]))
+                return
         cfg = a._configure(self.speed)
         if not cfg:
             self.log(f"not starting: {cfg.message}")
             return
-        if not all(s["enabled"]):
+        if not all(s["enabled"]) or estop:
             en = a.enable()
             if not en:
                 self.log(f"not moving: {en.message} (d disables, e stops)")

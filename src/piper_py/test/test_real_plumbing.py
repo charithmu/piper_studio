@@ -64,6 +64,28 @@ class TestRealPlumbing(unittest.TestCase):
         for i, (x, y) in enumerate(zip(a, b)):
             self.assertAlmostEqual(x, y, delta=tol, msg=f"joint{i + 1}")
 
+    def wait_near(self, target, tol, timeout=10.0):
+        """Poll until the measured joints are within `tol` of `target` (a motion needs time that depends on the machine), then assert it. Waiting is for the arrival only:
+        the checks that something must NOT move stay strict (`wait_settled` first, then compare)."""
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            if all(abs(x - y) <= tol for x, y in zip(self.arm.joint_positions(), target)):
+                break
+            time.sleep(0.1)
+        self.assert_near(self.arm.joint_positions(), target, tol)
+
+    def wait_settled(self, timeout=10.0, window=0.5, eps=1e-4):
+        """Poll until no joint has moved more than `eps` over `window` seconds; returns the settled joints."""
+        deadline, prev, t_prev = time.monotonic() + timeout, self.arm.joint_positions(), time.monotonic()
+        while time.monotonic() < deadline:
+            time.sleep(0.1)
+            if time.monotonic() - t_prev >= window:
+                cur = self.arm.joint_positions()
+                if max(abs(x - y) for x, y in zip(cur, prev)) < eps:
+                    return cur
+                prev, t_prev = cur, time.monotonic()
+        return self.arm.joint_positions()
+
     def test_1_commanders_start_inactive(self):
         states = self.arm.controllers()
         self.assertEqual(states["joint_state_broadcaster"], "active")
@@ -109,8 +131,7 @@ class TestRealPlumbing(unittest.TestCase):
     def test_2c_a_driver_fault_stops_commands_at_the_guard(self):
         """With a reported driver fault nothing reaches the driver (the guard drops it), and commands flow again when the fault clears."""
         self.assertTrue(self.arm.activate())
-        time.sleep(0.5)
-        before = self.arm.joint_positions()
+        before = self.wait_settled()
         target = [q + (0.05 if i == 0 else 0.0) for i, q in enumerate(before)]
         set_fault("joint3")
         time.sleep(1.5)
@@ -120,22 +141,24 @@ class TestRealPlumbing(unittest.TestCase):
         time.sleep(1.5)
         r = self.arm.move_joints(target, 1.0)
         self.assertTrue(r, r)                                               # commands flow again
-        self.assert_near(self.arm.joint_positions(), target, 5e-3)
+        self.wait_near(target, 5e-3)
         r = self.arm.move_joints(before, 1.0)
         self.assertTrue(r, r)
+        self.wait_near(before, 5e-3)
         self.arm.deactivate()
 
     def test_3_activation_holds_measured_pose(self):
+        measured = self.wait_settled()
         r = self.arm.activate()
         self.assertTrue(r, r)
         time.sleep(1.0)
-        self.assert_near(self.arm.joint_positions(), START, 1e-3)
+        self.assert_near(self.arm.joint_positions(), measured, 1e-3)         # holds the MEASURED pose; never jumps to the URDF initial pose
 
     def test_4_trajectory_reaches_target_on_driver(self):
         target = [0.0, 0.8, -0.8, 0.1, 0.3, -0.2]
         r = self.arm.move_joints(target, duration=1.5)
         self.assertTrue(r, r)
-        self.assert_near(self.arm.joint_positions(), target, 0.02)
+        self.wait_near(target, 0.02)
 
     def test_5_gripper(self):
         r = self.arm.gripper(0.05)
@@ -150,7 +173,9 @@ class TestRealPlumbing(unittest.TestCase):
             q[0] += 0.002
             self.assertTrue(self.arm.stream_joints(q))
             time.sleep(0.01)
-        time.sleep(0.5)
+        deadline = time.monotonic() + 10.0
+        while time.monotonic() < deadline and abs(self.arm.joint_positions()[0] - q[0]) > 0.01:      # the stream and the controller need a moment to catch up
+            time.sleep(0.1)
         self.assertAlmostEqual(self.arm.joint_positions()[0], q[0], delta=0.01)
         self.assertFalse(self.arm.stream_joints([0, 0, 1.0, 0, 0, 0]))  # joint3 out of limits
         self.assertTrue(self.arm.use_trajectories())
@@ -163,6 +188,6 @@ class TestRealPlumbing(unittest.TestCase):
 
     def test_8_no_motion_while_inactive(self):
         """Inactive controllers make ros2_control publish NaN; the guard must keep it from the driver."""
-        before = self.arm.joint_positions()
+        before = self.wait_settled()                     # let the previous test's motion finish; from here on NOTHING may move it
         time.sleep(1.5)
         self.assert_near(self.arm.joint_positions(), before, 1e-4)

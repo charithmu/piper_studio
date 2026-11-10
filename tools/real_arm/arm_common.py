@@ -70,13 +70,26 @@ def resolve_canbus(requested=None):
 
 
 # Note: pyAgxArm and python-can both call the CAN bus name `channel` in their own APIs; everywhere in our tools it is `canbus`.
-def open_arm(canbus="can0", gripper=False):
+_LOCKS = {}
+
+
+def open_arm(canbus="can0", gripper=False, lock=True):
     """Connect with the right SDK profile for the arm's firmware. Sends ONE frame (the firmware query).
 
     Opens with the oldest profile (the firmware query is identical on all of them), reads the firmware, closes, and reopens with the
     profile that matches the version, because status/MIT frames decode differently per profile.
     Returns (arm, gripper_driver_or_None, firmware_dict, profile). Caller must arm.disconnect().
     """
+    if lock:        # one program on the bus at a time (piper_core.bus_lock); arm_stop.py passes lock=False so the emergency stop works beside a running tool
+        try:
+            from piper_core.bus_lock import BusBusyError, BusLock
+        except ImportError:
+            pass
+        else:
+            try:
+                _LOCKS[canbus] = BusLock(canbus).acquire()
+            except BusBusyError as e:
+                raise RuntimeError(str(e)) from None
     probe = AgxArmFactory.create_arm(create_agx_arm_config(robot=ArmModel.PIPER, firmeware_version=PiperFW.DEFAULT, channel=canbus))
     probe.connect()
     try:

@@ -92,10 +92,10 @@ def at(arm, goal):
 
 def test_start_from_the_slumped_pose_ends_enabled_at_zero():
     sdk, arm = make(SLUMPED)
-    assert arm.pose_state() == "slumped"
+    assert arm._pose_state() == "slumped"
     r = arm.start()
     assert r, r
-    assert sdk.on and arm.pose_state() == "zero" and at(arm, arm.zero())
+    assert sdk.on and arm._pose_state() == "zero" and at(arm, arm.zero())
     assert sdk.sent[0] == pytest.approx([arm.zero()[j] for j in JOINTS])         # the one move out of the slump aims at zero
     assert arm.zero()["joint2"] == pytest.approx(0.01) and arm.zero()["joint3"] == pytest.approx(-0.01)
 
@@ -153,7 +153,7 @@ def test_stop_parks_and_powers_off_into_the_slump():
     assert arm.move_to({**arm.zero(), "joint1": 0.4})
     r = arm.stop(settle=0.2)
     assert r, r
-    assert not sdk.on and arm.pose_state() == "slumped"
+    assert not sdk.on and arm._pose_state() == "slumped"
     assert sdk.sent[-1][4] == pytest.approx(0.3840)                                # the last pose before power-off was park
     assert sdk.estops == 1 and sdk.resets == 1 and not sdk.estopped                # default ending: e-stop, then reset
     assert arm.stop()                                                              # a slumped arm is left alone

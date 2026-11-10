@@ -68,8 +68,8 @@ def main():
         lo, hi = arm.limits[JOINTS[j]]
         if not (lo + MARGIN <= q0[j] + min(0.0, amp) and q0[j] + max(0.0, amp) <= hi - MARGIN):
             raise SystemExit(f"refused: joint {args.joint} would leave [{math.degrees(lo + MARGIN):.1f}, {math.degrees(hi - MARGIN):.1f}] deg: use --amplitude with the other sign or a smaller value")
-        if arm.pose_state() not in ("zero", "valid") or arm._not_enabled():
-            raise SystemExit(f"refused: {arm._not_enabled() or 'the arm is ' + arm.pose_state()}. Start it first (piper-arm: s).")
+        if arm._not_started():
+            raise SystemExit(f"refused: {arm._not_started()}. Start it first (piper-arm: s).")
         if max(abs(q[n] - q0[i]) for i, n in enumerate(JOINTS)) > 0.04:
             raise SystemExit("refused: the arm is more than 0.04 rad from the plan's start pose; move it near zero or the pose you want first")
         input("Arm clear, hand on the power switch? Enter to RUN (Ctrl-C holds)... ")
