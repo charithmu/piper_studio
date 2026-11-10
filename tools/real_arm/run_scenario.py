@@ -9,7 +9,7 @@
 
 The plan is cuRobo's (fast by design: it peaks at 1.4 rad/s), so every leg is slowed to --max-speed (default 0.3 rad/s, about 10 % speed percent) with the same path; --max-speed 0 keeps the plan as it is.
 Each leg is checked offline against the limits and the guard rules before anything is connected; on the arm, `RealArm.execute` / the ROS driver check it again and hold on any problem.
-The report (per step: ok, message, planned and wall time, tracking error, gripper width and force) is written next to the scenario file. The arm is left started at zero (end the session with
+The report (per step: ok, message, planned and wall time, tracking error, gripper width and force) is written to ~/data/ml/isaac/piper_studio/scenario/reports/. The arm is left started at zero (end the session with
 `piper-arm` `t` or `RealArm.stop()`). Real arm and ROS need the user at the arm, hand on the power switch; Ctrl-C holds where it is.
 """
 import argparse
@@ -207,7 +207,9 @@ def main():
         say("\nCtrl-C: holding where it is.")
         b.hold()
     finally:
-        out = args.scenario.with_name(f"report_{args.backend}_{time.strftime('%H%M%S')}.json")
+        rep_dir = Path.home() / "data/ml/isaac/piper_studio/scenario/reports"              # results are data: not next to a scenario file that may live in the repo
+        rep_dir.mkdir(parents=True, exist_ok=True)
+        out = rep_dir / f"report_{args.backend}_{time.strftime('%Y%m%d_%H%M%S')}.json"
         out.write_text(json.dumps({"backend": b.name, "max_speed": args.max_speed, "effort": args.effort, "steps": report, "wall_s": round(time.time() - t_all, 1)}, indent=1, default=float))
         say("report:", out)
         b.close()

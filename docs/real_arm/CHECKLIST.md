@@ -14,7 +14,7 @@ Tools: `piper-arm` (cockpit: status, keys, gripper), `tools/real_arm/arm_session
 
 ## R1 trajectories through RealArm
 
-Status 2026-11-10: R1.00 passed; R1.1 and R1.2 done on joint 1 at 6 % (`lookahead=2`: lag 0 ms, rms 0.04 deg; `fixed` and `per_point`: lag 45 ms, rms 0.25 deg; numbers in `arms/piper-01.md`); R1.6 done at zero and `ready`. Open: R1.3 (joints 2, 3, 5), R1.4 (speed ladder), R1.5, R1.7.
+Status 2026-11-10: R1.5 passed (the cuRobo scenario, all steps ok, 0.33 deg worst joint error, back at zero); R1.00 passed; R1.1 and R1.2 done on joint 1 at 6 % (`lookahead=2`: lag 0 ms, rms 0.04 deg; `fixed` and `per_point`: lag 45 ms, rms 0.25 deg; numbers in `arms/piper-01.md`); R1.6 done at zero and `ready`. R1.3 done at low speed on joints 2, 3, 5; R1.4 done on joint 1 up to 44 %. Open: R1.7 and the ROS rungs.
 
 Pre-conditions: `piper-arm` `s` (enabled, at zero), no object near. Each step is approved by the user, then run by the user.
 
@@ -32,7 +32,7 @@ Pre-conditions: `piper-arm` `s` (enabled, at zero), no object near. Each step is
 
 Measure per joint (from `stream_metrics`): tracking error, lag, overshoot, repeatability (`--repeat`), `speed_percent` vs real speed, behaviour at 25 ms setpoints (timing late/spacing). Stop and ask if any run ends with a guard event, a fault, or a final error above 1 deg.
 
-## R2 gripper (arm parked or at zero, nothing in the way)
+## R2 gripper (nothing in the way; `tools/real_arm/gripper_test.py` does A-D with an Enter per stage and saves the numbers)
 
 Pre-condition: `piper-arm`; the gripper panel reads width and force. Commands: `o` open, `l` close, `g` steps, `f` force (0.5-3 N). Keep fingers out of the closing path.
 

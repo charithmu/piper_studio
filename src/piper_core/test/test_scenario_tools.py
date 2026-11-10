@@ -54,3 +54,39 @@ def test_scenario_runs_in_the_simulator_and_ends_at_zero(tmp_path):
                          env={**__import__("os").environ, "MUJOCO_GL": "egl"})
     assert out.returncode == 0, out.stderr[-500:]
     assert "back at zero: True" in out.stdout and out.stdout.count("ok=True") == 4
+
+
+def _gripper_tool():
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("gripper_test", ROOT / "tools/real_arm/gripper_test.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def test_gripper_times_come_from_the_trace():
+    g = _gripper_tool()
+    trace = [(0.02 * k, max(0.0, 0.07 - 0.0004 * k), 0.0) for k in range(220)]      # closes at 20 mm/s from 70 mm (0.4 mm per 20 ms sample)
+    reach, settle = g.times_from_trace(trace, 0.0)
+    assert reach == pytest.approx(3.5, abs=0.06) and settle == pytest.approx(3.5, abs=0.06)
+    held = [(0.02 * k, max(0.03, 0.07 - 0.0004 * k), -1.0) for k in range(160)]    # stalls on an object at 30 mm
+    reach, settle = g.times_from_trace(held, 0.0)
+    assert reach is None and settle == pytest.approx(2.0, abs=0.06)
+    assert g.stats([1.0, 3.0, None])["mean"] == 2.0 and g.stats([])["n"] == 0
+
+
+def test_gripper_empty_and_force_stages_run_against_the_fake_gripper():
+    import argparse
+    from test_arm_cli import make as make_fake
+    g = _gripper_tool()
+    sdk, arm, _ = make_fake()
+    ns = argparse.Namespace(cycles=2, effort=1.0)
+    out = g.stage_empty(arm, ns, lambda t: None)
+    assert len(out["open"]) == 2 and out["open"][0]["width_mm"] == pytest.approx(70.0, abs=1.0) and out["close"][0]["width_mm"] == pytest.approx(0.0, abs=1.0)
+    assert out["close"][0]["t_reach_s"] == pytest.approx(3.5, abs=0.2)
+    rows = g.stage_force(arm, ns, lambda t: None)
+    assert len(rows) == 10 and {r["effort_n"] for r in rows} == {0.5, 1.0, 1.5, 2.0, 3.0}
+    sdk.grip.width = sdk.grip.target = 0.07
+    sdk.grip.obstacle = 0.03
+    held = g.move(arm, 0.0, 1.0)
+    assert held["reason"] == "stalled" and held["width_mm"] == pytest.approx(30.0, abs=1.0) and held["t_reach_s"] is None and held["t_settle_s"] > 1.5

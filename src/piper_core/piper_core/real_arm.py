@@ -22,7 +22,7 @@ import os
 import threading
 import time
 from collections import deque
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import numpy as np
 
@@ -54,6 +54,8 @@ class GripperResult:
     reason: str        # "reached" | "stalled" (stopped before the target: an object or the end stop) | "no_motion" | "timeout"
     width: float       # m, last measured
     force: float | None
+    duration: float = 0.0                                   # s from the command to the end condition (includes the 0.3 s the width must hold for "reached")
+    trace: list = field(default_factory=list)               # (t s from the command, width m, force N) about every 20 ms
 
 
 @dataclass
@@ -253,17 +255,19 @@ class RealArm:
         out = self.gripper_command(width, effort)
         if not out:
             raise RealArmError(out.message)
-        watch, t0 = GripperWatch(float(width), self._now, self.gripper_opening()), self._now()
+        watch, t0, trace = GripperWatch(float(width), self._now, self.gripper_opening()), self._now(), []
         while True:
             self._sleep(0.02)
             w = self.gripper_opening()
+            if w is not None:
+                trace.append((self._now() - t0, w, self.gripper_force()))
             reason = watch.update(w) if w is not None else None
             if reason is None and self._now() - t0 > timeout:
                 reason = "timeout"
             if reason:
                 if reason != "reached" and w is not None:               # stop pushing: aim at where it is
                     self.gripper.move_gripper_m(value=min(max(w, 0.0), self.gripper_stroke), force=self.gripper_effort if effort is None else float(effort))
-                self.last_gripper = GripperResult(reason, w if w is not None else math.nan, self.gripper_force())
+                self.last_gripper = GripperResult(reason, w if w is not None else math.nan, self.gripper_force(), self._now() - t0, trace)
                 return self.last_gripper.width
 
     def status(self) -> ArmStatus:
