@@ -21,6 +21,8 @@ the same rules, which are applied in `check_trajectory` and `check_start` so tha
   * `margin_percent` is speed headroom for backends whose servo takes a speed setting (the real arm): the speed is set to the fastest
     segment of the trajectory plus that percentage. Backends that follow the setpoints directly (the simulators) ignore it.
   * `execute` can be called repeatedly in one process.
+  * `set_gripper(width, effort)` blocks until the gripper reached the width or stopped short of it (an object) and returns the measured width; a width outside [0, 0.07] raises
+    BackendError. The real arm also reports how it ended (`RealArm.last_gripper.reason`: reached | stalled | no_motion | timeout) and measures the force.
 """
 
 from __future__ import annotations
@@ -157,6 +159,10 @@ class ArmBackend(Protocol):
     def command(self, q, dq=None) -> None: ...            # one real-time setpoint through the guard; BackendError if refused
     def hold(self) -> None: ...                           # keep the present position
     def move_to(self, q, duration: float | None = None) -> ExecResult: ...
+    # gripper: width in metres (0 closed .. 0.07 open). `effort` (N) is used by the real arm (default 1 N, capped); simulators accept and ignore it for now (docs/FINDINGS.md).
+    def gripper_opening(self) -> float | None: ...        # measured width, m
+    def gripper_force(self) -> float | None: ...          # measured force, N (sign: negative while gripping on the real arm); NaN where the backend cannot measure it
+    def set_gripper(self, width: float, effort: float | None = None, timeout: float | None = None) -> float: ...   # blocks until reached / stalled / timeout; returns the measured width
 
 
 def resample(traj: Trajectory, rate_hz: float = CONTROL_HZ) -> tuple[np.ndarray, np.ndarray]:

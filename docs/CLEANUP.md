@@ -113,6 +113,7 @@ Screenshots: 01-06 RViz (model, MoveIt, zero and ready pose, wrist close-up), 07
 
 ## Log
 
+- 2026-11-10 backlog pass (Part 1 of the piper_pick task, software only, 0.6.0): gripper in `ArmBackend`/`RealArm`/both simulators, `RealArm.stop()` ends with e-stop + reset, `abort()`, motors-enabled check, streaming options (`mode`, `lookahead`), `stream_metrics`/`stream_plan`, `arm_stream_test.py`, behaviour tests (103 across core, MuJoCo and the Isaac client), `docs/FINDINGS.md`, `docs/real_arm/CHECKLIST.md`. Plumbing tests test_real_plumbing/test_real_start_stop are flaky on their own: they also failed with the old park value restored (one failing run of two), so the park change is not the cause. B3 and C10 stay open until `RealArm` motion has run on the arm.
 - 2026-11-10 real arm, user present: SDK-level session tools run on the arm (`arm_session.py` start/stop, `arm_pose.py` zero/park/ready, `arm_jog.py`, e-stop + reset drill); park moved to j5 22.0 deg (`piper-01.md`, hardware log). `RealArm`, the gripper API and `execute()` streaming are still untested on the arm (B3, C10 stay open). Plumbing tests test_6/test_8 failed in 3 runs after the park change (joint 1 streaming, not park related; baseline not compared).
 - 2026-11-08 pass 5: ROS-free Isaac Sim backend, `piper_isaac` (section G13), built on branch `curobo/piper-isaac`, verified and merged to `main`; all wheels 0.4.0.
 - 2026-11-08 pass 4: firmware-first bump (section G).

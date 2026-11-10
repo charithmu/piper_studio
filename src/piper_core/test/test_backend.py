@@ -95,7 +95,13 @@ def test_protocol_is_checkable():
     class Dummy:
         joint_names = list(ARM_JOINTS)
         start = stop = close = state = execute = command = hold = move_to = lambda self, *a, **k: None
+        gripper_opening = gripper_force = set_gripper = lambda self, *a, **k: None          # added in 0.6.0 (the real arm and both simulators have them)
+
     assert isinstance(Dummy(), ArmBackend)
+
+    class NoGripper(Dummy):
+        gripper_opening = gripper_force = set_gripper = None
+    assert not isinstance(NoGripper(), ArmBackend)
 
 
 def test_exec_result_json_round_trip():

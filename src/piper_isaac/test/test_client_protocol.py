@@ -172,8 +172,10 @@ def test_command_set_gripper_and_move_to(make):
     assert srv.q == pytest.approx(Z + 0.025 * D)
     with pytest.raises(BackendError):
         sim.command(Z + 0.5 * D)                                                                          # 0.5 rad from the measured pose: over max_step
-    sim.set_gripper(0.03)
-    assert srv.grip == 0.03
+    w = sim.set_gripper(0.03, effort=1.0)                                                             # same shape as RealArm.set_gripper: returns the measured width
+    assert srv.grip == 0.03 and w == pytest.approx(0.03) and sim.state().gripper_width == pytest.approx(0.03)
+    import math
+    assert math.isnan(sim.gripper_force())
     with pytest.raises(BackendError):
         sim.set_gripper(0.2)
     assert sim.move_to(Z + [0.2, 0, 0, 0, 0, 0], duration=1.0).ok and sim.stop().ok

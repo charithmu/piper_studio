@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import atexit
 import json
+import math
 import os
 import shutil
 import signal
@@ -217,7 +218,7 @@ class PiperIsaacSim:
 
     def state(self) -> ArmState:
         r = self._rpc(cmd="state")
-        return ArmState(r["t"], np.array(r["q"]), np.array(r["dq"]), r["t"])
+        return ArmState(r["t"], np.array(r["q"]), np.array(r["dq"]), r["t"], float(r["gripper"]), math.nan)
 
     def hold(self) -> None:
         self._rpc(cmd="hold")
@@ -238,11 +239,16 @@ class PiperIsaacSim:
             raise BackendError(reason)
         self._rpc(cmd="command", q=list(map(float, q)))
 
-    def set_gripper(self, width: float) -> None:
-        """Move the gripper to `width` (0 to the stroke) and wait until it has settled (at most 2 s of simulation)."""
+    def gripper_force(self) -> float:
+        """NaN: the simulated gripper has no force read-back (the real one does, about -2 N at 3 N commanded: docs/real_arm/arms/piper-01.md)."""
+        return math.nan
+
+    def set_gripper(self, width: float, effort: float | None = None, timeout: float | None = None) -> float:
+        """Move the gripper to `width` (0 to the stroke) and wait until it has settled (at most `timeout`, default 2 s of simulation). `effort` is ignored. Returns the measured width."""
         if not 0.0 <= width <= self.limits_info.gripper_stroke:
             raise BackendError(f"gripper width {width} outside [0, {self.limits_info.gripper_stroke}]")
-        self._rpc(cmd="gripper", width=float(width), max_s=2.0)
+        self._rpc(cmd="gripper", width=float(width), max_s=2.0 if timeout is None else float(timeout))
+        return self.gripper_opening()
 
     def move_to(self, q, duration: float | None = None) -> ExecResult:
         """A minimum-jerk move from the present pose to `q` (a convenience move, same as PiperSim's; planner trajectories go through execute())."""

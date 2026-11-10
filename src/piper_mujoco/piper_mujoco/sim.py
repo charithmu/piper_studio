@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import time
 from importlib import resources
 from pathlib import Path
@@ -117,7 +118,7 @@ class PiperSim:
     def state(self) -> ArmState:
         q = np.array([self.data.qpos[a] for a in self._qadr])
         dq = np.array([self.data.qvel[v] for v in self._vadr])
-        return ArmState(self.time, q, dq, self.time)
+        return ArmState(self.time, q, dq, self.time, self.gripper_opening(), math.nan)
 
     def hold(self) -> None:
         self.data.ctrl[self._act] = self.state().q
@@ -161,16 +162,25 @@ class PiperSim:
         self.data.ctrl[self._act] = np.asarray(q, dtype=float)
         self._step()
 
-    def set_gripper(self, width: float) -> None:
-        """Move the gripper to `width` (0 to the stroke) and wait until it has settled (at most 2 s)."""
+    def gripper_opening(self) -> float:
+        """The measured gripper opening in metres (0 closed, 0.07 open)."""
+        return float(self.data.qpos[self.model.joint(GRIPPER).qposadr[0]])
+
+    def gripper_force(self) -> float:
+        """NaN: the simulated gripper has no force read-back (the real one does, about -2 N at 3 N commanded: docs/real_arm/arms/piper-01.md)."""
+        return math.nan
+
+    def set_gripper(self, width: float, effort: float | None = None, timeout: float | None = None) -> float:
+        """Move the gripper to `width` (0 to the stroke) and wait until it has settled (at most `timeout`, default 2 s). `effort` is ignored by the simulator. Returns the measured width."""
         if not 0.0 <= width <= self.limits_info.gripper_stroke:
             raise BackendError(f"gripper width {width} outside [0, {self.limits_info.gripper_stroke}]")
         self.data.ctrl[self._grip_act] = width
         gq = self.model.joint(GRIPPER).qposadr[0]
-        for _ in range(int(2.0 / self.ctrl_dt)):
+        for _ in range(int((2.0 if timeout is None else timeout) / self.ctrl_dt)):
             self._step()
             if abs(self.data.qpos[gq] - width) < 1e-4 and abs(self.data.qvel[self.model.joint(GRIPPER).dofadr[0]]) < 1e-3:
                 break
+        return self.gripper_opening()
 
     def move_to(self, q, duration: float | None = None) -> ExecResult:
         """A minimum-jerk move from the present pose to `q` (our own convenience move; planner trajectories go through execute())."""

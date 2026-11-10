@@ -36,24 +36,11 @@ class FakeGripper:
 class Fake(FakeSdk):
     def __init__(self, q):
         super().__init__(q)
-        self.estops, self.resets, self.estopped = 0, 0, False
         self.grip = FakeGripper()
 
     def advance(self, dt):
         super().advance(dt)
         self.grip.advance(dt)
-
-    def get_arm_status(self):
-        st = super().get_arm_status()
-        st.msg.arm_status = 1 if self.estopped else st.msg.arm_status
-        return st
-
-    def electronic_emergency_stop(self):
-        self.estops, self.estopped, self.on = self.estops + 1, True, False
-        self.q, self.target = list(SLUMPED), list(SLUMPED)
-
-    def reset(self):
-        self.resets, self.estopped = self.resets + 1, False
 
 
 def make(q=SLUMPED):

@@ -91,6 +91,18 @@ def test_move_to_and_stop_return_to_zero(sim):
     assert sim.stop() and np.max(np.abs(sim.state().q - Z)) < 1e-3
 
 
+def test_gripper_contract_matches_the_real_arm_api():
+    """Same shape as RealArm: set_gripper(width, effort=None, timeout=None) -> measured width, gripper_opening(), gripper_force() (NaN here), width in state()."""
+    import math
+    s = PiperSim("table", gripper_width=0.07)
+    assert s.gripper_opening() == pytest.approx(0.07) and s.state().gripper_width == pytest.approx(0.07) and math.isnan(s.gripper_force())
+    w = s.set_gripper(0.03, effort=1.0)
+    assert w == pytest.approx(0.03, abs=1e-3) and s.state().gripper_width == pytest.approx(w)
+    assert s.set_gripper(0.05, 2.0, 1.5) == pytest.approx(0.05, abs=1e-3)
+    with pytest.raises(Exception, match="outside"):
+        s.set_gripper(0.08)
+
+
 def test_gripper_and_table_scene():
     s = PiperSim("table", gripper_width=0.07)
     s.set_gripper(0.03)

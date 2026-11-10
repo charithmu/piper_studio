@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import math
 import os
+import threading
 import time
 from collections import deque
 from dataclasses import dataclass
@@ -97,6 +98,8 @@ class RealArm:
         self.gripper = None          # the SDK gripper driver; set by connect()
         self.gripper_stroke, self.gripper_effort, self.gripper_max_effort = GRIPPER_STROKE, GRIPPER_DEFAULT_EFFORT, GRIPPER_MAX_EFFORT
         self.last_gripper: GripperResult | None = None
+        self._abort, self._executing = threading.Event(), False      # abort(): stop a running execute() from another thread
+        self.last_stream: dict | None = None                         # timing and fine-grained measured joints of the last execute(), see stream_metrics
 
     @classmethod
     def connect(cls, canbus: str = "can0", gripper: bool = True, **kwargs) -> "RealArm":
@@ -172,30 +175,30 @@ class RealArm:
         gs = self.gripper.get_gripper_status() if self.gripper is not None else None
         return None if gs is None else float(gs.msg.force)
 
-    def gripper_command(self, width_m: float, effort: float | None = None) -> Outcome:
+    def gripper_command(self, width: float, effort: float | None = None) -> Outcome:
         """Send one gripper target (non-blocking). Refused, nothing sent: no gripper, width outside [0, stroke], effort not in (0, max], a fault or e-stop reported.
         To raise the force limit set `arm.gripper_max_effort` (our cap, 3 N); the default effort is `arm.gripper_effort` (1 N, the vendor default)."""
         effort = self.gripper_effort if effort is None else float(effort)
         if self.gripper is None:
             return Outcome(False, "no gripper driver (connect with gripper=True)")
-        if not (math.isfinite(width_m) and -1e-9 <= width_m <= self.gripper_stroke + 1e-9):
-            return Outcome(False, f"gripper width {width_m} m is outside [0, {self.gripper_stroke}]")
+        if not (math.isfinite(width) and -1e-9 <= width <= self.gripper_stroke + 1e-9):
+            return Outcome(False, f"gripper width {width} m is outside [0, {self.gripper_stroke}]")
         if not (math.isfinite(effort) and 0.0 < effort <= self.gripper_max_effort):
             return Outcome(False, f"gripper effort {effort} N is outside (0, {self.gripper_max_effort}] (raise arm.gripper_max_effort deliberately)")
         bad = self.problems()
         if bad:
             return Outcome(False, "; ".join(bad))
-        self.gripper.move_gripper_m(value=min(max(float(width_m), 0.0), self.gripper_stroke), force=effort)
+        self.gripper.move_gripper_m(value=min(max(float(width), 0.0), self.gripper_stroke), force=effort)
         return Outcome(True)
 
-    def set_gripper(self, width_m: float, effort: float | None = None, timeout: float = 5.0) -> float:
+    def set_gripper(self, width: float, effort: float | None = None, timeout: float = 5.0) -> float:
         """Move the gripper and block until it reached the width, stopped short of it (object or end stop) or `timeout`. Returns the measured width in metres.
         `self.last_gripper` says how it ended ('reached' | 'stalled' | 'no_motion' | 'timeout'), the width and the force then; a stalled close is how a held object shows.
         Raises RealArmError when the command is refused (nothing was sent)."""
-        out = self.gripper_command(width_m, effort)
+        out = self.gripper_command(width, effort)
         if not out:
             raise RealArmError(out.message)
-        watch, t0 = GripperWatch(float(width_m), self._now, self.gripper_opening()), self._now()
+        watch, t0 = GripperWatch(float(width), self._now, self.gripper_opening()), self._now()
         while True:
             self._sleep(0.02)
             w = self.gripper_opening()
@@ -277,11 +280,16 @@ class RealArm:
         self._hold()
         return Outcome(False, f"goal not reached within {timeout:.0f} s, holding")
 
+    def _not_enabled(self) -> str | None:
+        """A command to a disabled arm is silently ignored by the firmware: refuse it instead."""
+        en = [bool(self.sdk.get_joint_enable_status(i)) for i in range(1, 7)]
+        return None if all(en) else f"motors not all enabled {en}: call start() first"
+
     def _move(self, target: dict[str, float], speed_percent: int | None = None) -> Outcome:
         """One checked point-to-point move (firmware interpolation) from a VALID or ZERO arm. Never from the slumped pose (use start())."""
         if self.pose_state() not in ("zero", "valid"):
             return Outcome(False, f"the arm is {self.pose_state()}: call start() first")
-        bad = self.problems()
+        bad = self.problems() or ([self._not_enabled()] if self._not_enabled() else [])
         if bad:
             return Outcome(False, "; ".join(bad))
         g = self._guard(target)
@@ -318,8 +326,14 @@ class RealArm:
                 return r
         return Outcome(self.pose_state() == "zero", "ready: enabled, at zero" if self.pose_state() == "zero" else "not at zero after start")
 
-    def stop(self, speed_percent: int | None = None, settle: float = 1.0) -> Outcome:
-        """Zero, check, wait, park, wait, motors off. An arm that is already slumped is left alone."""
+    def stop(self, speed_percent: int | None = None, settle: float = 1.0, ending: str = "estop") -> Outcome:
+        """Zero, check, wait, park, wait, then the ending: "estop" (default; verified on the arm 2026-11-10): electronic e-stop (damped lowering), wait until at rest, reset
+        (clears the e-stop, motors off, the arm stays powered and can be started again at once); "disable": a plain disable (a harder drop). An arm that is already slumped is left alone.
+        Refused while execute() is running (abort() it first)."""
+        if ending not in ("estop", "disable"):
+            return Outcome(False, f"ending must be 'estop' or 'disable', not {ending!r}")
+        if self._executing:
+            return Outcome(False, "a trajectory is running: abort() it first")
         if self.pose_state() == "slumped":
             return Outcome(True, "already powered off and slumped")
         r = self._move(self.zero(), speed_percent)
@@ -332,7 +346,27 @@ class RealArm:
         if not r:
             return Outcome(False, f"park: {r.message}; motors left on")
         self._sleep(settle)
-        return self.disable()
+        if ending == "disable":
+            return self.disable()
+        self.sdk.electronic_emergency_stop()
+        t0, prev, t_prev = self._now(), self.positions(), self._now()
+        while self._now() - t0 < 15.0:                                  # damped lowering: wait until no joint moved 0.2 deg in a second
+            self._sleep(0.1)
+            if self._now() - t_prev >= 1.0:
+                cur = self.positions()
+                if prev and cur and max(abs(cur[j] - prev[j]) for j in JOINTS) < math.radians(0.2):
+                    break
+                prev, t_prev = cur, self._now()
+        self.sdk.reset()
+        self._sleep(1.5)
+        st = self.sdk.get_arm_status()
+        self.enabled = any(self.sdk.get_joint_enable_status(i) for i in range(1, 7))
+        ok = st is not None and int(st.msg.arm_status) == 0 and not self.enabled
+        return Outcome(ok, "parked, e-stopped, reset: motors off, arm still powered" if ok else "e-stop sent but the arm did not report status normal with motors off")
+
+    def abort(self) -> None:
+        """Stop a running execute() from another thread (or a signal handler): it holds the present pose and returns ExecResult(False, 'stopped'). Safe to call when idle."""
+        self._abort.set()
 
     # ------------------------------------------------------------------ ArmBackend (piper_core.backend)
     joint_names = list(JOINTS)
@@ -356,7 +390,7 @@ class RealArm:
         """One setpoint through the guard (limits, margin, step from the measured pose, faults). BackendError if it is refused."""
         if self.pose_state() not in ("zero", "valid"):
             raise RealArmError(f"the arm is {self.pose_state()}: call start() first")
-        bad = self.problems()
+        bad = self.problems() or ([self._not_enabled()] if self._not_enabled() else [])
         if bad:
             raise RealArmError("; ".join(bad))
         g = self._guard(dict(zip(JOINTS, map(float, q))), max_step=MAX_STEP)
@@ -377,25 +411,34 @@ class RealArm:
         return ExecResult(r.ok, "done" if r else "guard:rejected", "" if r else r.message, np.array([self._now()]),
                           np.array([[target[j] for j in JOINTS]]), np.array([[qn.get(j, np.nan) for j in JOINTS]]))
 
-    def execute(self, traj, *, margin_percent: float = 20.0, blocking: bool = True) -> ExecResult:
-        """Follow a trajectory with one move_j per trajectory point (see the module docstring for the rules and the caveat).
+    def execute(self, traj, *, margin_percent: float = 20.0, blocking: bool = True, mode: str = "fixed", lookahead: int = 0, min_percent: int = 5) -> ExecResult:
+        """Follow a trajectory with one move_j per trajectory point (each is a position target the firmware smooths toward; the points are sent on the trajectory's own clock).
 
-        The whole trajectory is checked before anything moves (`check_trajectory`: limits, margin, step, velocity; `check_start`);
-        nothing is clamped. While it runs, every point also passes the guard against the MEASURED pose (step of at most 0.15 rad,
-        faults) and a rejection stops and holds. The firmware speed percent is the fastest segment (100 % = 3.0 rad/s, unverified)
-        plus `margin_percent`. `traj` may also be [(t, [q1..q6]), ...]. Logs the commanded and measured joints at each point.
+        The whole trajectory is checked before anything moves (`check_trajectory`: limits, margin, step, velocity; `check_start`); nothing is clamped. Refused (nothing sent) when the motors are
+        not enabled, the arm is slumped, a fault is reported. While it runs every point also passes the guard against the MEASURED pose (step of at most 0.15 rad, faults); a rejection, a fault,
+        `abort()` or Ctrl-C stops and holds the pose (reasons 'guard:rejected', 'fault', 'stopped'; Ctrl-C re-raises after holding). Logs commanded and measured joints at each point.
+
+        Streaming options (how to feed the firmware 25 ms points; which is best is a measurement, tools/real_arm/arm_stream_test.py):
+          mode="fixed"      one speed percent for the whole trajectory: the fastest segment x (1 + margin_percent/100) of 3.0 rad/s (100 % = 3.0 rad/s, confirmed at 10 %).
+          mode="per_point"  the speed percent is re-set before each move_j from the segment's own velocity (at least `min_percent`), so slow parts are not driven at the peak speed.
+          lookahead=n       send the point n steps ahead of the clock (the firmware always has a target in front of the arm); the guard's 0.15 rad step limit applies to what is sent.
+        After the run `self.last_stream` holds the send times, the percent used and a fine log of the measured joints (about every 5 ms) for `piper_core.stream_metrics.analyze`.
         """
         if not blocking:
             raise NotImplementedError("RealArm.execute is blocking only")
+        if mode not in ("fixed", "per_point") or not (isinstance(lookahead, int) and 0 <= lookahead <= 10):
+            return ExecResult(False, "bad_trajectory", "mode must be 'fixed' or 'per_point' and lookahead an integer 0..10")
         try:
             traj = traj if isinstance(traj, Trajectory) else Trajectory.from_pairs(traj)
         except (ValueError, TypeError) as e:
             return ExecResult(False, "bad_trajectory", str(e))
         if list(traj.joint_names) != list(JOINTS):
             return ExecResult(False, "bad_trajectory", f"joint_names must be {list(JOINTS)}")
+        if self._executing:
+            return ExecResult(False, "not_ready", "another trajectory is running")
         if self.pose_state() not in ("zero", "valid"):
             return ExecResult(False, "not_ready", f"the arm is {self.pose_state()}: call start() first")
-        bad = self.problems()
+        bad = self.problems() or ([self._not_enabled()] if self._not_enabled() else [])
         if bad:
             return ExecResult(False, "fault", "; ".join(bad))
         refused = check_trajectory(traj, self.limits, margin=self.margin, max_step=MAX_STEP, max_velocity=FIRMWARE_MAX_VELOCITY)
@@ -405,36 +448,74 @@ class RealArm:
         refused = check_start(traj, [start[j] for j in JOINTS])
         if refused:
             return ExecResult(False, *refused)
-        seg = np.abs(np.diff(traj.q, axis=0)).max(axis=1) / np.diff(traj.t)
-        cfg = self._configure(math.ceil(100.0 * float(seg.max()) / FIRMWARE_MAX_VELOCITY * (1 + margin_percent / 100.0)) or 1)
+        seg = np.abs(np.diff(traj.q, axis=0)).max(axis=1) / np.diff(traj.t)          # rad/s of each segment
+        scale = (1 + margin_percent / 100.0) * 100.0 / FIRMWARE_MAX_VELOCITY
+
+        def percent(v):
+            return int(min(100, max(1, math.ceil(float(v) * scale))))
+        first = percent(seg.max()) if mode == "fixed" else max(min_percent, percent(seg[: 1 + lookahead].max()))
+        cfg = self._configure(first)
         if not cfg:
             return ExecResult(False, "fault", cfg.message)
-        log_t, log_c, log_m, events = [], [], [], []
+        log_t, log_c, log_m, events, fine_t, fine_q, used = [], [], [], [], [], [], []
+        self._abort.clear()
+        self._executing = True
+        t_start = self._now()
+
+        def sample():
+            q = self.positions()
+            if q:
+                fine_t.append(self._now() - t_start)
+                fine_q.append([q[j] for j in JOINTS])
 
         def result(ok, reason, detail=""):
+            self.last_stream = {"mode": mode, "lookahead": lookahead, "t_sched": traj.t[1:len(log_t) + 1].tolist(), "t_sent": list(log_t), "percent": used,
+                                "t": fine_t, "q": fine_q}
             return ExecResult(ok, reason, detail, np.array(log_t), np.array(log_c).reshape(-1, 6), np.array(log_m).reshape(-1, 6), events)
-
-        t_start = self._now()
-        for t, q in zip(traj.t[1:], traj.q[1:]):
-            wait = t_start + t - self._now()
-            if wait > 0:
-                self._sleep(wait)
-            bad = self.problems()
-            if bad:
-                self._hold()
-                events.append((float(t), "fault", "; ".join(bad)))
-                return result(False, "fault", "aborted, holding: " + "; ".join(bad))
-            g = self._guard(dict(zip(JOINTS, map(float, q))), max_step=MAX_STEP)
-            if not g:
-                self._hold()
-                events.append((float(t), "guard:rejected", g.message))
-                return result(False, "guard:rejected", f"point at t={t:.3f}: {g.message}; holding")
-            self.sdk.move_j(g.details["positions"])
-            now = self.positions() or {}
-            log_t.append(self._now() - t_start)
-            log_c.append(g.details["positions"])
-            log_m.append([now.get(j, np.nan) for j in JOINTS])
-        end = self._wait_at(dict(zip(JOINTS, map(float, traj.q[-1]))), timeout=10.0)
-        if not end:
-            events.append((float(traj.t[-1]), "end", end.message))
-        return result(end.ok, "done" if end.ok else "timeout", end.message)
+        try:
+            n = len(traj.t)
+            sample()
+            for k in range(1, n):
+                while True:                                               # wait for the clock, sampling the measured joints about every 5 ms
+                    wait = t_start + traj.t[k] - self._now()
+                    if wait <= 0 or self._abort.is_set():
+                        break
+                    self._sleep(min(0.005, wait))
+                    sample()
+                if self._abort.is_set():
+                    self._hold()
+                    events.append((float(traj.t[k]), "stopped", "abort()"))
+                    return result(False, "stopped", "aborted, holding")
+                bad = self.problems()
+                if bad:
+                    self._hold()
+                    events.append((float(traj.t[k]), "fault", "; ".join(bad)))
+                    return result(False, "fault", "aborted, holding: " + "; ".join(bad))
+                j = min(k + lookahead, n - 1)
+                g = self._guard(dict(zip(JOINTS, map(float, traj.q[j]))), max_step=MAX_STEP)
+                if not g:
+                    self._hold()
+                    events.append((float(traj.t[k]), "guard:rejected", g.message))
+                    return result(False, "guard:rejected", f"point at t={traj.t[k]:.3f}: {g.message}; holding")
+                if mode == "per_point":
+                    pct = max(min_percent, percent(seg[k - 1:j].max()))
+                    if not used or pct != used[-1]:
+                        self.sdk.set_speed_percent(pct)
+                    used.append(pct)
+                else:
+                    used.append(first)
+                self.sdk.move_j(g.details["positions"])
+                now = self.positions() or {}
+                log_t.append(self._now() - t_start)
+                log_c.append(g.details["positions"])
+                log_m.append([now.get(jn, np.nan) for jn in JOINTS])
+            end = self._wait_at(dict(zip(JOINTS, map(float, traj.q[-1]))), timeout=10.0)
+            sample()
+            if not end:
+                events.append((float(traj.t[-1]), "end", end.message))
+            return result(end.ok, "done" if end.ok else "timeout", end.message)
+        except KeyboardInterrupt:
+            self._hold()
+            raise
+        finally:
+            self._executing = False

@@ -19,6 +19,7 @@ class FakeSdk:
         self.q, self.target, self.mode, self.speed, self.on = list(q), list(q), 0, 0, False
         self.fault = False
         self.sent = []
+        self.estops, self.resets, self.estopped, self.speeds = 0, 0, False, []
 
     def advance(self, dt):
         if self.on:
@@ -33,13 +34,22 @@ class FakeSdk:
         return NS(msg=list(self.q))
 
     def get_arm_status(self):
-        return NS(msg=NS(ctrl_mode=1, teach_status=0, arm_status=7 if self.fault else 0, err_code=0, mode_feedback=1 if self.mode else 0))
+        status = 1 if self.estopped else (7 if self.fault else 0)
+        return NS(msg=NS(ctrl_mode=1, teach_status=0, arm_status=status, err_code=0, mode_feedback=1 if self.mode else 0))
 
     def get_driver_states(self, i):
         return NS(msg=NS(foc_status=NS(driver_overcurrent=self.fault and i == 3)))
 
     def set_speed_percent(self, p):
         self.speed = p
+        self.speeds.append(p)
+
+    def electronic_emergency_stop(self):
+        self.estops, self.estopped, self.on = self.estops + 1, True, False
+        self.q, self.target = list(SLUMPED), list(SLUMPED)
+
+    def reset(self):
+        self.resets, self.estopped = self.resets + 1, False
 
     def set_motion_mode(self, m):
         self.mode = 1
@@ -145,7 +155,16 @@ def test_stop_parks_and_powers_off_into_the_slump():
     assert r, r
     assert not sdk.on and arm.pose_state() == "slumped"
     assert sdk.sent[-1][4] == pytest.approx(0.3840)                                # the last pose before power-off was park
+    assert sdk.estops == 1 and sdk.resets == 1 and not sdk.estopped                # default ending: e-stop, then reset
     assert arm.stop()                                                              # a slumped arm is left alone
+
+
+def test_stop_can_end_with_a_plain_disable():
+    sdk, arm = make(SLUMPED)
+    assert arm.start()
+    assert arm.stop(settle=0.2, ending="disable")
+    assert sdk.estops == 0 and sdk.resets == 0 and not sdk.on
+    assert not arm.stop(ending="coast")
 
 
 def test_execute_is_an_arm_backend_and_logs_the_run():
