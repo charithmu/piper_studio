@@ -46,7 +46,9 @@ Pre-condition: `piper-arm`; the gripper panel reads width and force. Commands: `
 
 Then compare with the simulated gripper (Isaac, MuJoCo): stroke, closing time, held width, force (the simulators have no force read-back and ignore effort) and write the gap table in the report.
 
-## R3 the ROS path on the real arm (`piper_real_driver`; one program on the bus: close `piper-arm` first)
+## R3 the ROS path on the real arm: PARKED (experimental, 2026-11-10; first run in `arms/piper-01.md`; redesign CLEANUP C14). Kept for when it is picked up again
+
+(`piper_real_driver`; one program on the bus: close `piper-arm` first)
 
 Terminal 1: `ros2 launch piper_sim piper.launch.py backend:=real canbus:=can0 speed_percent:=10` (moves and enables nothing). Terminal 2 (`source scripts/session.sh 71`, a domain in 70-161): each line is a step the user approves.
 

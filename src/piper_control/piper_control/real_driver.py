@@ -3,6 +3,9 @@
 Why our own: one owner of the SDK and the CAN bus (bus lock), the same start / stop as RealArm (clear an e-stop, motors on, one checked move to zero; zero, park, e-stop, clear), the electronic
 e-stop and its clear, stale-feedback detection and the gripper stall logic, all verified on the arm through RealArm and `piper-arm`. The vendor node stays in external/ unmodified and unused.
 
+EXPERIMENTAL and parked (2026-11-10, docs/CLEANUP.md C14): on the arm it starts, stops and does small moves, but large MoveIt moves failed and were jerky and the gripper action misreports a stall.
+`piper_core.RealArm` is the supported real-arm interface. The redesign for later: serve the follow_joint_trajectory and gripper actions here on RealArm.execute / set_gripper instead of the ros2_control chain.
+
 Same topic contract as the vendor node, so command_guard, ros2_control (topic-based hardware), the controllers and piper_py need no change:
   publishes  feedback/joint_states      JointState, official names joint1..6 + gripper (width, m); velocity and effort (motor torque estimate, N.m)      pub_rate Hz
              feedback/arm_status        DiagnosticArray, one entry `arm` (ctrl_mode, arm_status, mode_feedback, teach_status, motion_status, trajectory_num, err_status, ...)  2 Hz
@@ -70,6 +73,7 @@ class RealDriver(Node):
         for name, cb in (("start", self.on_start), ("stop", self.on_stop), ("estop", self.on_estop), ("clear_estop", self.on_clear_estop)):
             self.create_service(Trigger, name, cb, callback_group=services)
         self.create_service(SetBool, "enable_agx_arm", self.on_enable, callback_group=services)
+        self.get_logger().warn("piper_real_driver is EXPERIMENTAL (parked): use piper_core.RealArm / piper-arm for the real arm")
         self.get_logger().info(f"piper_real_driver on {self.canbus} (speed {self.speed_percent} %); nothing is moved or enabled until the start service is called")
 
     # ------------------------------------------------------------------ feedback

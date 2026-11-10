@@ -19,7 +19,7 @@ git log --oneline | head; sed -n 1,60p docs/CLEANUP.md              # what was d
 ## What works (verified 2026-11-10, details in CLEANUP "Verification record" and the hardware log in `docs/real_arm/arms/piper-01.md`)
 **Simulators:** mock, Gazebo (also its GUI on a virtual display), MuJoCo (viewer and camera), Isaac Sim (GPU, camera, video) with the same controllers and MoveIt; simulated D435 wrist camera on the RealSense topic names; prefix `piper_` on every name; carrier example (own controller manager, prefix `arm_`).
 **Real arm, on the arm with the user present:** `RealArm` (`piper_core`: start, stop, execute with 25 ms setpoints, abort, gripper), the `piper-arm` console, the SDK tools in `tools/real_arm/`, a cuRobo pick-like scenario in simulation; firmware kinematics equal our model (0.09 mm).
-**Real arm, ROS path:** `piper_real_driver` (our node on `RealArm`, replaces the vendor driver) is tested against a fake SDK only; the ROS stack and the scenario through ROS run on the mock backend. **Not yet run on the real arm: the ROS path** (`docs/real_arm/CHECKLIST.md` R3, `run_scenario.py --backend ros`).
+**Real arm, ROS path: experimental, parked (user decision 2026-11-10).** `piper_real_driver` (our node on `RealArm`) starts, stops and does small moves on the arm, but large MoveIt moves failed and were jerky and the gripper action misreports a stall (hardware log in `arms/piper-01.md`). Use `RealArm`. The redesign for later is CLEANUP C14; the scenario through ROS runs on the mock backend only.
 
 ## Using the real arm (details: `docs/real_arm/REAL_ARM.md`, `docs/FINDINGS.md`, `docs/INTEGRATION.md`)
 - Operator: `scripts/can_up.sh` (sudo), `source scripts/env.sh`, `piper-arm` (status and one key per action; `e` is the emergency stop). One program drives the arm at a time (bus lock).
@@ -30,7 +30,7 @@ git log --oneline | head; sed -n 1,60p docs/CLEANUP.md              # what was d
 `scripts/build_wheels.sh` builds `piper_core`, `piper_assets`, `piper_mujoco` and `piper_isaac` wheels (no ROS to install them; `piper_isaac` needs the USD of `scripts/isaac.sh build-usd`); contract and usage: `INTEGRATION.md` section 0, log: `CLEANUP.md` G12.
 
 ## Open work, grouped by what it needs (full list: CLEANUP.md)
-- Needs the user at the arm: the ROS path end to end (C10, CHECKLIST R3), the gripper timing and slip (R2), speeds above 44 % and a planned Cartesian path on the arm (R1.4-R1.5), measuring the stand mount (C5), camera calibration (C9), crash protection and payload settings.
+- Needs the user at the arm: the gripper timing and slip (R2, `tools/real_arm/gripper_test.py`), speeds above 44 % and a planned Cartesian path on the arm (R1.4-R1.5), measuring the stand mount (C5), camera calibration (C9), crash protection and payload settings.
 - Can be done alone: small issues C4 (stand white in Gazebo, MuJoCo drops colours), C6, C7, C11; pruning `for_reference/` (F1); the next development (ML endpoints: pick and place, Go2 mount).
 
 ## Gotchas that cost time
