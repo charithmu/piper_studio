@@ -47,3 +47,13 @@ def peak_speed(traj: Trajectory) -> float:
 def required_percent(traj: Trajectory, margin_percent: float = 20.0) -> int:
     """The speed percent `RealArm.execute(mode="fixed")` sets: the fastest segment plus the margin, against 3.0 rad/s at 100 %."""
     return int(min(100, max(1, math.ceil(peak_speed(traj) * (1 + margin_percent / 100.0) * 100.0 / FIRMWARE_MAX_VELOCITY))))
+
+
+def retime(traj: Trajectory, max_speed: float, dt: float = 0.025) -> Trajectory:
+    """The same path no faster than `max_speed` rad/s (slowed uniformly, never sped up), resampled to `dt` spacing with the planner's own curve (cubic Hermite when it has dq).
+    A planner trajectory is fast by design; this is how a first run on the real arm is kept slow. Velocities are scaled with the time."""
+    from piper_core.backend import resample
+    factor = max(1.0, peak_speed(traj) / max_speed) if len(traj.t) > 1 else 1.0
+    slow = Trajectory(traj.joint_names, traj.t * factor, traj.q, None if traj.dq is None else traj.dq / factor, None, {**traj.meta, "retimed_by": float(factor)})
+    t, q = resample(slow, 1.0 / dt)
+    return Trajectory(traj.joint_names, t, q, None, None, slow.meta)

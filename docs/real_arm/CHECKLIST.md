@@ -26,7 +26,7 @@ Pre-conditions: `piper-arm` `s` (enabled, at zero), no object near. Each step is
 | R1.2 | same with `--mode per_point`, then `--lookahead 2`, `--repeat 3` | lag, rms, repeatability per mode | compare the three: smaller lag/rms at the same plan wins |
 | R1.3 | joints 2, 3, 5 one at a time (`--joint 2 --amplitude 8`, ...) | per-joint lag, gravity effect (j2/j3/j5) | within 1 deg rms at 10 % |
 | R1.4 | speed ladder 20 -> 30 -> 50 % on the best mode (`--period` shorter, `--max-percent` raised by the user) | `peak speed` vs planned vs nominal (3.0 rad/s x percent) | measured speed within 10 % of nominal, no fault |
-| R1.5 | a cuRobo Cartesian path planned offline and executed through `RealArm.execute` at 10 %, 20 % | tracking error of the end effector (FK, `fk_compare.py`), joint errors | no guard event; tracking as in R1.3 |
+| R1.5 | the cuRobo scenario on the arm: `python tools/real_arm/run_scenario.py tools/real_arm/fixtures/scenario_pick_25_0_05.json --backend real` (approach, grasp, close, lift, open, home; 0.3 rad/s; an Enter per step; clear the workspace under (0.25, 0, 0.05) m) | per step ok, tracking error, back at zero | all steps ok, end error < 0.5 deg, back at zero |
 | R1.6 | `python tools/real_arm/fk_compare.py --arm` at zero, park and a pose from `arm_pose.py ready` | the arm-reported flange pose vs URDF vs SDK DH (offline: 0.09 mm over 300 poses) | within 1 mm |
 | R1.7 | dead-process drill: in `realarm_smoke.py` after stage 1, kill the process (Ctrl-\\ or `kill` its pid) while the arm holds at zero | does the arm keep holding with the motors on? (expected: yes); then `piper-arm` `e` | the arm holds; the operator e-stops |
 
@@ -60,6 +60,7 @@ Terminal 1: `ros2 launch piper_sim piper.launch.py backend:=real canbus:=can0 sp
 | R3.5 | `piper stop` | zero, park, e-stop (damped lowering), clear; then `piper start` works at once |
 | R3.6 | `piper estop` during a slow `piper joints ... --duration 8`; then `piper clear-estop`, `piper start` | the arm lowers under damping within about a second; recovery works |
 | R3.7 | kill terminal 1 (Ctrl-C) while holding at zero | the arm keeps holding; `piper-arm` `e` stops it |
+| R3.9 | the same scenario through ROS: `python tools/real_arm/run_scenario.py tools/real_arm/fixtures/scenario_pick_25_0_05.json --backend ros` (stack from terminal 1, speed_percent at least 15) | all steps ok, back at zero, gripper closes and opens |
 | R3.8 | a small MoveIt plan with the camera/table scene, `piper pose ...` (tool-down reach limits in INTEGRATION.md) | executed, TCP within 5 mm of the request |
 
 ## What must be true before `piper_pick` runs on the arm

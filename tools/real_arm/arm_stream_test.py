@@ -39,7 +39,7 @@ def main():
     ap.add_argument("--kind", choices=("cosine", "ramp"), default="cosine")
     ap.add_argument("--dt", type=float, default=0.025, help="setpoint spacing, seconds (cuRobo: 0.025)")
     ap.add_argument("--mode", choices=("fixed", "per_point"), default="fixed")
-    ap.add_argument("--lookahead", default="0", help="0..10 setpoints ahead of the clock, or 'auto' (follows the speed: 35 ms + 73 ms per rad/s)")
+    ap.add_argument("--lookahead", default="auto", help="0..10 setpoints ahead of the clock, or 'auto' (follows the speed: 35 ms + 73 ms per rad/s)")
     ap.add_argument("--margin", type=float, default=20.0, help="speed headroom percent")
     ap.add_argument("--max-percent", type=int, default=10, help="refuse a plan that needs more speed percent than this (raise it on purpose)")
     ap.add_argument("--repeat", type=int, default=1)

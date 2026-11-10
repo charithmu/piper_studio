@@ -1,6 +1,6 @@
 # Current state: read this first when starting a new session
 
-Orientation from 2026-11-08, updated for v0.5.0 on 2026-11-10 (branch `main`, remote `origin` = github.com/charithmu/piper_studio).
+Orientation from 2026-11-08, updated for v0.7.0 on 2026-11-10 (branch `main`, remote `origin` = github.com/charithmu/piper_studio).
 Facts that change are in `CLEANUP.md` (to-do, verification log) and `VERSIONS.md` (qualified versions); this file is the orientation and the hard-won gotchas.
 
 ## What this is
@@ -11,21 +11,26 @@ client, simulators (mock, Gazebo, MuJoCo, Isaac Sim) and the real arm. Layout an
 ```bash
 cd ~/projects/ros/piper_studio && source scripts/session.sh 101     # pick a free ROS_DOMAIN_ID (Piper range 70-161)
 scripts/test_all.sh                                                  # offline tests + generated-macro check, ~5 s
-scripts/test_all.sh mock gazebo mujoco                               # + launch tests, real-arm plumbing, carrier example, ~2 min
+scripts/test_all.sh mock gazebo mujoco                               # + launch tests and the carrier example, ~2 min
 ros2 launch piper_sim piper.launch.py backend:=mujoco camera:=d435   # run something
 git log --oneline | head; sed -n 1,60p docs/CLEANUP.md              # what was done and what is open
 ```
 
-## What works (verified 2026-11-08, details in CLEANUP "Verification record")
-All five backends with the same controllers and MoveIt: mock, Gazebo (also its GUI on a virtual display), MuJoCo (viewer and camera), Isaac Sim (GPU, camera, video), real-arm
-`piper_real_driver` (our driver node, tested against a fake SDK; no ROS-side fake driver any more). Simulated D435 wrist camera on the RealSense topic names. Prefix `piper_` on every name. Carrier example (own controller manager, prefix `arm_`).
-**Not done on the real arm through the ROS stack**; only SDK scripts (`tools/real_arm/`) have moved it (2026-10-14).
+## What works (verified 2026-11-10, details in CLEANUP "Verification record" and the hardware log in `docs/real_arm/arms/piper-01.md`)
+**Simulators:** mock, Gazebo (also its GUI on a virtual display), MuJoCo (viewer and camera), Isaac Sim (GPU, camera, video) with the same controllers and MoveIt; simulated D435 wrist camera on the RealSense topic names; prefix `piper_` on every name; carrier example (own controller manager, prefix `arm_`).
+**Real arm, on the arm with the user present:** `RealArm` (`piper_core`: start, stop, execute with 25 ms setpoints, abort, gripper), the `piper-arm` console, the SDK tools in `tools/real_arm/`, a cuRobo pick-like scenario in simulation; firmware kinematics equal our model (0.09 mm).
+**Real arm, ROS path:** `piper_real_driver` (our node on `RealArm`, replaces the vendor driver) is tested against a fake SDK only; the ROS stack and the scenario through ROS run on the mock backend. **Not yet run on the real arm: the ROS path** (`docs/real_arm/CHECKLIST.md` R3, `run_scenario.py --backend ros`).
+
+## Using the real arm (details: `docs/real_arm/REAL_ARM.md`, `docs/FINDINGS.md`, `docs/INTEGRATION.md`)
+- Operator: `scripts/can_up.sh` (sudo), `source scripts/env.sh`, `piper-arm` (status and one key per action; `e` is the emergency stop). One program drives the arm at a time (bus lock).
+- Code: `from piper_core import RealArm` (`start()`, `execute(traj)`, `set_gripper()`, `status()`, `stop()`); `execute` defaults to `lookahead="auto"` (the arm trails a streamed setpoint by about 35 ms + 73 ms per rad/s). The off pose a powered-off arm rests in is internal to this layer: never exposed, never commanded.
+- Scenario test (cuRobo plan, any backend): `gpu-run <cuRobo study venv>/bin/python tools/real_arm/curobo_plan_scenario.py`, then `python tools/real_arm/run_scenario.py <scenario.json> --backend mujoco|real|ros`; the stored plan and the dry run are tested without GPU or arm.
 
 ## Packages for other repos
 `scripts/build_wheels.sh` builds `piper_core`, `piper_assets`, `piper_mujoco` and `piper_isaac` wheels (no ROS to install them; `piper_isaac` needs the USD of `scripts/isaac.sh build-usd`); contract and usage: `INTEGRATION.md` section 0, log: `CLEANUP.md` G12.
 
 ## Open work, grouped by what it needs (full list: CLEANUP.md)
-- Needs the user at the arm: `RealArm` in `piper_core` (B3), `backend:=real` end to end (C10), measuring the stand mount (C5, now on gripper_base; confirm with a caliper), camera calibration data (C9).
+- Needs the user at the arm: the ROS path end to end (C10, CHECKLIST R3), the gripper timing and slip (R2), speeds above 44 % and a planned Cartesian path on the arm (R1.4-R1.5), measuring the stand mount (C5), camera calibration (C9), crash protection and payload settings.
 - Can be done alone: small issues C4 (stand white in Gazebo, MuJoCo drops colours), C6, C7, C11; pruning `for_reference/` (F1); the next development (ML endpoints: pick and place, Go2 mount).
 
 ## Gotchas that cost time

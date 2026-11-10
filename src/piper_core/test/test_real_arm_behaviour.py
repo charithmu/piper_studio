@@ -369,3 +369,15 @@ def test_bus_lock_allows_one_owner(tmp_path, monkeypatch):
     a.release()
     b.acquire()
     b.release()
+
+
+def test_retime_slows_a_fast_plan_to_the_cap_and_keeps_the_path():
+    from piper_core.stream_plan import cosine, peak_speed, retime
+    q0 = [0.0, 0.01, -0.01, 0.0, 0.0, 0.0]
+    fast = cosine(q0, 0, 1.0, 1.0)                                     # 1 rad in 1 s: peak 3.1 rad/s
+    slow = retime(fast, 0.3)
+    assert peak_speed(slow) <= 0.3 * 1.05 and slow.t[-1] == pytest.approx(fast.t[-1] * peak_speed(fast) / 0.3, rel=0.02)
+    assert slow.q[0] == pytest.approx(fast.q[0]) and slow.q[-1] == pytest.approx(fast.q[-1], abs=1e-9) and slow.q[:, 0].max() == pytest.approx(1.0, abs=1e-3)
+    assert np.diff(slow.t)[:-1] == pytest.approx(0.025, abs=1e-9)                # the last step ends on the exact final time
+    gentle = cosine(q0, 0, 0.1, 4.0)
+    assert retime(gentle, 0.5).t[-1] == pytest.approx(gentle.t[-1])    # never sped up

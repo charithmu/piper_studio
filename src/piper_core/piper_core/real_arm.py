@@ -528,7 +528,7 @@ class RealArm:
         return ExecResult(r.ok, "done" if r else "guard:rejected", "" if r else r.message, np.array([self._now()]),
                           np.array([[target[j] for j in JOINTS]]), np.array([[qn.get(j, np.nan) for j in JOINTS]]))
 
-    def execute(self, traj, *, margin_percent: float = 20.0, blocking: bool = True, mode: str = "fixed", lookahead: int | str = 0, min_percent: int = 5) -> ExecResult:
+    def execute(self, traj, *, margin_percent: float = 20.0, blocking: bool = True, mode: str = "fixed", lookahead: int | str = "auto", min_percent: int = 5) -> ExecResult:
         """Follow a trajectory with one move_j per trajectory point (each is a position target the firmware smooths toward; the points are sent on the trajectory's own clock).
 
         The whole trajectory is checked before anything moves (`check_trajectory`: limits, margin, step, velocity; `check_start`); nothing is clamped. Refused (nothing sent) when the motors are
@@ -538,6 +538,7 @@ class RealArm:
         Streaming options (how to feed the firmware 25 ms points; which is best is a measurement, tools/real_arm/arm_stream_test.py):
           mode="fixed"      one speed percent for the whole trajectory: the fastest segment x (1 + margin_percent/100) of 3.0 rad/s (100 % = 3.0 rad/s, confirmed at 10 %).
           mode="per_point"  the speed percent is re-set before each move_j from the segment's own velocity (at least `min_percent`), so slow parts are not driven at the peak speed.
+          lookahead (default "auto", 2026-11-10: rms 6x smaller than 2 steps at 22-44 %, same at low speed)
           lookahead=n       send the point n steps ahead of the clock (the firmware always has a target in front of the arm); the guard's 0.15 rad step limit applies to what is sent.
                             Measured on joint 1 at 25 ms: n=0 leaves a lag of 45 ms, n=2 removes it at low speed (rms 0.04 deg), but the lag grows with speed (25 / 45 / 65 ms left at 0.55 / 0.82 / 1.10 rad/s).
           lookahead="auto"  n follows the segment speed: the expected lag 35 ms + 73 ms per rad/s, rounded to whole steps, at most 6 (fitted on joint 1; check other joints), and backed off
