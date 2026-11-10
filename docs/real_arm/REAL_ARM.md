@@ -89,8 +89,7 @@ Vendor ROS node `agx_arm_ctrl`: `fast_mode` routes `control/joint_states` throug
 
 Words: `zero` (the one valid start and end pose: all joints 0, joints 2/3 held 0.01 rad inside their limits), `park` (zero with joint 5 lowered 0.3840 rad (22 deg), Piper Studio internal) and the
 slumped pose (what a powered-off arm sags into: joints 2/3 about 0.04 rad outside their limits). Definitions and reasons: `arms/piper-01.md`, "Poses and the start / stop sequence".
-Routine on the real arm: `piper start` (enable, leave the slumped pose by one checked move to zero, activate), work inside the limits, return to `zero`, `piper stop` (zero, wait, park, wait, motors off;
-someone at the arm). `tools/real_arm/arm_zero.py [--park]` is the same sequence at SDK level. The guard rejects every command while the arm is outside its limits and every target outside them.
+Routine on the real arm (verified 2026-11-10): `RealArm.start()` (clear an e-stop, motors on, one checked move to zero), work inside the limits, `RealArm.stop()` (zero, park, electronic e-stop, clear; the arm stays powered and `start()` works at once; someone at the arm). The console `piper-arm` (`s`, `t`) and `tools/real_arm/arm_session.py start|stop` do the same at the operator's keyboard. The ROS `piper start` / `piper stop` do the same through the experimental ROS driver (parked, CLEANUP C14). The guard rejects every command while the arm is outside its limits and every target outside them.
 
 ## 6c. Joint limits and the zero point
 

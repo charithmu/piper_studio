@@ -19,7 +19,7 @@ Exported parts never import internal ones. Dependencies below are the ones decla
 ```
 piper_studio/
 ├── external/agx_arm_ros/   VENDOR (git submodule, unmodified): official AgileX stack = agx_arm_description (URDF + meshes),
-│                           agx_arm_moveit (SRDF), agx_arm_ctrl (the real-arm driver node), agx_arm_msgs. Built by colcon with our packages.
+│                           agx_arm_moveit (SRDF), agx_arm_ctrl (the vendor driver node, unused for the real arm since 2026-11-10), agx_arm_msgs. Built by colcon with our packages.
 ├── src/                    OUR colcon packages (below)
 ├── isaac/                  Isaac Sim side: runner, URDF->USD conversion, model check. NOT a colcon package: runs in Isaac's own Python env
 ├── tools/                  scripts for humans: real_arm/ (direct SDK, no ROS), demo/ (demo page), capture/ (stills, video)

@@ -46,7 +46,7 @@ The tested combination. Source revisions are authoritative in git (submodule pin
 
 All four Python wheels use 0.7.0 (built from a clean commit, `dist/SHA256SUMS`; `piper_mujoco` and `piper_isaac` need `piper_core>=0.7.0`). New: gripper in `ArmBackend` (`gripper_opening`, `gripper_force`, `set_gripper(width, effort, timeout) -> width`) and in
 `ArmState`; `RealArm` (guarded gripper, `stop()` ending with e-stop + reset, `abort()`, motors-enabled check, streaming options `mode` / `lookahead`); `piper_core.stream_metrics`, `stream_plan`; the `piper-arm` console (extra `arm`: needs `pyAgxArm`). Park joint 5 = 22.0 deg.
-Verified: offline suite 148 passed (6 GPU tests skipped), MuJoCo wheel tests and the Isaac client protocol tests (fake server) pass; the GPU tests were not rerun for 0.6.0. Real arm (SDK tools and the console, user present): session, poses, jog, e-stop + reset, gripper close on a 10 mm object.
+Verified (2026-11-10): offline suite 180 passed (6 GPU tests skipped by default), the six Isaac GPU tests pass with `PIPER_TEST_ISAAC=1 gpu-run python -m pytest src/piper_isaac/test/test_piper_isaac.py` (parity 0.0210 rad vs MuJoCo 0.0212), launch tests mock and MuJoCo, carrier example. Real arm (SDK tools and the console, user present): session, poses, jog, e-stop + reset, gripper close on a 10 mm object.
 Not verified on the arm: `RealArm` motion methods, 25 ms streaming, speeds above 10 %. The fake-driver ROS plumbing tests are flaky on their own (see CLEANUP log). Hand-off note: `docs/FINDINGS.md`.
 
 ## v0.5.0 (2026-11-10)

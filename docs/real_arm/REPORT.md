@@ -69,23 +69,23 @@ motion with an object, heavier objects, other objects (foam, soap, banana), the 
 
 | Item | Real arm | MuJoCo (`PiperSim`) | Isaac (`PiperIsaacSim`) |
 |---|---|---|---|
-| Stroke | 69.44 mm | 70.0 mm | 70 mm commanded; physical opening not measured here |
-| Empty-closed width | 0.14 mm | 0.00 mm | not measured |
-| Closing time (70 to 0 mm) | 0.28 s | **0.074 s** | not measured |
-| Opening time | 0.26-0.36 s | 0.074 s | not measured |
+| Stroke | 69.44 mm | 70.0 mm | 70.0 mm (measured 2026-11-10 on the GPU) |
+| Empty-closed width | 0.14 mm | 0.00 mm | 0.00 mm |
+| Closing time (70 to 0 mm) | 0.28 s | **0.074 s** | **0.08 s** |
+| Opening time | 0.26-0.36 s | 0.074 s | 0.08 s |
 | Grip force | steady plateau about 2.1 N (3 N commanded), read back as negative | actuator +-10 N (kp 400), no read-back (NaN), `effort` ignored | no read-back, `effort` ignored |
 | Held object | relaxes +0.5 to 1 mm in 3 s | rigid contact (not measured) | not measured |
 | Arm servo | trails a streamed setpoint 35 ms + 73 ms per rad/s | ideal servos (not measured here) | ideal servos (not measured here) |
 
 Recommended simulator parameters (for the owners to apply and re-run their tests): limit the finger speed so a full close or open takes about 0.28 s (about 250 mm/s) instead of 0.074 s; limit the steady grip force to about 2 N (the real plateau) instead of +-10 N; keep
-the stroke at 69.5 mm; add an optional arm-servo delay of about 45 ms at low speed rising to about 115 ms at 1.1 rad/s if tracking realism matters. Isaac needs the same gripper numbers measured on the GPU (not done).
+the stroke at 69.5 mm; add an optional arm-servo delay of about 45 ms at low speed rising to about 115 ms at 1.1 rad/s if tracking realism matters.
 
 ## 6. What is not tested, and open risks
 
 - The ROS path on the real arm (parked, `docs/CLEANUP.md` C14). Speeds above 44 %; joints 2, 3, 5 at speed; a payload (camera, object) and the arm's payload setting (none set); crash protection is level 0 (no collision detection), left as it is until tried.
 - The cuRobo scene is a table plane only: the real workspace must match. Hand-eye calibration, camera pose and the TCP offset (fingertip centre 0.138 m from the gripper base) are not measured.
 - The dead-process drill; the e-stop with an object gripped was observed once by the user (no release).
-- The Isaac edits of 0.7.0 were only run against the fake-server client tests, not on the GPU.
+- Isaac: the 0.7.0 GPU tests pass (6 passed, parity 0.0210 rad vs MuJoCo 0.0212); the gripper times above were measured with a throwaway script, not a test.
 
 ## 7. The API `piper_pick` should call
 

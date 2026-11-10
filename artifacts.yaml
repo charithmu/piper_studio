@@ -81,3 +81,90 @@ artifacts:
     workdir: .
     start: python isaac/bench_step.py --seconds 4
     data: none
+  - id: piper-arm
+    type: cli
+    title: piper-arm, the real-arm cockpit
+    desc: "One terminal console for the real Piper: live status and one key per action (start, poses, jog, gripper, end session, e = emergency stop). Needs CAN up (scripts/can_up.sh, sudo) and the user at the arm."
+    runtime: one-shot
+    workdir: .
+    start: piper-arm
+    needs: ["hardware:piper-01"]
+    notes: "Venv: source scripts/env.sh. One program drives the arm at a time (bus lock)."
+  - id: piper-arm-stop
+    type: cli
+    title: Emergency stop of the real arm
+    desc: "tools/real_arm/arm_stop.py: electronic e-stop (default), --disable (motors off), --reset (clear). Works beside a running tool (skips the bus lock)."
+    runtime: one-shot
+    workdir: .
+    start: python tools/real_arm/arm_stop.py
+    needs: ["hardware:piper-01"]
+  - id: piper-arm-session
+    type: cli
+    title: Start / end a real-arm session
+    desc: "tools/real_arm/arm_session.py status|start|stop: clear an e-stop, motors on, move to zero; zero, park, e-stop, clear."
+    runtime: one-shot
+    workdir: .
+    start: python tools/real_arm/arm_session.py status
+    needs: ["hardware:piper-01"]
+  - id: piper-arm-info
+    type: cli
+    title: Read-only status of the real arm
+    desc: "tools/real_arm/arm_info.py: role, mode, motors, faults, firmware, limits, drivers, gripper; saves a JSON read-out. Sends queries only."
+    runtime: one-shot
+    workdir: .
+    start: python tools/real_arm/arm_info.py --arm-id piper-01
+    needs: ["hardware:piper-01"]
+  - id: piper-realarm-smoke
+    type: job
+    title: RealArm smoke test on the real arm
+    desc: "tools/real_arm/realarm_smoke.py: start, guard refusals, a 5 deg move, a 25 ms cosine, gripper, abort, stop; an Enter before each stage. User at the arm."
+    runtime: one-shot
+    workdir: .
+    start: python tools/real_arm/realarm_smoke.py
+    needs: ["hardware:piper-01"]
+  - id: piper-stream-test
+    type: job
+    title: Measure 25 ms streaming on the real arm
+    desc: "tools/real_arm/arm_stream_test.py: tracking error, lag, timing and speed against the speed percent for a known one-joint plan; --offline prints the plan without the arm."
+    runtime: one-shot
+    workdir: .
+    start: python tools/real_arm/arm_stream_test.py --offline
+    needs: ["hardware:piper-01"]
+  - id: piper-gripper-test
+    type: job
+    title: Gripper measurements on the real arm
+    desc: "tools/real_arm/gripper_test.py empty|force|object|slip: widths, times, force read-back, creep and slip. User at the arm; the gripper moves only while the arm is started."
+    runtime: one-shot
+    workdir: .
+    start: python tools/real_arm/gripper_test.py empty
+    needs: ["hardware:piper-01"]
+  - id: piper-curobo-scenario-plan
+    type: job
+    title: Plan the cuRobo test scenario
+    desc: "tools/real_arm/curobo_plan_scenario.py: approach, grasp, lift, home from zero with the cuRobo study's planner (its own venv); writes scenario.json. No arm."
+    runtime: one-shot
+    workdir: .
+    start: gpu-run ~/projects/ml_tests/experiments/curobo_piper_study/.venv/bin/python tools/real_arm/curobo_plan_scenario.py
+    needs: [gpu]
+  - id: piper-run-scenario
+    type: job
+    title: Run the cuRobo scenario on a backend
+    desc: "tools/real_arm/run_scenario.py SCENARIO --backend real|ros|mujoco (--dry-run needs none): slowed to 0.3 rad/s, an Enter per step on the arm. A stored plan is in tools/real_arm/fixtures/."
+    runtime: one-shot
+    workdir: .
+    start: python tools/real_arm/run_scenario.py tools/real_arm/fixtures/scenario_pick_25_0_05.json --dry-run
+  - id: piper-dead-process-drill
+    type: job
+    title: Dead-process drill
+    desc: "tools/real_arm/dead_process_drill.py hold|moving: what the arm does when the program driving it is killed. User at the arm."
+    runtime: one-shot
+    workdir: .
+    start: python tools/real_arm/dead_process_drill.py hold
+    needs: ["hardware:piper-01"]
+  - id: piper-fk-compare
+    type: job
+    title: Our model against the firmware kinematics
+    desc: "tools/real_arm/fk_compare.py [--arm]: URDF vs SDK modified-DH forward kinematics (offline), optionally against the pose the arm reports."
+    runtime: one-shot
+    workdir: .
+    start: python tools/real_arm/fk_compare.py

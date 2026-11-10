@@ -113,7 +113,7 @@ piper-arm                           # real arm cockpit (status + one key per act
 ros2 run piper_py piper disable      # controllers off, 5 s countdown to get a hand on the arm, motors off
 ```
 
-Without ROS, the scripts in `tools/real_arm/` (info, zero, joints, stop) talk to the arm directly. Read [docs/real_arm/REAL_ARM.md](docs/real_arm/REAL_ARM.md) and the per-arm file in
+Without ROS, `piper_core.RealArm` and the tools in `tools/real_arm/` talk to the arm directly: the `piper-arm` console, `arm_session.py` (start / end a session), `arm_pose.py`, `arm_jog.py`, `arm_stop.py` (emergency stop), `arm_info.py` / `arm_joints.py` (read only), `arm_stream_test.py`, `gripper_test.py`, `realarm_smoke.py`, `dead_process_drill.py`, and the cuRobo scenario (`curobo_plan_scenario.py`, `run_scenario.py`). Measured results: `docs/real_arm/REPORT.md`. Read [docs/real_arm/REAL_ARM.md](docs/real_arm/REAL_ARM.md) and the per-arm file in
 `docs/real_arm/arms/` before touching it.
 
 ## Tests
