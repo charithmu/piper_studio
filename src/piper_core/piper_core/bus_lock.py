@@ -35,8 +35,13 @@ class BusLock:
                 holder = "another process"
             os.close(fd)
             raise BusBusyError(f"{self.canbus} is in use by {holder}: only one program may drive the arm at a time (close it first)") from None
-        os.ftruncate(fd, 0)
-        os.pwrite(fd, f"pid {os.getpid()} ({os.path.basename(sys.argv[0]) or 'python'})".encode(), 0)
+        try:
+            os.ftruncate(fd, 0)
+            os.pwrite(fd, f"pid {os.getpid()} ({os.path.basename(sys.argv[0]) or 'python'})".encode(), 0)
+        except BaseException:                           # a failure here must not leave the lock held
+            fcntl.flock(fd, fcntl.LOCK_UN)
+            os.close(fd)
+            raise
         self.fd = fd
         return self
 

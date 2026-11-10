@@ -11,9 +11,7 @@ import math
 
 import numpy as np
 
-from piper_core.backend import ARM_JOINTS, Trajectory
-
-FIRMWARE_MAX_VELOCITY = 3.0
+from piper_core.backend import ARM_JOINTS, MAX_VELOCITY as FIRMWARE_MAX_VELOCITY, Trajectory      # 3.0 rad/s, one definition
 
 
 def _build(q0, joint, offsets, t) -> Trajectory:
@@ -53,7 +51,15 @@ def retime(traj: Trajectory, max_speed: float, dt: float = 0.025) -> Trajectory:
     """The same path no faster than `max_speed` rad/s (slowed uniformly, never sped up), resampled to `dt` spacing with the planner's own curve (cubic Hermite when it has dq).
     A planner trajectory is fast by design; this is how a first run on the real arm is kept slow. Velocities are scaled with the time."""
     from piper_core.backend import resample
+    if not max_speed > 0:
+        raise ValueError("max_speed must be > 0 rad/s")
     factor = max(1.0, peak_speed(traj) / max_speed) if len(traj.t) > 1 else 1.0
-    slow = Trajectory(traj.joint_names, traj.t * factor, traj.q, None if traj.dq is None else traj.dq / factor, None, {**traj.meta, "retimed_by": float(factor)})
-    t, q = resample(slow, 1.0 / dt)
-    return Trajectory(traj.joint_names, t, q, None, None, slow.meta)
+    for _ in range(8):                                  # the planner's curve between points can be faster than the chords: measure the resampled curve and slow down until it obeys the cap
+        slow = Trajectory(traj.joint_names, traj.t * factor, traj.q, None if traj.dq is None else traj.dq / factor, None, {**traj.meta, "retimed_by": float(factor)})
+        t, q = resample(slow, 1.0 / dt)
+        out = Trajectory(traj.joint_names, t, q, None, None, slow.meta)
+        peak = peak_speed(out) if len(t) > 1 else 0.0
+        if peak <= max_speed * 1.005 or factor == 1.0 and peak <= max_speed:
+            return out
+        factor *= peak / max_speed * 1.01
+    return out

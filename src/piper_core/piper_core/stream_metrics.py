@@ -21,10 +21,9 @@ import math
 
 import numpy as np
 
-from piper_core.backend import Trajectory
+from piper_core.backend import MAX_VELOCITY as FIRMWARE_MAX_VELOCITY, Trajectory      # 3.0 rad/s at 100 %, one definition
 
 DEG = 180.0 / math.pi
-FIRMWARE_MAX_VELOCITY = 3.0       # rad/s at 100 %
 
 
 def _plan(traj: Trajectory, t) -> np.ndarray:

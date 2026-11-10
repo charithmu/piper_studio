@@ -381,3 +381,95 @@ def test_retime_slows_a_fast_plan_to_the_cap_and_keeps_the_path():
     assert np.diff(slow.t)[:-1] == pytest.approx(0.025, abs=1e-9)                # the last step ends on the exact final time
     gentle = cosine(q0, 0, 0.1, 4.0)
     assert retime(gentle, 0.5).t[-1] == pytest.approx(gentle.t[-1])    # never sped up
+
+
+# ---------------------------------------------------------------- from the code review: abort reaches every wait, one motion at a time, honest reasons, stamp clock
+def test_abort_interrupts_a_move_to_and_the_final_settle():
+    sdk, arm = started()
+    hook_sleep(arm, sdk, lambda i: arm.abort() if i == 12 else None)
+    r = arm.move_to({**arm.zero(), "joint1": 0.5}, duration=3.0)
+    assert not r.ok and r.reason == "stopped" and sdk.on                        # held where it was, not after 60 s
+    sdk, arm = started()
+    tr = ramp(arm, seconds=0.5)
+    n0, base = len(sdk.sent), arm._sleep
+
+    def late_abort(s):
+        if len(sdk.sent) - n0 >= len(tr.t) - 1:                                # every setpoint is out: this is the final settle
+            arm.abort()
+        base(s)
+    arm._sleep = late_abort
+    r = arm.execute(tr)
+    assert not r.ok and r.reason == "stopped" and r.t.shape[0] == len(tr.t) - 1
+
+
+def test_abort_when_idle_changes_nothing_and_motions_exclude_each_other():
+    sdk, arm = started()
+    arm.abort()
+    assert arm.move_to({**arm.zero(), "joint1": 0.1}).ok                       # an abort with nothing running does not hit the next move
+    assert arm.move_to(arm.zero()).ok
+    seen = []
+    hook_sleep(arm, sdk, lambda i: seen.append((arm.move_to(arm.zero()), arm.start(), arm.stop())) if i == 30 else None)
+    assert arm.execute(ramp(arm, seconds=1.0)).ok
+    mv, st, sp = seen[0]
+    assert mv.reason == "not_ready" and not st.ok and not sp.ok and "another motion" in st.message
+
+
+def test_move_to_says_why_it_failed():
+    sdk, arm = make(SLUMPED)
+    r = arm.move_to(arm.zero())
+    assert not r.ok and r.reason == "not_ready"
+    assert arm.start()
+    r = arm.move_to({**arm.zero(), "joint2": -0.5})
+    assert not r.ok and r.reason == "guard:rejected"
+    sdk.fault = True
+    r = arm.move_to({**arm.zero(), "joint1": 0.1})
+    assert not r.ok and r.reason == "fault"
+
+
+def test_state_stamp_is_on_the_clock_of_t():
+    now = [100.0]
+    sdk = StampedSdk(SLUMPED, lambda: now[0])
+    sdk.estops = sdk.resets = 0
+    sdk.estopped = False
+    arm = RealArm(sdk, clock=lambda: now[0], sleep=lambda s: now.__setitem__(0, now[0] + s))
+    st = arm.state()
+    assert abs(st.t - st.stamp) < 1.0                                          # the SDK's own stamp is on another epoch (1.7e9) and must not leak out
+
+
+def test_retime_obeys_its_cap_on_the_resampled_curve_and_rejects_a_bad_cap():
+    from piper_core.stream_plan import peak_speed, retime
+    q0 = [0.0, 0.01, -0.01, 0.0, 0.0, 0.0]
+    q1 = [0.5, 0.01, -0.01, 0.0, 0.0, 0.0]
+    sparse = Trajectory(list(JOINTS), [0.0, 1.0], [q0, q1], dq=[[3.0] + [0.0] * 5, [3.0] + [0.0] * 5])      # a Hermite curve that bulges well above the chord speed
+    out = retime(sparse, 0.3)
+    assert peak_speed(out) <= 0.3 * 1.02
+    assert out.q[0] == pytest.approx(q0) and out.q[-1] == pytest.approx(q1, abs=1e-9)
+    for bad in (0.0, -1.0, float("nan")):
+        with pytest.raises(ValueError):
+            retime(sparse, bad)
+
+
+def test_a_failed_lock_write_does_not_leave_the_bus_locked(tmp_path, monkeypatch):
+    import os
+    from piper_core.bus_lock import BusLock
+    monkeypatch.setenv("XDG_RUNTIME_DIR", str(tmp_path))
+    real = os.pwrite
+
+    def boom(*a, **k):
+        raise OSError("disk full")
+    monkeypatch.setattr(os, "pwrite", boom)
+    with pytest.raises(OSError):
+        BusLock("can7").acquire()
+    monkeypatch.setattr(os, "pwrite", real)
+    BusLock("can7").acquire().release()                                         # not stuck
+
+
+def test_space_at_a_confirm_prompt_moves_nothing():
+    from test_arm_cli import make as make_console
+    sdk, arm, c = make_console()                                                # powered off, enabled=False
+    sdk.on = True                                                               # enabled but not started (e.g. after a partial enable): the case the review named
+    c.key("s")
+    assert c.prompt and "START" in c.prompt
+    n = len(sdk.sent)
+    c.key(" ")
+    assert len(sdk.sent) == n and c.prompt is None and c.task is None

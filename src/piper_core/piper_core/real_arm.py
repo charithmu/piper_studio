@@ -17,6 +17,8 @@ from the trajectory (assumes 100 % = the firmware's 3.0 rad/s) is unverified.
 
 from __future__ import annotations
 
+import contextlib
+import functools
 import math
 import os
 import threading
@@ -27,14 +29,14 @@ from dataclasses import dataclass, field
 import numpy as np
 
 from piper_core.bus_lock import BusBusyError, BusLock
-from piper_core.backend import (ARM_JOINTS, MAX_STEP, ArmState, BackendError, ExecResult, Outcome, Trajectory, check_start,
+from piper_core.backend import (ARM_JOINTS, MAX_STEP, MAX_VELOCITY, ArmState, BackendError, ExecResult, Outcome, Trajectory, check_start,
                                check_trajectory)
 from piper_core.guard import GuardConfig, check_command
 from piper_core.poses import classify_state, zero_pose
 
 JOINTS = tuple(f"joint{i}" for i in range(1, 7))
 PARK_JOINT5 = 0.3840           # rad (22.0 deg): park = zero with joint 5 lowered (SRDF `park`, test_named_poses)
-FIRMWARE_MAX_VELOCITY = 3.0    # rad/s, read from the arm (piper-01.readout.json)
+FIRMWARE_MAX_VELOCITY = MAX_VELOCITY   # rad/s, read from the arm (piper-01.readout.json); one definition, in piper_core.backend
 DONE_TOLERANCE = 0.01          # rad (0.57 deg): "at the goal"
 DONE_HOLD_S = 1.0
 MODE_J = 1                     # mode_feedback value for CAN control + MOVE_J
@@ -86,7 +88,7 @@ class GripperWatch:
         while self.hist and t - self.hist[0][0] > 2 * self.WINDOW:
             self.hist.popleft()
         if abs(w - self.target) <= self.TOL:
-            self.near_since = self.near_since or t
+            self.near_since = t if self.near_since is None else self.near_since
             if t - self.near_since >= self.HOLD:
                 return "reached"
         else:
@@ -104,6 +106,40 @@ class RealArmError(BackendError):
     """A refused or aborted action. The arm is left holding (motors on) unless the message says otherwise."""
 
 
+def _in_op(fn):
+    """Run a motion method as an 'operation': abort() reaches it, and the abort flag is cleared when the last operation ends."""
+    @functools.wraps(fn)
+    def wrapper(self, *a, **k):
+        with self._op():
+            return fn(self, *a, **k)
+    return wrapper
+
+
+def _exclusive(busy):
+    """One motion operation at a time (execute, start, stop, move_to), decided atomically: a second caller gets `busy(self)` and nothing is sent."""
+    def deco(fn):
+        @functools.wraps(fn)
+        def wrapper(self, *a, **k):
+            with self._op_lock:
+                if self._executing:
+                    return busy(self)
+                self._executing = True
+            try:
+                return fn(self, *a, **k)
+            finally:
+                self._executing = False
+        return wrapper
+    return deco
+
+
+def _busy_outcome(self):
+    return Outcome(False, "another motion is running (execute, start, stop or move_to): abort() it first", {"reason": "not_ready"})
+
+
+def _busy_result(self):
+    return ExecResult(False, "not_ready", "another motion is running (execute, start, stop or move_to): abort() it first")
+
+
 class RealArm:
     def __init__(self, sdk_arm, limits: dict[str, tuple[float, float]] | None = None, margin: float = 0.01, speed_percent: int = 30,
                  clock=time.monotonic, sleep=time.sleep):
@@ -115,7 +151,8 @@ class RealArm:
         self.gripper = None          # the SDK gripper driver; set by connect()
         self.gripper_stroke, self.gripper_effort, self.gripper_max_effort = GRIPPER_STROKE, GRIPPER_DEFAULT_EFFORT, GRIPPER_MAX_EFFORT
         self.last_gripper: GripperResult | None = None
-        self._abort, self._executing = threading.Event(), False      # abort(): stop a running execute() from another thread
+        self._abort, self._executing = threading.Event(), False      # abort(): stop whatever is running (execute, start, stop, move_to) from another thread
+        self._op_lock, self._active = threading.Lock(), 0           # operations in progress; abort() only does something while one runs
         self.max_feedback_age = 0.25     # s: joint feedback that has not changed for longer is a fault (arm silent or CAN lost)
         self._ts_last, self._ts_seen, self._lock = None, self._now(), None
         self.last_stream: dict | None = None                         # timing and fine-grained measured joints of the last execute(), see stream_metrics
@@ -167,13 +204,27 @@ class RealArm:
         arm._lock = lock
         return arm
 
+    @contextlib.contextmanager
+    def _op(self):
+        with self._op_lock:
+            self._active += 1
+        try:
+            yield
+        finally:
+            with self._op_lock:
+                self._active -= 1
+                if self._active == 0:
+                    self._abort.clear()
+
     def close(self):
         """Disconnect and free the bus. The motors are NOT touched: an enabled arm keeps holding its last target (stop() first for a clean end). If the process dies the arm also keeps holding;
         the operator stops it (piper-arm `e`, or tools/real_arm/arm_stop.py)."""
-        self.sdk.disconnect()
-        if self._lock is not None:
-            self._lock.release()
-            self._lock = None
+        try:
+            self.sdk.disconnect()
+        finally:                                          # the bus lock is freed even if the disconnect raises
+            if self._lock is not None:
+                self._lock.release()
+                self._lock = None
 
     # ------------------------------------------------------------------ reads (send nothing)
     def _stored_limits(self) -> dict[str, tuple[float, float]]:
@@ -316,9 +367,9 @@ class RealArm:
         t0 = self._now()
         while self._now() - t0 < 5.0 and not self.sdk.enable():
             self._sleep(0.05)
-        self.enabled = any(self.sdk.get_joint_enable_status(i) for i in range(1, 7))
-        return Outcome(all(self.sdk.get_joint_enable_status(i) for i in range(1, 7)),
-                       "" if self.enabled else "could not enable all six joints")
+        on = [bool(self.sdk.get_joint_enable_status(i)) for i in range(1, 7)]
+        self.enabled = any(on)
+        return Outcome(all(on), "" if all(on) else f"could not enable all six joints (enabled: {on})")
 
     def disable(self) -> Outcome:
         for _ in range(10):
@@ -339,17 +390,20 @@ class RealArm:
         t0, since = self._now(), None
         while self._now() - t0 < timeout:
             self._sleep(0.1)
+            if self._abort.is_set():
+                self._hold()
+                return Outcome(False, "stopped by abort(), holding", {"reason": "stopped"})
             bad = self.problems()
             if bad:
                 self._hold()
-                return Outcome(False, "aborted, holding: " + "; ".join(bad))
+                return Outcome(False, "aborted, holding: " + "; ".join(bad), {"reason": "fault"})
             q = self.positions()
             err = max(abs(q[j] - goal[j]) for j in JOINTS)
-            since = (since or self._now()) if err < DONE_TOLERANCE else None
-            if since and self._now() - since >= DONE_HOLD_S:
+            since = (self._now() if since is None else since) if err < DONE_TOLERANCE else None
+            if since is not None and self._now() - since >= DONE_HOLD_S:
                 return Outcome(True, "reached", {"error": err})
         self._hold()
-        return Outcome(False, f"goal not reached within {timeout:.0f} s, holding")
+        return Outcome(False, f"goal not reached within {timeout:.0f} s, holding", {"reason": "timeout"})
 
     def _not_started(self) -> str | None:
         """None when commands are accepted, else the reason in terms a downstream user can act on. A command to a disabled arm is silently ignored by the firmware: refuse it instead."""
@@ -360,20 +414,22 @@ class RealArm:
             return "not started: call start()"
         return None
 
+    @_in_op
     def _move(self, target: dict[str, float], speed_percent: int | None = None) -> Outcome:
-        """One checked point-to-point move (firmware interpolation) from a started arm (inside its bounds, motors on). The way in is start()."""
+        """One checked point-to-point move (firmware interpolation) from a started arm (inside its bounds, motors on). The way in is start().
+        A failure carries details["reason"]: not_ready | fault | guard:rejected | stopped | timeout."""
         why = self._not_started()
         if why:
-            return Outcome(False, why)
+            return Outcome(False, why, {"reason": "not_ready"})
         bad = self.problems()
         if bad:
-            return Outcome(False, "; ".join(bad))
+            return Outcome(False, "; ".join(bad), {"reason": "fault"})
         g = self._guard(target)
         if not g:
-            return g
+            return Outcome(False, g.message, {"reason": "guard:rejected"})
         cfg = self._configure(speed_percent or self.speed_percent)
         if not cfg:
-            return cfg
+            return Outcome(False, cfg.message, {"reason": "fault"})
         self.sdk.move_j([g.details["positions"][k] for k in range(6)])
         return self._wait_at(dict(zip(JOINTS, g.details["positions"])))
 
@@ -389,6 +445,7 @@ class RealArm:
         ok = st is not None and int(st.msg.arm_status) == 0
         return Outcome(ok, "e-stop cleared" if ok else "could not clear the e-stop (power-cycle the arm)")
 
+    @_in_op
     def _leave_off_pose(self, speed_percent: int | None) -> Outcome:
         """Motors on, then the one move that is allowed from where a powered-off arm rests: straight to zero. Internal: this is what start() does for the caller."""
         cfg = self._configure(speed_percent or self.speed_percent)
@@ -400,6 +457,8 @@ class RealArm:
         self.sdk.move_j([self.zero()[j] for j in JOINTS])
         return self._wait_at(self.zero())
 
+    @_exclusive(_busy_outcome)
+    @_in_op
     def start(self, speed_percent: int | None = None) -> Outcome:
         """Make the arm ready: clear an e-stop if one is active, preflight, motors on, one checked move to zero, check zero. Success: started and at zero. Safe to call again (a started arm just goes to zero).
         The caller never sees or commands where a powered-off arm rests; this is the only way in."""
@@ -420,23 +479,20 @@ class RealArm:
             if not r:
                 return r
         else:
-            cfg = self._configure(speed_percent or self.speed_percent)
-            if not cfg:
-                return cfg
             r = self._move(self.zero(), speed_percent)
             if not r:
                 return r
         ok = self._pose_state() == "zero"
         return Outcome(ok, ("ready: started, at zero" if ok else "not at zero after start") + note)
 
+    @_exclusive(_busy_outcome)
+    @_in_op
     def stop(self, speed_percent: int | None = None, settle: float = 1.0, ending: str = "estop") -> Outcome:
         """End the session from any state. A started arm: zero, check, wait, park, wait, then the ending: "estop" (default; verified on the arm 2026-11-10): electronic e-stop (damped lowering),
         wait until at rest, reset (clears the e-stop, motors off, the arm stays powered, start() works at once); "disable": a plain disable (a harder drop).
         Already off: nothing to do. An active e-stop: cleared. A fault: nothing is commanded and the motors stay on, the operator stops it (piper-arm `e`). Refused while execute() runs (abort() first)."""
         if ending not in ("estop", "disable"):
             return Outcome(False, f"ending must be 'estop' or 'disable', not {ending!r}")
-        if self._executing:
-            return Outcome(False, "a trajectory is running: abort() it first")
         cleared = self._clear_estop()
         if cleared is not None:
             return Outcome(cleared.ok, "e-stop cleared; motors off" if cleared else cleared.message)
@@ -486,8 +542,11 @@ class RealArm:
         return int(min(AUTO_LOOKAHEAD_MAX, max(0, round((AUTO_LAG_BASE_S + AUTO_LAG_PER_RAD_S * speed) / dt))))
 
     def abort(self) -> None:
-        """Stop a running execute() from another thread (or a signal handler): it holds the present pose and returns ExecResult(False, 'stopped'). Safe to call when idle."""
-        self._abort.set()
+        """Stop whatever is running (execute, start, stop, move_to), from another thread or a signal handler: it holds the present pose and returns ExecResult(False, 'stopped')
+        or an Outcome that says so. Takes effect within about 0.1 s, also during the final settle. Does nothing when idle (the next operation is not affected)."""
+        with self._op_lock:
+            if self._active:
+                self._abort.set()
 
     # ------------------------------------------------------------------ ArmBackend (piper_core.backend)
     joint_names = list(JOINTS)
@@ -498,8 +557,7 @@ class RealArm:
         if q is None:
             raise RealArmError("no joint feedback")
         now = self._now()
-        ja = self.sdk.get_joint_angles()
-        stamp = float(getattr(ja, "timestamp", None) or now)
+        stamp = now - self.feedback_age()                       # on the same (monotonic) clock as t: the SDK's own stamp may be on any epoch
         gw, gf = self.gripper_opening(), self.gripper_force()
         return ArmState(now, np.array([q[j] for j in JOINTS]), np.full(6, np.nan), stamp,
                         math.nan if gw is None else gw, math.nan if gf is None else gf)
@@ -522,6 +580,7 @@ class RealArm:
             raise RealArmError(g.message)
         self.sdk.move_j(g.details["positions"])
 
+    @_exclusive(_busy_result)
     def move_to(self, q, duration: float | None = None) -> ExecResult:
         """One checked point-to-point move (firmware interpolation) from a valid arm. `q`: six values or {joint: value}."""
         target = dict(q) if isinstance(q, dict) else dict(zip(JOINTS, map(float, q)))
@@ -532,7 +591,7 @@ class RealArm:
                 pct = math.ceil(100.0 * max(abs(target[j] - now[j]) for j in JOINTS) / duration / FIRMWARE_MAX_VELOCITY)
         r = self._move(target, pct)
         qn = self.positions() or {}
-        return ExecResult(r.ok, "done" if r else "guard:rejected", "" if r else r.message, np.array([self._now()]),
+        return ExecResult(r.ok, "done" if r else r.details.get("reason", "guard:rejected"), "" if r else r.message, np.array([self._now()]),
                           np.array([[target[j] for j in JOINTS]]), np.array([[qn.get(j, np.nan) for j in JOINTS]]))
 
     def execute(self, traj, *, margin_percent: float = 20.0, blocking: bool = True, mode: str = "fixed", lookahead: int | str = "auto", min_percent: int = 5) -> ExecResult:
@@ -563,8 +622,17 @@ class RealArm:
             return ExecResult(False, "bad_trajectory", str(e))
         if list(traj.joint_names) != list(JOINTS):
             return ExecResult(False, "bad_trajectory", f"joint_names must be {list(JOINTS)}")
-        if self._executing:
-            return ExecResult(False, "not_ready", "another trajectory is running")
+        with self._op_lock:                                      # atomic: two callers can never both pass this check
+            if self._executing:
+                return ExecResult(False, "not_ready", "another trajectory is running")
+            self._executing = True
+        try:
+            with self._op():
+                return self._execute_run(traj, margin_percent, mode, lookahead, auto, min_percent)
+        finally:
+            self._executing = False
+
+    def _execute_run(self, traj, margin_percent, mode, lookahead, auto, min_percent) -> ExecResult:
         why = self._not_started()
         if why:
             return ExecResult(False, "not_ready", why)
@@ -596,8 +664,6 @@ class RealArm:
         if not cfg:
             return ExecResult(False, "fault", cfg.message)
         log_t, log_c, log_m, events, fine_t, fine_q, used, used_ahead = [], [], [], [], [], [], [], []
-        self._abort.clear()
-        self._executing = True
         t_start = self._now()
 
         def sample():
@@ -645,15 +711,15 @@ class RealArm:
                 else:
                     used.append(first)
                 self.sdk.move_j(g.details["positions"])
+                log_t.append(self._now() - t_start)                      # stamped right after the send: the timing figures do not include the logging read below
                 now = self.positions() or {}
-                log_t.append(self._now() - t_start)
                 log_c.append(g.details["positions"])
                 log_m.append([now.get(jn, np.nan) for jn in JOINTS])
             end = self._wait_at(dict(zip(JOINTS, map(float, traj.q[-1]))), timeout=10.0)
             sample()
             if not end:
                 events.append((float(traj.t[-1]), "end", end.message))
-            return result(end.ok, "done" if end.ok else "timeout", end.message)
+            return result(end.ok, "done" if end.ok else end.details.get("reason", "timeout"), end.message)
         except KeyboardInterrupt:
             self._hold()
             raise
@@ -664,5 +730,3 @@ class RealArm:
             except Exception:
                 pass
             return result(False, "fault", f"CAN/SDK error: {e!r}")
-        finally:
-            self._executing = False

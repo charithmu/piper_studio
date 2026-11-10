@@ -27,9 +27,8 @@ import time
 import tty
 from collections import deque
 
-from piper_core.real_arm import DONE_TOLERANCE, JOINTS, GripperWatch, RealArm, RealArmError
+from piper_core.real_arm import DONE_TOLERANCE, JOINTS, MODE_J, GripperWatch, RealArm, RealArmError
 
-MARGIN = 0.01
 SPEEDS = (3, 5, 10, 15, 20, 30, 40, 50)
 JOG_STEPS = (0.25, 0.5, 1.0, 2.0)               # degrees
 JOG_SPEED_MAX = 5
@@ -100,13 +99,50 @@ class Console:
             return "motors are not all enabled: press s"
         if s["pose"] not in ("zero", "valid") and not allow_slumped:
             return f"the arm is {s['pose']}: press s (its move to zero is the way out)"
-        for j, g in zip(JOINTS, goal):
+        if not all(math.isfinite(g) for g in goal):
+            return "a target is not a number"
+        if not allow_slumped:
+            verdict = a._guard(dict(zip(JOINTS, map(float, goal))))        # the one guard of piper_core (limits, margin, finite, faults), as RealArm uses it
+            return None if verdict else verdict.message
+        for j, g in zip(JOINTS, goal):                                       # start's single move out of the powered-off pose: only the target is checked
             lo, hi = a.limits[j]
-            if not lo + MARGIN - 1e-9 <= g <= hi - MARGIN + 1e-9:
-                return f"{j} target {g * DEG:.2f} deg is outside [{(lo + MARGIN) * DEG:.2f}, {(hi - MARGIN) * DEG:.2f}]"
+            if not lo + a.margin - 1e-9 <= g <= hi - a.margin + 1e-9:
+                return f"{j} target {g * DEG:.2f} deg is outside [{(lo + a.margin) * DEG:.2f}, {(hi - a.margin) * DEG:.2f}]"
         return None
 
     # ------------------------------------------------------------------ tasks (generators)
+    # The arm's blocking helpers (configure up to 2.5 s, enable up to 5 s, clear-estop 1.5 s) are re-done here as generators that yield between polls,
+    # so `e` (emergency stop) and SPACE are read while they run instead of after them.
+    def _g_configure(self, speed):
+        a = self.arm
+        a.sdk.set_speed_percent(int(min(max(speed, 1), 100)))
+        a.sdk.set_motion_mode(a.sdk.OPTIONS.MOTION_MODE.J)
+        t0 = self.now()
+        while self.now() - t0 < 2.5:
+            st = a.sdk.get_arm_status()
+            if st is not None and int(st.msg.mode_feedback) == MODE_J and int(st.msg.ctrl_mode) == 1:
+                return True
+            yield
+        return False
+
+    def _g_enable(self):
+        a = self.arm
+        t0 = self.now()
+        while self.now() - t0 < 5.0 and not a.sdk.enable():
+            yield
+        return all(a.sdk.get_joint_enable_status(i) for i in range(1, 7))
+
+    def _g_clear_estop(self):
+        """True if cleared, False if not, None if no e-stop was active."""
+        a = self.arm
+        st = a.sdk.get_arm_status()
+        if st is None or int(st.msg.arm_status) != 1:
+            return None
+        a.sdk.reset()
+        yield from self._wait(1.5)
+        st = a.sdk.get_arm_status()
+        return st is not None and int(st.msg.arm_status) == 0
+
     def _wait(self, seconds):
         t0 = self.now()
         while self.now() - t0 < seconds:
@@ -120,9 +156,13 @@ class Console:
         if why:
             self.log(f"refused: {why}")
             return False
-        cfg = a._configure(self.speed)
-        if not cfg:
-            self.log(f"not moving: {cfg.message}")
+        if not (yield from self._g_configure(self.speed)):
+            self.log("not moving: the arm did not report CAN control + MOVE_J")
+            return False
+        self.refresh()
+        why = self.moves_allowed(goal, allow_slumped)                       # re-checked after the wait: anything may have happened meanwhile
+        if why:
+            self.log(f"refused: {why}")
             return False
         q = self.snap["q"]
         dist = max(abs(x - g) for x, g in zip(q, goal))
@@ -145,8 +185,8 @@ class Console:
                 self.log(f"timeout after {timeout:.0f} s, holding")
                 return False
             t = self.now()
-            ok_since = (ok_since or t) if err < DONE_TOLERANCE else None
-            if ok_since and t - ok_since >= 1.0:
+            ok_since = (t if ok_since is None else ok_since) if err < DONE_TOLERANCE else None
+            if ok_since is not None and t - ok_since >= 1.0:
                 self.progress = ""
                 self.log(f"{label} reached (error {err * DEG:.2f} deg)")
                 return True
@@ -182,23 +222,21 @@ class Console:
         what = ("clear the e-stop, " if estop else "") + ("enable the motors and " if not all(s["enabled"]) else "")
         yield ("confirm", f"START: {what}move to ZERO ({big:.1f} deg, speed {self.speed} %). Arm clear, hand on the power switch. Enter = go")
         if estop:
-            cleared = a._clear_estop()
+            cleared = yield from self._g_clear_estop()
             if not cleared:
-                self.log(f"not starting: {cleared.message}")
+                self.log("not starting: could not clear the e-stop (power-cycle the arm)")
                 return
             self.log("e-stop cleared")
             self.refresh()
             if self.snap["problems"]:
                 self.log("not starting: " + "; ".join(self.snap["problems"]))
                 return
-        cfg = a._configure(self.speed)
-        if not cfg:
-            self.log(f"not starting: {cfg.message}")
+        if not (yield from self._g_configure(self.speed)):
+            self.log("not starting: the arm did not report CAN control + MOVE_J")
             return
         if not all(s["enabled"]) or estop:
-            en = a.enable()
-            if not en:
-                self.log(f"not moving: {en.message} (d disables, e stops)")
+            if not (yield from self._g_enable()):
+                self.log("not moving: could not enable all six joints (d disables, e stops)")
                 return
             self.log("all six joints enabled")
         ok = yield from self._move(goal, "zero pose", allow_slumped=True)
@@ -342,7 +380,7 @@ class Console:
 
     def hold(self):
         grip = self.grip_active
-        was = self.task is not None or self.jog_joint is not None
+        was = (self.task is not None and self.prompt is None) or self.jog_joint is not None      # something is moving; a confirm prompt moves nothing, so there is nothing to hold
         self._cancel("HOLD: stopped where it is, motors still on")
         self.jog_joint = self.jog_target = None
         if grip and self.snap.get("width") is not None:
@@ -413,7 +451,7 @@ class Console:
         if q is None:
             self.log("refused: no joint feedback")
             return
-        target = [min(max(a, self.arm.limits[j][0] + MARGIN), self.arm.limits[j][1] - MARGIN) for a, j in zip(q, JOINTS)]
+        target = [min(max(a, self.arm.limits[j][0] + self.arm.margin), self.arm.limits[j][1] - self.arm.margin) for a, j in zip(q, JOINTS)]
         why = self.moves_allowed(target)           # the clamped present pose: the arm rests 0.5 deg short of a limit at zero and park
         if why:
             self.log(f"refused: {why}")
@@ -450,8 +488,9 @@ class Console:
         j = self.jog_joint
         new = self.jog_target[j] + sign * self.jog_step / DEG
         lo, hi = self.arm.limits[JOINTS[j]]
-        if not lo + MARGIN <= new <= hi - MARGIN:
-            self.log(f"jog refused: joint {j + 1} would leave [{(lo + MARGIN) * DEG:.1f}, {(hi - MARGIN) * DEG:.1f}] deg")
+        m = self.arm.margin
+        if not lo + m <= new <= hi - m:
+            self.log(f"jog refused: joint {j + 1} would leave [{(lo + m) * DEG:.1f}, {(hi - m) * DEG:.1f}] deg")
             return
         if abs(new - s["q"][j]) > 3.0 / DEG:
             self.log("jog refused: the arm is more than 3 deg behind the target, wait for it")
