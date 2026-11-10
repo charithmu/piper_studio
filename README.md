@@ -89,7 +89,7 @@ The wrist camera is a model (`urdf/cameras/<name>.xacro`: d435) on a mount (`urd
 | Planning | MoveIt `move_group` via `move_pose()`, `move_named()`, `move_to_joints()` | collision-aware, Cartesian (Pilz LIN) |
 | Cartesian servoing | MoveIt Servo via `servo_twist()`, `servo_to_pose()` | TCP jogging and tracking (through the streaming controller) |
 | Gripper | `gripper_controller` (ParallelGripperCommand), width in m | all |
-| Vendor-native | `agx_arm_ctrl` topics or pyAgxArm directly | firmware features (not wrapped by `piper_py`) |
+| Vendor-native | pyAgxArm directly (the vendor `agx_arm_ctrl` node is not used for the real arm) | firmware features (not wrapped by `piper_py`) |
 
 Exactly one controller owns the arm at a time (`arm_controller` or `arm_position_controller`).
 
@@ -107,7 +107,8 @@ ros2 run piper_py piper enable       # motors on
 ros2 run piper_py piper activate     # refuses unless driver feedback is fresh and consistent
 ros2 run piper_py piper zero         # all joints 0: the start and end pose of every simulation and every real session
 ros2 run piper_py piper start        # real arm: motors on, leave the powered-off pose, checked arrival at zero, controllers active
-ros2 run piper_py piper stop         # real arm: zero, wait, park, wait, motors off
+ros2 run piper_py piper stop         # real arm: zero, park, electronic e-stop (damped lowering), clear
+ros2 run piper_py piper estop        # real arm: EMERGENCY STOP, immediately
 piper-arm                           # real arm cockpit (status + one key per action; e = emergency stop). `source scripts/env.sh` first
 ros2 run piper_py piper disable      # controllers off, 5 s countdown to get a hand on the arm, motors off
 ```

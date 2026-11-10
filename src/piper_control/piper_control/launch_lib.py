@@ -66,11 +66,9 @@ def real_arm_arguments() -> list:
     return [
         DeclareLaunchArgument("canbus", default_value="can0", description="real only: CAN bus (network interface of the USB-CAN adapter)"),
         DeclareLaunchArgument("speed_percent", default_value="20",
-                              description="real only: arm speed in percent (1-100) set when the driver starts; 0 leaves the arm's own setting"),
-        DeclareLaunchArgument("auto_enable", default_value="false", choices=["true", "false"],
-                              description="real only: enable motors at driver start"),
+                              description="real only: arm speed in percent (1-100) used by `start` and by streamed setpoints"),
         DeclareLaunchArgument("driver", default_value="true", choices=["true", "false"],
-                              description="real only: start agx_arm_ctrl (false: bring your own, e.g. fake_driver)"),
+                              description="real only: start piper_real_driver (false: bring your own driver with the same topics and services)"),
     ]
 
 
@@ -153,19 +151,13 @@ def moveit_nodes(config, sim_time: dict, moveit: str, servo: str, rviz: str) -> 
     return nodes
 
 
-def real_arm_nodes(prefix: str, gripper: str, canbus: str, speed_percent: str, auto_enable: str, driver: str) -> list:
-    """command_guard (the only name translator between ros2_control and the driver) and the official driver."""
+def real_arm_nodes(prefix: str, gripper: str, canbus: str, speed_percent: str, driver: str) -> list:
+    """command_guard (the only name translator between ros2_control and the driver) and our driver (piper_control.real_driver, on piper_core.RealArm).
+    The motors are never enabled by starting it: the `start` service does that, and moves to zero."""
     nodes = [Node(package="piper_control", executable="command_guard.py", name="command_guard", output="screen",
                   parameters=[{"prefix": prefix}])]
     if driver == "true":
         nodes.append(Node(
-            package="agx_arm_ctrl", executable="agx_arm_ctrl_single", name="agx_arm_ctrl", output="screen",
-            parameters=[{
-                "can_port": canbus,                      # the vendor node calls the CAN bus "can_port"
-                "speed_percent": int(speed_percent),
-                "arm_type": "piper",
-                "effector_type": "agx_gripper" if gripper == "true" else "none",
-                "auto_enable": auto_enable == "true",
-                "pub_rate": 200,
-            }]))
+            package="piper_control", executable="real_driver.py", name="piper_real_driver", output="screen",
+            parameters=[{"canbus": canbus, "speed_percent": int(speed_percent), "gripper": gripper == "true", "pub_rate": 200.0}]))
     return nodes

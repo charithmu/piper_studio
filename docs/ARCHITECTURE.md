@@ -42,7 +42,7 @@ piper_studio/
 How the two non-package folders fit in:
 
 - **`external/agx_arm_ros`** is the vendor's code and our source of truth for geometry. We never edit it. `piper_arm.xacro` and `piper_official.srdf.xacro` are generated from its files and validated against them
-  (`piper_description/tools/piper_arm_macro.py`); meshes are still loaded from its `agx_arm_description` package; `agx_arm_ctrl` is the driver `piper_control` starts for `backend:=real`
+  (`piper_description/tools/piper_arm_macro.py`); meshes are still loaded from its `agx_arm_description` package; `piper_control` starts its own `piper_real_driver` (on `piper_core.RealArm`) for `backend:=real`; the vendor `agx_arm_ctrl` is not used
   (the guard sits between ros2_control and the driver). A submodule bump fails the tests until the generated files are regenerated and reviewed.
 - **`isaac/`** exists outside colcon on purpose: Isaac Sim ships its own Python and ROS bridge, and must not mix with the apt ROS and `.venv`. `piper_sim` exports the same description to a URDF
   (`export_urdf.py`), `isaac/convert_urdf.py` turns it into USD in `~/data/ml/isaac/piper_studio/`, and `isaac/run_piper.py` runs it as a separate GPU process that exchanges joint states, commands, `/clock` and camera images
@@ -76,7 +76,7 @@ Dependency direction (arrows read "may use"): `piper_sim`, `piper_examples` -> `
 | FollowJointTrajectory | yes | scripted motion | `arm_controller` via `piper_py` |
 | Planning and Cartesian | yes | collision-aware moves | MoveIt via `piper_py` |
 | Servo | yes | TCP jogging | MoveIt Servo via `piper_py` |
-| Vendor-native | yes/no | firmware features | `agx_arm_ctrl` / pyAgxArm, not wrapped |
+| Vendor-native | yes/no | firmware features | pyAgxArm, not wrapped |
 
 Rules for the shared parts:
 - **Limits come from the URDF.** `piper_core` parses them from the description's URDF; nothing else defines them.

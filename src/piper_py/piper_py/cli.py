@@ -4,11 +4,13 @@
     piper controllers
     piper activate        # backend:=real: start commanding (checks driver feedback first)
     piper deactivate
-    piper enable          # low level, backend:=real: motors on only (use start)
+    piper estop           # backend:=real: the electronic EMERGENCY STOP, immediately (the arm lowers under damping); then clear-estop, then start
+    piper clear-estop     # backend:=real: clear the e-stop (start does it too)
+    piper enable          # low level, backend:=real: same as start's driver step (motors on, one move to zero), controllers stay off
     piper disable         # low level, backend:=real: 5 s countdown, motors off where the arm is (use stop)
     piper zero            # the zero pose, from anywhere inside the limits: start and end pose of every session
-    piper start           # begin a session: motors on, leave the powered-off pose, checked arrival at zero, controllers active
-    piper stop            # end a session: zero, wait, park, wait, motors off (real arm)
+    piper start           # begin a session: clear an e-stop, motors on, one checked move to zero, controllers active
+    piper stop            # end a session: zero, park, electronic e-stop (damped lowering), clear (real arm)
     piper joints 0 1.0 -1.0 0 1.0 0 [--duration 3] [--plan]
     piper named ready
     piper pose 0.25 0 0.10 [--quat 0 1 0 0] [--linear]   # tool-down reach is limited to z < ~0.12 m
@@ -39,9 +41,11 @@ def main(argv=None):
     sub.add_parser("controllers", help="list controllers and their states")
     sub.add_parser("activate", help="activate arm/gripper controllers after checking feedback")
     sub.add_parser("deactivate", help="deactivate all command controllers")
-    sub.add_parser("start", help="begin a session from anywhere (powered-off arm included): motors, checked move to zero, controllers active")
-    sub.add_parser("stop", help="end a session: go to zero, check, park (real arm), motors off. Use this instead of disable")
-    sub.add_parser("enable", help="low level, real arm: enable the motors only (use start)")
+    sub.add_parser("start", help="begin a session: (real arm) clear an e-stop, motors on, one checked move to zero; controllers active")
+    sub.add_parser("stop", help="end a session: go to zero, check, then (real arm) park, electronic e-stop, clear. Use this instead of disable")
+    sub.add_parser("estop", help="real arm: the electronic EMERGENCY STOP, immediately (the arm lowers slowly under damping); then clear-estop, then start")
+    sub.add_parser("clear-estop", help="real arm: clear an e-stop (motors stay off; start does it too)")
+    sub.add_parser("enable", help="low level, real arm: the driver's start step (motors on, one move to zero), controllers stay off")
     dis = sub.add_parser("disable", help="low level, real arm: count down, then disable the motors where the arm is (use stop; hold the arm!)")
     dis.add_argument("--countdown", type=int, default=5, help="seconds to get a hand on the arm (default 5)")
     sub.add_parser("zero", help="move to the 'zero' pose, from anywhere inside the limits: the start and end pose of every session")
@@ -107,6 +111,10 @@ def main(argv=None):
             return 0
         if a.cmd in ("activate", "deactivate"):
             r = arm.activate() if a.cmd == "activate" else arm.deactivate()
+        elif a.cmd == "estop":
+            r = arm.estop()
+        elif a.cmd == "clear-estop":
+            r = arm.clear_estop()
         elif a.cmd == "enable":
             r = arm.set_motors(True)
         elif a.cmd == "disable":

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Run the repo's checks. Offline tests always; launch tests per backend on request.
 #   scripts/test_all.sh                      offline tests + generated-macro check (fast, no simulator)
-#   scripts/test_all.sh mock gazebo mujoco   also the launch tests of those backends, the carrier example and the real-arm plumbing
+#   scripts/test_all.sh mock gazebo mujoco   also the launch tests of those backends and the carrier example
 #   scripts/test_all.sh isaac                add isaac (GPU; needs `scripts/isaac.sh build-usd d435` first)
 # Each launch test gets its own ROS_DOMAIN_ID (from 150 up) and its daemon is stopped afterwards. Exit status is non-zero if anything failed.
 set -uo pipefail
@@ -21,9 +21,6 @@ for backend in "$@"; do
   ros2 daemon stop >/dev/null 2>&1
 done
 if [ $# -gt 0 ]; then
-  domain=$((domain + 1)); export ROS_DOMAIN_ID=$domain
-  run "real-arm plumbing (fake driver)" timeout 600 python -m pytest src/piper_py/test/test_real_plumbing.py src/piper_py/test/test_real_start_stop.py -q
-  ros2 daemon stop >/dev/null 2>&1
   domain=$((domain + 1)); export ROS_DOMAIN_ID=$domain
   run "carrier example" timeout 600 python -m pytest src/piper_examples -q
   ros2 daemon stop >/dev/null 2>&1

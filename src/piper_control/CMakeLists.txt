@@ -7,7 +7,7 @@ find_package(ament_cmake_python REQUIRED)
 ament_python_install_package(${PROJECT_NAME})
 
 install(DIRECTORY config launch rviz DESTINATION share/${PROJECT_NAME})
-install(PROGRAMS scripts/command_guard.py DESTINATION lib/${PROJECT_NAME})
+install(PROGRAMS scripts/command_guard.py scripts/real_driver.py DESTINATION lib/${PROJECT_NAME})
 
 if(BUILD_TESTING)
   find_package(ament_cmake_pytest REQUIRED)

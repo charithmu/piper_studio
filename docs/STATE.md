@@ -18,7 +18,7 @@ git log --oneline | head; sed -n 1,60p docs/CLEANUP.md              # what was d
 
 ## What works (verified 2026-11-08, details in CLEANUP "Verification record")
 All five backends with the same controllers and MoveIt: mock, Gazebo (also its GUI on a virtual display), MuJoCo (viewer and camera), Isaac Sim (GPU, camera, video), real-arm
-plumbing with a fake driver. Simulated D435 wrist camera on the RealSense topic names. Prefix `piper_` on every name. Carrier example (own controller manager, prefix `arm_`).
+`piper_real_driver` (our driver node, tested against a fake SDK; no ROS-side fake driver any more). Simulated D435 wrist camera on the RealSense topic names. Prefix `piper_` on every name. Carrier example (own controller manager, prefix `arm_`).
 **Not done on the real arm through the ROS stack**; only SDK scripts (`tools/real_arm/`) have moved it (2026-10-14).
 
 ## Packages for other repos

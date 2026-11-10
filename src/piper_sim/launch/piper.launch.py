@@ -8,10 +8,10 @@
     ros2 launch piper_sim piper.launch.py backend:=real canbus:=can0 speed_percent:=20
     ... servo:=false                                              # without MoveIt Servo (TCP-frame jogging)
 
-backend:=real starts the official agx_arm_ctrl driver. Safety defaults:
+backend:=real starts piper_real_driver (our driver on piper_core.RealArm). Safety defaults:
   * the arm speed is set explicitly (speed_percent, default 20 %) instead of whatever the arm powered up with;
-  * the driver does NOT enable the motors unless auto_enable:=true; enable explicitly with
-    `ros2 service call /enable_agx_arm std_srvs/srv/SetBool "{data: true}"` while someone is at the arm;
+  * starting the driver moves and enables nothing; `piper start` (the driver's `start` service) enables the motors and moves to zero, `piper stop` ends the session
+    (zero, park, e-stop, clear), `piper estop` is the emergency stop. Someone is at the arm for all of them;
   * arm_controller and gripper_controller start INACTIVE. Activate them with `piper activate`
     (piper_py), which first checks that driver feedback is fresh and matches ros2_control state.
     A trajectory controller holds the position it reads at activation; activating before real
@@ -136,7 +136,7 @@ def launch_setup(context):
     if backend == "mujoco":
         actions += mujoco(controllers)
     if backend == "real":
-        actions += lib.real_arm_nodes(prefix, gripper, arg("canbus"), arg("speed_percent"), arg("auto_enable"), arg("driver"))
+        actions += lib.real_arm_nodes(prefix, gripper, arg("canbus"), arg("speed_percent"), arg("driver"))
     return actions
 
 

@@ -7,9 +7,10 @@
 
 Simulators (Gazebo, MuJoCo, Isaac) are in piper_sim's piper.launch.py, which composes the same pieces (piper_control.launch_lib).
 
-backend:=real starts the official agx_arm_ctrl driver and command_guard. Safety defaults:
+backend:=real starts piper_real_driver (our driver on piper_core.RealArm) and command_guard. Safety defaults:
   * the arm speed is set explicitly (speed_percent, default 20 %) instead of whatever the arm powered up with;
-  * the driver does NOT enable the motors unless auto_enable:=true; enable explicitly with `piper enable` (or the /enable_agx_arm service);
+  * starting the driver moves and enables nothing; `piper start` (the driver's `start` service) enables the motors and moves to zero, `piper stop` ends the session
+    (zero, park, e-stop, clear), `piper estop` is the emergency stop;
   * arm_controller and gripper_controller start INACTIVE. Activate them with `piper activate` (piper_py), which first checks that driver
     feedback is fresh and matches ros2_control state. A trajectory controller holds the position it reads at activation; activating before
     real feedback arrives would command the arm toward the URDF initial pose.
@@ -47,7 +48,7 @@ def launch_setup(context):
     if backend != "external":
         actions.append(lib.controller_manager_node(controllers, sim_time))
     if backend == "real":
-        actions += lib.real_arm_nodes(prefix, gripper, arg("canbus"), arg("speed_percent"), arg("auto_enable"), arg("driver"))
+        actions += lib.real_arm_nodes(prefix, gripper, arg("canbus"), arg("speed_percent"), arg("driver"))
     return actions
 
 

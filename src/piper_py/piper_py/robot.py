@@ -136,8 +136,11 @@ class Piper:
             ListControllers, f"{self._prefix}/controller_manager/list_controllers")
         self._switch_controllers = self.node.create_client(
             SwitchController, f"{self._prefix}/controller_manager/switch_controller")
-        self._enable_motors = self.node.create_client(SetBool, f"{self._prefix}/enable_agx_arm")  # vendor driver (backend:=real)
-        self._go_zero = self.node.create_client(Trigger, f"{self._prefix}/go_zero")  # start sequence (backend:=real)
+        self._enable_motors = self.node.create_client(SetBool, f"{self._prefix}/enable_agx_arm")  # piper_real_driver (backend:=real): false = motors off
+        self._drv_start = self.node.create_client(Trigger, f"{self._prefix}/start")    # piper_real_driver: clear an e-stop, motors on, one checked move to zero
+        self._drv_stop = self.node.create_client(Trigger, f"{self._prefix}/stop")      # piper_real_driver: zero, park, e-stop, clear (from any state)
+        self._drv_estop = self.node.create_client(Trigger, f"{self._prefix}/estop")    # piper_real_driver: the electronic e-stop, immediately
+        self._drv_clear = self.node.create_client(Trigger, f"{self._prefix}/clear_estop")
         self._trajectory = ActionClient(self.node, FollowJointTrajectory,
                                         f"{self._prefix}/arm_controller/follow_joint_trajectory")
         self._gripper = ActionClient(self.node, ParallelGripperCommand,
@@ -336,7 +339,7 @@ class Piper:
                 return Result(False, "ARM_FAULT", "the driver reports a fault: " + "; ".join(bad), {"faults": bad})
             outside = self._outside_limits()
             if outside:
-                return Result(False, "NOT_STARTED", "the arm is outside its limits (powered off and slumped): call start() first",
+                return Result(False, "NOT_STARTED", "not started: call start() first",
                               {"outside_limits": outside})
         todo = [c for c in wanted if states[c] != "active"]
         if states.get("arm_position_controller") == "active" and "arm_controller" in todo:
@@ -378,19 +381,36 @@ class Piper:
                   if states.get(c) == "active"]
         return self.switch(deactivate=active) if active else Result(True, "SUCCESS", "nothing active")
 
-    def set_motors(self, on: bool, timeout: float = 15.0) -> Result:
-        """Enable or disable the real arm's motors (vendor driver service enable_agx_arm; backend:=real only).
+    def _trigger(self, client, timeout: float, what: str) -> Result:
+        try:
+            res = self._call(client, Trigger.Request(), timeout)
+        except RuntimeError as e:
+            return Result(False, "NO_SERVICE", f"{e} (only the real backend has {what})")
+        return Result(res.success, "SUCCESS" if res.success else "FAILED", res.message)
+
+    def set_motors(self, on: bool, timeout: float = 90.0) -> Result:
+        """Real arm only. on=True is the driver's `start` (motors on, one checked move to zero); on=False is a plain motor-off (service enable_agx_arm).
 
         Disabling releases the joints: a raised arm falls, so hold it or call stop() instead. The command controllers are
         deactivated first so nothing keeps commanding a limp arm.
         """
-        if not on:
+        if on:
             self.deactivate()
+            return self._trigger(self._drv_start, timeout, "motors to enable")
+        self.deactivate()
         try:
-            res = self._call(self._enable_motors, SetBool.Request(data=on), timeout)
+            res = self._call(self._enable_motors, SetBool.Request(data=False), 15.0)
         except RuntimeError as e:
-            return Result(False, "NO_SERVICE", f"{e} (only the real backend has motors to enable)")
+            return Result(False, "NO_SERVICE", f"{e} (only the real backend has motors to disable)")
         return Result(res.success, "SUCCESS" if res.success else "FAILED", res.message)
+
+    def estop(self) -> Result:
+        """Real arm: the electronic emergency stop, immediately (the arm lowers slowly under damping). Works while anything else runs. Then clear_estop(), then start()."""
+        return self._trigger(self._drv_estop, 5.0, "an e-stop")
+
+    def clear_estop(self) -> Result:
+        """Real arm: clear an e-stop (motors stay off, the arm stays powered). start() also does this."""
+        return self._trigger(self._drv_clear, 15.0, "an e-stop to clear")
 
     def use_streaming(self) -> Result:
         """Hand the arm to arm_position_controller for stream_joints() (teleop, Servo, policies). Idempotent."""
@@ -604,23 +624,16 @@ class Piper:
     def start(self, velocity_scaling: float = 0.2) -> Result:
         """Make the arm ready for control, from wherever it is: the one call a session begins with.
 
-        Real arm: enable the motors; if the arm is slumped (powered off, outside its limits) leave that pose with one checked move to
-        zero (command_guard `go_zero`); activate the controllers; if the arm is valid but not at zero, plan there. Simulators: activate,
-        and go to zero. Success means: controllers active and the arm measured at zero. Never commands anything from outside the limits.
+        Real arm: the driver's `start` service (clears an e-stop, motors on, one checked move to zero, the same as RealArm.start), then activate
+        the controllers. Simulators: activate, and go to zero. Success means: controllers active and the arm measured at zero. Never commands
+        anything from outside the limits.
         """
         real = self._is_real()
         if real:
-            r = self.set_motors(True)
+            self.deactivate()
+            r = self._trigger(self._drv_start, 90.0, "a start sequence")
             if not r:
-                return Result(False, "START_FAILED", f"motors: {r.message}")
-            if self._outside_limits() or not self._at_zero():
-                if self._outside_limits():
-                    try:
-                        res = self._call(self._go_zero, Trigger.Request(), 60.0)
-                    except RuntimeError as e:
-                        return Result(False, "START_FAILED", f"command_guard go_zero not available: {e}")
-                    if not res.success:
-                        return Result(False, "START_FAILED", res.message)
+                return Result(False, "START_FAILED", r.message)
         r = self.activate()
         for _ in range(10):          # ros2_control's state trails the driver for a moment after a move: wait for it to agree
             if r or r.code != "STATE_MISMATCH":
@@ -638,13 +651,12 @@ class Piper:
             Result(False, "START_FAILED", "the arm is not at zero after the start sequence")
 
     def stop(self, velocity_scaling: float = 0.2, settle: float = 1.0) -> Result:
-        """End a session: zero, check it, wait, then (real arm) park, wait and power the motors off. Downstream code just calls this.
-
-        Simulators end at zero. The park pose is Piper Studio's own: zero with joint 5 lowered, so the powered-off arm drops only a little.
-        Call it with the arm anywhere inside its limits; an arm that is already slumped (motors off) is left alone.
+        """End a session. Simulators end at zero. Real arm: plan to zero (collision-aware), check it, then the driver's `stop` service: park, electronic e-stop
+        (damped lowering), clear. From any state; an arm that is already stopped is left alone. Downstream code just calls this.
         """
         if self._is_real() and self._outside_limits():
-            return Result(True, "SUCCESS", "already powered off and slumped")
+            self.deactivate()
+            return self._trigger(self._drv_stop, 90.0, "a stop sequence")
         r = self.move_named("zero", velocity_scaling)
         if not r:
             return r
@@ -654,12 +666,9 @@ class Piper:
             return Result(False, "STOP_FAILED", "the arm did not reach zero; motors left on", {"state": self.joint_state()})
         if not self._is_real():
             return Result(True, "SUCCESS", "at zero")
-        r = self.move_to_joints([self.named_poses(internal=True)["park"][j] for j in self.arm_joints], velocity_scaling)
-        if not r:
-            return Result(False, "STOP_FAILED", f"park: {r.code} {r.message}; motors left on")
-        time.sleep(settle)
-        r = self.set_motors(False)
-        return Result(True, "SUCCESS", "parked, motors off") if r else Result(False, "STOP_FAILED", f"motors: {r.message}")
+        self.deactivate()                                    # nothing may command the arm while the driver parks it
+        r = self._trigger(self._drv_stop, 90.0, "a stop sequence")
+        return Result(True, "SUCCESS", r.message) if r else Result(False, "STOP_FAILED", f"driver stop: {r.message}; motors left on")
 
     def move_pose(self, position, orientation_xyzw, frame: str | None = None, linear: bool = False,
                   velocity_scaling: float = 0.2, position_tolerance: float = 0.001,

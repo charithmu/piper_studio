@@ -45,7 +45,7 @@ Do not edit `external/agx_arm_ros`. If a vendor bug blocks us, work around it in
 - Every link, joint and frame carries the prefix (default `piper_`). Code that names joints takes the prefix; the real driver keeps the official names and `command_guard` is the only translator.
 - One controller configuration for every backend (`controllers.yaml`, a `${prefix}` template); backends differ only in the ros2_control hardware plugin.
 - One command owner per resource; switch controllers explicitly. One implementation of each rule (`piper_core`); interfaces are thin wrappers.
-- Success means executed (controller or MoveIt result), not planned. Every session starts and ends at the named pose `zero`. `Piper.start()` / `stop()` (`piper start` / `piper stop`) handle the powered-off (slumped) pose and the park pose; nothing is ever commanded from outside the limits, and downstream code only knows `zero`.
+- Success means executed (controller or MoveIt result), not planned. Every session starts and ends at the named pose `zero`. `Piper.start()` / `stop()` (`piper start` / `piper stop`, the real driver's start / stop services) own the way in (clear an e-stop, motors on, one move to zero) and the way out (zero, park, e-stop, clear). **Where a powered-off arm rests (the slumped pose) is internal to this layer: never command it, never expose it as a state or pose to downstream users or in their docs and messages ("not started: call start()").** Nothing is ever commanded from outside the limits, and downstream code only knows `zero`.
 - A change to a name in the contract (controller, topic, frame, macro parameter) is breaking: record it in `docs/CLEANUP.md` and `docs/INTEGRATION.md`.
 
 ## Safety and approvals
