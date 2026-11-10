@@ -42,6 +42,13 @@ The tested combination. Source revisions are authoritative in git (submodule pin
 | MuJoCo 3.12 + MoveIt + piper_py | pass (provisional actuator model) | `piper_py/test/test_bringup.py` [mujoco]; `piper_sim/test/test_mujoco_model.py` (FK = official to 1e-6 m, finger coupling) |
 | Isaac Sim 6.1 + MoveIt + piper_py | pass (opt-in: uses the GPU) | `PIPER_TEST_BACKENDS=isaac`; fingers verified against Isaac ground truth (±0.5 × gripper) |
 
+## v0.6.0 (2026-11-10)
+
+All four Python wheels use 0.6.0 (built from a clean commit, `dist/SHA256SUMS`; `piper_mujoco` and `piper_isaac` need `piper_core>=0.6.0`). New: gripper in `ArmBackend` (`gripper_opening`, `gripper_force`, `set_gripper(width, effort, timeout) -> width`) and in
+`ArmState`; `RealArm` (guarded gripper, `stop()` ending with e-stop + reset, `abort()`, motors-enabled check, streaming options `mode` / `lookahead`); `piper_core.stream_metrics`, `stream_plan`; the `piper-arm` console (extra `arm`: needs `pyAgxArm`). Park joint 5 = 22.0 deg.
+Verified: offline suite 148 passed (6 GPU tests skipped), MuJoCo wheel tests and the Isaac client protocol tests (fake server) pass; the GPU tests were not rerun for 0.6.0. Real arm (SDK tools and the console, user present): session, poses, jog, e-stop + reset, gripper close on a 10 mm object.
+Not verified on the arm: `RealArm` motion methods, 25 ms streaming, speeds above 10 %. The fake-driver ROS plumbing tests are flaky on their own (see CLEANUP log). Hand-off note: `docs/FINDINGS.md`.
+
 ## v0.5.0 (2026-11-10)
 
 All four Python wheels use 0.5.0. The Isaac client defaults to 250/250 Hz control/physics; headless recording renders at video fps with threaded encoding.
