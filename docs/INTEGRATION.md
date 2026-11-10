@@ -135,7 +135,7 @@ Gripper effort defaults to 1.0 N and is capped at 3.0 N (`arm.gripper_max_effort
 ## 4. Real arm rules (do not weaken in a wrapper)
 
 Motors are not enabled at start. The arm speed is set explicitly. Command controllers start inactive and are activated only after fresh, consistent feedback
-(`piper activate`). Commands pass the guard. Every session starts with `piper start` (`Piper.start()`: clear an e-stop, motors on, one checked move to zero, controllers active) and ends with `piper stop` (zero, park, electronic e-stop, clear). `piper estop` is the emergency stop. The real driver is `piper_real_driver` (our node on `RealArm`); one program drives the arm at a time. Nothing is ever commanded from outside the limits.
+(`piper activate`). Commands pass the guard. **The ROS path on the real arm is experimental (parked, CLEANUP C14): use `RealArm` (section 3) for the real arm.** Every session starts with `piper start` (`Piper.start()`: clear an e-stop, motors on, one checked move to zero, controllers active) and ends with `piper stop` (zero, park, electronic e-stop, clear). `piper estop` is the emergency stop. The real driver is `piper_real_driver` (our node on `RealArm`); one program drives the arm at a time. Nothing is ever commanded from outside the limits.
 Anything that can move the real arm needs the user present and approving.
 
 ## 5. Versioning
