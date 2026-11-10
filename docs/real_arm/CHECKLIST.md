@@ -14,7 +14,7 @@ Tools: `piper-arm` (cockpit: status, keys, gripper), `tools/real_arm/arm_session
 
 ## R1 trajectories through RealArm
 
-Status 2026-11-10: R1.5 passed (the cuRobo scenario, all steps ok, 0.33 deg worst joint error, back at zero); R1.00 passed; R1.1 and R1.2 done on joint 1 at 6 % (`lookahead=2`: lag 0 ms, rms 0.04 deg; `fixed` and `per_point`: lag 45 ms, rms 0.25 deg; numbers in `arms/piper-01.md`); R1.6 done at zero and `ready`. R1.3 done at low speed on joints 2, 3, 5; R1.4 done on joint 1 up to 44 %; R2.0-R2.4 done (numbers in `REPORT.md`; the gripper does not move with the motors off and the e-stop does not release a grip). Open: R1.7 (dead-process drill); the ROS rungs are parked.
+Status 2026-11-10: R1.5 passed (the cuRobo scenario, all steps ok, 0.33 deg worst joint error, back at zero); R1.00 passed; R1.1 and R1.2 done on joint 1 at 6 % (`lookahead=2`: lag 0 ms, rms 0.04 deg; `fixed` and `per_point`: lag 45 ms, rms 0.25 deg; numbers in `arms/piper-01.md`); R1.6 done at zero and `ready`. R1.3 done at low speed on joints 2, 3, 5; R1.4 done on joint 1 up to 44 %; R2.0-R2.4 done (numbers in `REPORT.md`; the gripper does not move with the motors off and the e-stop does not release a grip). R1.7 (dead-process drill) done, user reported all working (no figures). Open: a short regression run after the code review fixes (`realarm_smoke.py`, `piper-arm` `s` / `e` / `t`); the ROS rungs are parked.
 
 Pre-conditions: `piper-arm` `s` (enabled, at zero), no object near. Each step is approved by the user, then run by the user.
 
