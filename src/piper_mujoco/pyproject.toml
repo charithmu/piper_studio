@@ -4,12 +4,12 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "piper_mujoco"
-version = "0.6.0"
+version = "0.7.0"
 description = "The Piper arm in MuJoCo without ROS: PiperSim, an ArmBackend that runs planner trajectories through the same rules as the real arm."
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "Apache-2.0" }
-dependencies = ["numpy>=1.24", "mujoco>=3.2", "piper_core>=0.6.0", "piper_assets>=0.6.0"]
+dependencies = ["numpy>=1.24", "mujoco>=3.2", "piper_core>=0.7.0", "piper_assets>=0.7.0"]
 
 [tool.setuptools]
 packages = ["piper_mujoco"]
