@@ -12,7 +12,9 @@ Tools: `piper-arm` (cockpit: status, keys, gripper), `tools/real_arm/arm_session
 - [x] State at rest recorded (powered-off pose, gripper 0 mm, drivers 26-28 C).
 - [ ] Gripper range on the arm: open stroke and empty-closed width (R2 below measures both).
 
-## R1 trajectories through RealArm (software ready, hardware to do)
+## R1 trajectories through RealArm
+
+Status 2026-11-10: R1.00 passed; R1.1 and R1.2 done on joint 1 at 6 % (`lookahead=2`: lag 0 ms, rms 0.04 deg; `fixed` and `per_point`: lag 45 ms, rms 0.25 deg; numbers in `arms/piper-01.md`); R1.6 done at zero and `ready`. Open: R1.3 (joints 2, 3, 5), R1.4 (speed ladder), R1.5, R1.7.
 
 Pre-conditions: `piper-arm` `s` (enabled, at zero), no object near. Each step is approved by the user, then run by the user.
 
