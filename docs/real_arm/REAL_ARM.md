@@ -164,6 +164,8 @@ To register an arm: copy `arms/_template.md` to `arms/<arm-id>.md`, run `tools/r
 
 ## 11. Gripper (RealArm, piper-arm)
 
+Measured numbers, the simulator gap table and the recommendation: `REPORT.md`. It moves only while the arm is started and holds through stop() and an e-stop.
+
 `RealArm.set_gripper(width, effort)` blocks until the gripper reached the width, stopped short of it ("stalled": an object or the end stop) or timed out, and returns the measured width; `arm.last_gripper` holds
 the reason, width and force. `gripper_command` is the non-blocking, guarded send; `gripper_opening()` and `gripper_force()` read CAN 0x2A8; `state()` carries `gripper_width` and `gripper_force`.
 Guard: width in [0, 0.07 m] (firmware stroke), effort in (0, `gripper_max_effort`], nothing while a fault or e-stop is reported. Default effort 1.0 N (the vendor's `gripper_default_effort`); our cap is 3.0 N, not a vendor figure

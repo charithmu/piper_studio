@@ -43,8 +43,11 @@ class Fake(FakeSdk):
         self.grip.advance(dt)
 
 
-def make(q=SLUMPED):
+def make(q=SLUMPED, started=False):
     sdk = Fake(q)
+    if started:                                           # motors on, at the zero pose: the state the gripper needs (it does not move with the motors off)
+        sdk.on = True
+        sdk.q = sdk.target = [0.0, 0.01, -0.01, 0.0, 0.0, 0.0]
     now = [0.0]
 
     def sleep(s):
@@ -300,7 +303,7 @@ def test_gripper_reads():
 
 # ---------------------------------------------------------------------- gripper
 def test_open_and_close_ask_first_then_reach_the_width():
-    sdk, arm, c = make()
+    sdk, arm, c = make(started=True)
     c.key("o")
     assert "OPEN" in c.prompt and sdk.grip.sent == []
     c.key("ENTER")
@@ -314,7 +317,7 @@ def test_open_and_close_ask_first_then_reach_the_width():
 
 
 def test_closing_on_an_object_ends_stalled_with_width_and_force():
-    sdk, arm, c = make()
+    sdk, arm, c = make(started=True)
     sdk.grip.width = sdk.grip.target = 0.07
     sdk.grip.obstacle = 0.03
     c.key("l")
@@ -325,7 +328,7 @@ def test_closing_on_an_object_ends_stalled_with_width_and_force():
 
 
 def test_a_gripper_that_does_not_move_is_reported():
-    sdk, arm, c = make()
+    sdk, arm, c = make(started=True)
     sdk.grip.frozen = True
     c.key("o")
     c.key("ENTER")
@@ -334,7 +337,7 @@ def test_a_gripper_that_does_not_move_is_reported():
 
 
 def test_gripper_commands_are_guarded():
-    sdk, arm, c = make()
+    sdk, arm, c = make(started=True)
     for width, effort in ((0.08, 1.0), (-0.01, 1.0), (0.03, 0.0), (0.03, 3.5), (float("nan"), 1.0), (0.03, float("nan"))):
         assert not arm.gripper_command(width, effort)
     assert sdk.grip.sent == []
@@ -347,7 +350,7 @@ def test_gripper_commands_are_guarded():
 
 
 def test_space_stops_the_gripper_where_it_is():
-    sdk, arm, c = make()
+    sdk, arm, c = make(started=True)
     c.key("o")
     c.key("ENTER")
     run(c, 0.8)
@@ -360,7 +363,7 @@ def test_space_stops_the_gripper_where_it_is():
 
 
 def test_force_key_cycles_and_never_exceeds_the_cap():
-    sdk, arm, c = make()
+    sdk, arm, c = make(started=True)
     seen = []
     for _ in range(7):
         c.key("f")
@@ -373,7 +376,7 @@ def test_force_key_cycles_and_never_exceeds_the_cap():
 
 
 def test_gripper_step_mode():
-    sdk, arm, c = make()
+    sdk, arm, c = make(started=True)
     c.key("g")
     assert c.grip_mode
     c.key("+")
@@ -392,7 +395,7 @@ def test_gripper_step_mode():
 
 
 def test_set_gripper_blocks_and_reports_how_it_ended():
-    sdk, arm, c = make()
+    sdk, arm, c = make(started=True)
     w = arm.set_gripper(0.05, effort=1.5)
     assert w == pytest.approx(0.05, abs=1e-3) and arm.last_gripper.reason == "reached"
     sdk.grip.obstacle = 0.02
@@ -403,9 +406,21 @@ def test_set_gripper_blocks_and_reports_how_it_ended():
 
 
 def test_state_carries_the_gripper_reading():
-    sdk, arm, c = make()
+    sdk, arm, c = make(started=True)
     sdk.grip.width = 0.0123
     st = arm.state()
     assert st.gripper_width == pytest.approx(0.0123) and st.gripper_force == pytest.approx(0.0)
     arm.gripper = None
     assert math.isnan(arm.state().gripper_width)
+
+
+def test_gripper_refuses_with_a_reason_while_the_motors_are_off():
+    sdk, arm, c = make()                                  # not started
+    out = arm.gripper_command(0.03)
+    assert not out and "only while the arm is started" in out.message and sdk.grip.sent == []
+    with pytest.raises(Exception, match="only while the arm is started"):
+        arm.set_gripper(0.03)
+    c.key("o")                                            # the console says so instead of waiting
+    c.key("ENTER")
+    until(c, lambda: c.task is None)
+    assert sdk.grip.sent == [] and any("only while the arm is started" in x for x in c.log_lines)

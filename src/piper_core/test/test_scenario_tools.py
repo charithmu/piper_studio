@@ -79,7 +79,7 @@ def test_gripper_empty_and_force_stages_run_against_the_fake_gripper():
     import argparse
     from test_arm_cli import make as make_fake
     g = _gripper_tool()
-    sdk, arm, _ = make_fake()
+    sdk, arm, _ = make_fake(started=True)
     ns = argparse.Namespace(cycles=2, effort=1.0)
     out = g.stage_empty(arm, ns, lambda t: None)
     assert len(out["open"]) == 2 and out["open"][0]["width_mm"] == pytest.approx(70.0, abs=1.0) and out["close"][0]["width_mm"] == pytest.approx(0.0, abs=1.0)

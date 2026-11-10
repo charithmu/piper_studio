@@ -233,7 +233,8 @@ class RealArm:
         return None if gs is None else float(gs.msg.force)
 
     def gripper_command(self, width: float, effort: float | None = None) -> Outcome:
-        """Send one gripper target (non-blocking). Refused, nothing sent: no gripper, width outside [0, stroke], effort not in (0, max], a fault or e-stop reported.
+        """Send one gripper target (non-blocking). Refused, nothing sent: no gripper, width outside [0, stroke], effort not in (0, max], a fault or e-stop reported, motors off
+        (the gripper does not move unless the arm is started; it also keeps holding through an e-stop and a stop(): open it first if it should be released).
         To raise the force limit set `arm.gripper_max_effort` (our cap, 3 N); the default effort is `arm.gripper_effort` (1 N, the vendor default)."""
         effort = self.gripper_effort if effort is None else float(effort)
         if self.gripper is None:
@@ -245,6 +246,8 @@ class RealArm:
         bad = self.problems()
         if bad:
             return Outcome(False, "; ".join(bad))
+        if not all(self.sdk.get_joint_enable_status(i) for i in range(1, 7)):       # measured 2026-11-10: the gripper does not move while the motors are off
+            return Outcome(False, "the gripper moves only while the arm is started (motors on): call start()")
         self.gripper.move_gripper_m(value=min(max(float(width), 0.0), self.gripper_stroke), force=effort)
         return Outcome(True)
 

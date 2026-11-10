@@ -30,7 +30,7 @@ git log --oneline | head; sed -n 1,60p docs/CLEANUP.md              # what was d
 `scripts/build_wheels.sh` builds `piper_core`, `piper_assets`, `piper_mujoco` and `piper_isaac` wheels (no ROS to install them; `piper_isaac` needs the USD of `scripts/isaac.sh build-usd`); contract and usage: `INTEGRATION.md` section 0, log: `CLEANUP.md` G12.
 
 ## Open work, grouped by what it needs (full list: CLEANUP.md)
-- Needs the user at the arm: the gripper timing and slip (R2, `tools/real_arm/gripper_test.py`), speeds above 44 % and a planned Cartesian path on the arm (R1.4-R1.5), measuring the stand mount (C5), camera calibration (C9), crash protection and payload settings.
+- Needs the user at the arm: the dead-process drill (R1.7), speeds above 44 % and a planned Cartesian path on the arm (R1.4-R1.5), measuring the stand mount (C5), camera calibration (C9), crash protection and payload settings.
 - Can be done alone: small issues C4 (stand white in Gazebo, MuJoCo drops colours), C6, C7, C11; pruning `for_reference/` (F1); the next development (ML endpoints: pick and place, Go2 mount).
 
 ## Gotchas that cost time

@@ -152,6 +152,7 @@ def test_nan_setpoints_are_ignored_and_setpoints_are_dropped_while_busy(drv):
 
 
 def test_gripper_setpoints_use_the_effort_and_are_sent_only_when_they_change(drv):
+    assert call(drv.on_start).success                                       # the gripper moves only while the arm is started
     z = [drv.fake_arm.zero()[j] for j in JOINTS]
     cmd(drv, z, grip=0.03, effort=1.5)
     assert drv.sdk.grip.sent == [(0.03, 1.5)]
