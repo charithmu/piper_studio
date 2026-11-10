@@ -56,18 +56,18 @@ def until(c, what, limit=40.0):
 def started():
     sdk, arm, c = make()
     c.key("s")
-    c.key("y")
+    c.key("ENTER")
     until(c, lambda: c.task is None)
     assert sdk.on and arm.pose_state() == "zero"
     return sdk, arm, c
 
 
-def test_start_waits_for_y_then_enables_and_goes_to_zero():
+def test_start_waits_for_enter_then_enables_and_goes_to_zero():
     sdk, arm, c = make()
     c.key("s")
     assert c.prompt and "START" in c.prompt
-    assert not sdk.on and not sdk.sent                       # nothing happened before y
-    c.key("y")
+    assert not sdk.on and not sdk.sent                       # nothing happened before Enter
+    c.key("ENTER")
     until(c, lambda: c.task is None)
     assert sdk.on and arm.pose_state() == "zero"
     assert sdk.sent[0] == pytest.approx([arm.zero()[j] for j in JOINTS])
@@ -77,7 +77,7 @@ def test_start_waits_for_y_then_enables_and_goes_to_zero():
 def test_any_other_key_cancels_a_prompt():
     sdk, arm, c = make()
     c.key("s")
-    c.key("n")
+    c.key("y")                                               # y no longer confirms
     assert c.prompt is None and c.task is None
     assert not sdk.on and not sdk.sent
 
@@ -93,17 +93,17 @@ def test_poses_are_refused_while_the_motors_are_off():
 def test_park_and_ready_after_start():
     sdk, arm, c = started()
     c.key("p")
-    c.key("y")
+    c.key("ENTER")
     until(c, lambda: c.task is None)
     assert c.snap["near"] == "park" and arm.positions()["joint5"] == pytest.approx(arm.park()["joint5"], abs=0.02)
     c.key("r")
     assert "BIG MOVE" in c.prompt
-    c.key("y")
+    c.key("ENTER")
     until(c, lambda: c.task is None)
     c.refresh()
     assert c.snap["near"] == "ready"
     c.key("z")
-    c.key("y")
+    c.key("ENTER")
     until(c, lambda: c.task is None)
     assert c.snap["near"] == "zero"
 
@@ -111,7 +111,7 @@ def test_park_and_ready_after_start():
 def test_e_stops_at_once_in_the_middle_of_a_move():
     sdk, arm, c = started()
     c.key("r")
-    c.key("y")
+    c.key("ENTER")
     run(c, 0.3)
     assert c.task is not None and sdk.estops == 0
     c.key("e")
@@ -129,7 +129,7 @@ def test_e_needs_no_prompt_even_when_idle():
 def test_space_holds_the_pose_and_keeps_the_motors_on():
     sdk, arm, c = started()
     c.key("r")
-    c.key("y")
+    c.key("ENTER")
     run(c, 0.3)
     n = len(sdk.sent)
     c.key(" ")
@@ -142,18 +142,18 @@ def test_space_holds_the_pose_and_keeps_the_motors_on():
 def test_end_session_goes_zero_park_then_asks_for_estop_then_for_reset():
     sdk, arm, c = started()
     c.key("p")
-    c.key("y")
+    c.key("ENTER")
     until(c, lambda: c.task is None)
     c.key("t")
     assert "END SESSION" in c.prompt
-    c.key("y")
+    c.key("ENTER")
     until(c, lambda: c.prompt and "At PARK" in c.prompt)
     assert sdk.estops == 0 and sdk.on                          # parked, motors still on, waiting for the operator
     assert c.snap["near"] == "park"
-    c.key("y")
+    c.key("ENTER")
     until(c, lambda: c.prompt and "at rest" in c.prompt.lower())
     assert sdk.estops == 1 and sdk.resets == 0
-    c.key("y")
+    c.key("ENTER")
     until(c, lambda: c.task is None)
     assert sdk.resets == 1 and not sdk.on and not sdk.estopped
 
@@ -163,7 +163,7 @@ def test_clear_estop_asks_first():
     c.key("e")
     c.key("c")
     assert c.prompt and sdk.resets == 0
-    c.key("y")
+    c.key("ENTER")
     until(c, lambda: c.task is None)
     assert sdk.resets == 1 and not sdk.estopped
 
@@ -176,7 +176,7 @@ def test_a_fault_blocks_start_and_aborts_a_move():
     sdk.fault = False
     sdk2, arm2, c2 = started()
     c2.key("r")
-    c2.key("y")
+    c2.key("ENTER")
     run(c2, 0.3)
     sdk2.fault = True
     run(c2, 0.3)
@@ -245,7 +245,7 @@ def test_speed_keys_and_quit():
     sdk, arm, c = started()
     c.key("q")
     assert c.prompt and not c.quit                              # motors on: asks
-    c.key("y")
+    c.key("ENTER")
     assert c.quit and sdk.on
 
 
@@ -259,6 +259,7 @@ def test_screen_shows_status_and_keys():
 
 def test_key_parser():
     assert _keys(b"\x1b[C\x1b[Dab") == ["RIGHT", "LEFT", "a", "b"]
+    assert _keys(b"\r\n") == ["ENTER", "ENTER"]
     assert _keys(b"\x1b") == ["ESC"]
 
 

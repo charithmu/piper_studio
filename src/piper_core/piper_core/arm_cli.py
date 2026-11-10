@@ -3,7 +3,7 @@
     piper-arm [-b can0] [--speed 10]       # needs the CAN bus up (scripts/can_up.sh) and pyAgxArm (the workspace .venv has it)
 
 It is the operator's cockpit for what was proven on the arm with tools/real_arm/ (2026-11-10): start, known poses, one-joint jog, end of session, e-stop.
-Motion needs the operator: every action that moves or switches the motors waits for `y` (anything else cancels). Exceptions, always immediate:
+Motion needs the operator: every action that moves or switches the motors waits for Enter (anything else cancels). Exceptions, always immediate:
 `e` EMERGENCY STOP (electronic e-stop, damped lowering) and SPACE (stop where you are, keep holding). Both work while a move is running.
 
 Keys:  s start (enable, go to zero)   z zero   p park   r ready (big move)   j jog a joint (1-6, then + / - or arrows, j or Esc leaves)
@@ -150,7 +150,7 @@ class Console:
             return
         big = max(abs(a - g) for a, g in zip(self.snap["q"], goal)) * DEG
         extra = "  BIG MOVE: check the space around the arm." if name == "ready" or big > 40 else ""
-        yield ("confirm", f"move to {name.upper()} ({big:.1f} deg, speed {self.speed} %).{extra} y = go")
+        yield ("confirm", f"move to {name.upper()} ({big:.1f} deg, speed {self.speed} %).{extra} Enter = go")
         yield from self._move(goal, f"{name} pose")
 
     def _t_start(self):
@@ -169,7 +169,7 @@ class Console:
         goal = self.targets("zero")
         big = max(abs(x - g) for x, g in zip(s["q"], goal)) * DEG
         what = "enable the motors and " if not all(s["enabled"]) else ""
-        yield ("confirm", f"START: {what}move to ZERO ({big:.1f} deg, speed {self.speed} %). Arm clear, hand on the power switch. y = go")
+        yield ("confirm", f"START: {what}move to ZERO ({big:.1f} deg, speed {self.speed} %). Arm clear, hand on the power switch. Enter = go")
         cfg = a._configure(self.speed)
         if not cfg:
             self.log(f"not starting: {cfg.message}")
@@ -194,12 +194,12 @@ class Console:
         if why:
             self.log(f"refused: {why}")
             return
-        yield ("confirm", f"END SESSION: zero, then park, then you confirm the e-stop (damped lowering) and the reset. Speed {self.speed} %. y = go")
+        yield ("confirm", f"END SESSION: zero, then park, then you confirm the e-stop (damped lowering) and the reset. Speed {self.speed} %. Enter = go")
         for name in ("zero", "park"):
             if not (yield from self._move(self.targets(name), f"{name} pose")):
                 return
             yield from self._wait(1.0)
-        yield ("confirm", "At PARK. y = EMERGENCY-STOP now (the arm lowers slowly under damping, motors go limp). Support it with a hand")
+        yield ("confirm", "At PARK. Enter = EMERGENCY-STOP now (the arm lowers slowly under damping, motors go limp). Support it with a hand")
         self.arm.sdk.electronic_emergency_stop()
         self.log("electronic e-stop sent")
         t0, prev, t_prev = self.now(), self.arm.positions(), self.now()     # dicts joint -> rad
@@ -212,7 +212,7 @@ class Console:
                 prev, t_prev = cur, self.now()
         self.refresh()
         self.log("at rest: " + ", ".join(f"{x * DEG:.1f}" for x in (self.snap["q"] or [])) + " deg")
-        yield ("confirm", "Arm at rest. y = CLEAR the e-stop (reset: motors stay off, the arm stays powered)")
+        yield ("confirm", "Arm at rest. Enter = CLEAR the e-stop (reset: motors stay off, the arm stays powered)")
         yield from self._do_reset()
 
     def _do_reset(self):
@@ -222,17 +222,17 @@ class Console:
         self.log(f"reset sent: arm_status {self.snap['arm_status']}, motors enabled {sum(self.snap['enabled'])}/6")
 
     def _t_clear(self):
-        yield ("confirm", "CLEAR the e-stop: reset (motors off, the arm stays powered). y = go")
+        yield ("confirm", "CLEAR the e-stop: reset (motors off, the arm stays powered). Enter = go")
         yield from self._do_reset()
 
     def _t_disable(self):
-        yield ("confirm", "DISABLE the motors: the arm goes limp and sags. Best from PARK, support it with a hand. y = disable")
+        yield ("confirm", "DISABLE the motors: the arm goes limp and sags. Best from PARK, support it with a hand. Enter = disable")
         out = self.arm.disable()
         self.log(out.message)
 
     def _t_quit(self):
         if any(self.snap["enabled"]):
-            yield ("confirm", "The motors are ON; quitting leaves them enabled and holding (nothing stops them). y = quit")
+            yield ("confirm", "The motors are ON; quitting leaves them enabled and holding (nothing stops them). Enter = quit")
         self.quit = True
 
     # ------------------------------------------------------------------ task engine
@@ -279,7 +279,7 @@ class Console:
         if k == " ":
             return self.hold()
         if self.prompt is not None:
-            if k in ("y", "Y"):
+            if k == "ENTER":
                 self.prompt = None
                 self._advance()
             else:
@@ -420,7 +420,7 @@ def _keys(data: bytes):
             out.append("ESC")
             i += 1
             continue
-        out.append(chr(data[i]))
+        out.append("ENTER" if data[i] in (0x0D, 0x0A) else chr(data[i]))
         i += 1
     return out
 
