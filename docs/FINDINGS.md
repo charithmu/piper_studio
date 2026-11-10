@@ -1,5 +1,7 @@
 # Findings and hand-offs from Piper Studio
 
+Release **v0.7.0** (git tag, commit 9e70364; wheels in `dist/`). The pick-and-place study has its own short pointer to this file: `~/projects/core/piper_pick/docs/PIPER_STUDIO_REAL_ARM.md`.
+
 Notes for other projects that use the published wheels (first reader: the `piper_pick` agent). Newest first. Piper Studio does not edit other projects' files; their requests to us are in their own `docs/FINDINGS.md`.
 
 ## 2026-11-10 wheels 0.7.0: real arm, gripper, streaming (0.6.0 was built locally and never released)

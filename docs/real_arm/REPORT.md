@@ -84,7 +84,7 @@ the stroke at 69.5 mm; add an optional arm-servo delay of about 45 ms at low spe
 
 - The ROS path on the real arm (parked, `docs/CLEANUP.md` C14). Speeds above 44 %; joints 2, 3, 5 at speed; a payload (camera, object) and the arm's payload setting (none set); crash protection is level 0 (no collision detection), left as it is until tried.
 - The cuRobo scene is a table plane only: the real workspace must match. Hand-eye calibration, camera pose and the TCP offset (fingertip centre 0.138 m from the gripper base) are not measured.
-- The dead-process drill was only recorded qualitatively; the e-stop with an object gripped was observed once by the user (no release). The code review fixes of 2026-11-10 (abort, one motion at a time, console start) are covered by unit tests; a short regression run on the arm is still to be recorded.
+- The dead-process drill was only recorded qualitatively; the e-stop with an object gripped was observed once by the user (no release). The code review fixes of 2026-11-10 (abort, one motion at a time, console start) are covered by unit tests and a regression run on the arm that the user reported as successful (no figures).
 - Isaac: the 0.7.0 GPU tests pass (6 passed, parity 0.0210 rad vs MuJoCo 0.0212); the gripper times above were measured with a throwaway script, not a test.
 
 ## 7. The API `piper_pick` should call
