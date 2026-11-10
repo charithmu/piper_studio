@@ -18,6 +18,7 @@ from the trajectory (assumes 100 % = the firmware's 3.0 rad/s) is unverified.
 from __future__ import annotations
 
 import math
+import os
 import time
 
 import numpy as np
@@ -49,11 +50,18 @@ class RealArm:
         self._now, self._sleep = clock, sleep
         self.limits = limits or self._stored_limits()
         self.enabled = False
+        self.gripper = None          # the SDK gripper driver (read-only until set_gripper exists); set by connect()
 
     @classmethod
-    def connect(cls, canbus: str = "can0", **kwargs) -> "RealArm":
-        """Open the arm with the SDK profile that matches its firmware (one firmware query, no motion)."""
+    def connect(cls, canbus: str = "can0", gripper: bool = True, **kwargs) -> "RealArm":
+        """Open the arm with the SDK profile that matches its firmware (one firmware query, no motion). `gripper`: also read the gripper (sends nothing)."""
         from pyAgxArm import AgxArmFactory, ArmModel, PiperFW, create_agx_arm_config, resolve_firmware_profile
+        state = f"/sys/class/net/{canbus}/operstate"
+        if os.path.isdir("/sys/class/net"):
+            if not os.path.exists(state):
+                raise RealArmError(f"CAN bus '{canbus}' does not exist (USB-CAN adapter plugged in? lsusb shows 1d50:606f)")
+            if open(state).read().strip() != "up":
+                raise RealArmError(f"{canbus} is down: bring it up first (asks for sudo): scripts/can_up.sh {canbus}")
         probe = AgxArmFactory.create_arm(create_agx_arm_config(robot=ArmModel.PIPER, firmeware_version=PiperFW.DEFAULT, channel=canbus))
         probe.connect()
         try:
@@ -65,9 +73,12 @@ class RealArm:
             raise RealArmError("no firmware answer (arm silent, another program on the bus, master mode or teach playback?)")
         profile = resolve_firmware_profile(ArmModel.PIPER, fw["software_version"])
         sdk = AgxArmFactory.create_arm(create_agx_arm_config(robot=ArmModel.PIPER, firmeware_version=profile, channel=canbus))
+        grip = sdk.init_effector(sdk.OPTIONS.EFFECTOR.AGX_GRIPPER) if gripper else None     # before connect(); sends nothing
         sdk.connect()
         time.sleep(0.5)
-        return cls(sdk, **kwargs)
+        arm = cls(sdk, **kwargs)
+        arm.gripper = grip
+        return arm
 
     def close(self):
         self.sdk.disconnect()
@@ -104,6 +115,16 @@ class RealArm:
             if d is not None:
                 out += [f"joint{i}:{k}" for k in DRIVER_FAULT_BITS if getattr(d.msg.foc_status, k, False)]
         return out
+
+    def gripper_opening(self) -> float | None:
+        """Measured gripper width in metres (CAN 0x2A8, 1e-6 m), None if unavailable. Reads only."""
+        gs = self.gripper.get_gripper_status() if self.gripper is not None else None
+        return None if gs is None else float(gs.msg.value)
+
+    def gripper_force(self) -> float | None:
+        """Measured gripper force in newtons, None if unavailable. Reads only."""
+        gs = self.gripper.get_gripper_status() if self.gripper is not None else None
+        return None if gs is None else float(gs.msg.force)
 
     def pose_state(self) -> str:
         """'zero' | 'valid' | 'slumped' | 'invalid' (piper_core.classify_state on the measured joints)."""

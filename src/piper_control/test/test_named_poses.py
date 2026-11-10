@@ -69,3 +69,8 @@ def test_pose_table_of_arm_pose_tool_equals_the_srdf():
     for name, q in mod.POSES.items():
         assert q == pytest.approx(srdf_pose(name)), name
     assert set(mod.POSES) == {"zero", "park", "ready"}
+
+
+def test_console_ready_pose_equals_the_srdf():
+    from piper_core.arm_cli import READY
+    assert READY == pytest.approx(srdf_pose("ready"))

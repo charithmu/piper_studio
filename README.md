@@ -108,6 +108,7 @@ ros2 run piper_py piper activate     # refuses unless driver feedback is fresh a
 ros2 run piper_py piper zero         # all joints 0: the start and end pose of every simulation and every real session
 ros2 run piper_py piper start        # real arm: motors on, leave the powered-off pose, checked arrival at zero, controllers active
 ros2 run piper_py piper stop         # real arm: zero, wait, park, wait, motors off
+piper-arm                           # real arm cockpit (status + one key per action; e = emergency stop). `source scripts/env.sh` first
 ros2 run piper_py piper disable      # controllers off, 5 s countdown to get a hand on the arm, motors off
 ```
 
