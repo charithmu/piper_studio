@@ -54,7 +54,7 @@ One word per thing:
 |---|---|---|
 | **zero** | the one valid start and end pose of every session: all joints 0, except joints 2 and 3 (limits at 0) held 0.01 rad inside. Computed, not typed: `piper_core.zero_pose(limits, margin)`; the SRDF, `initial_positions.yaml` and `arm_zero.py` must equal it (`test_named_poses`). | everyone |
 | **slumped** | the pose a powered-off arm sags into: joints 2/3 about 2 deg outside their limits, joint 5 at about 22.7 deg. A measured fact (recorded above); never a target. | Piper Studio's control layers only |
-| **park** | zero with joint 5 lowered 0.2936 rad (16.82 deg), the last pose before power-off, so the arm drops less. SRDF group state `park`, hidden from `named_poses()`. | Piper Studio's control layers only |
+| **park** | zero with joint 5 lowered 0.3840 rad (22.0 deg, chosen 2026-11-10, see "Park pose"), the last pose before power-off, so the arm drops less. SRDF group state `park`, hidden from `named_poses()`. | Piper Studio's control layers only |
 | vendor zero | exact zeros (the vendor `move_home` and the GUI's "Go Zero"): on the limit of joints 2/3. We do not use it. | nobody |
 
 Downstream users do two things: control the arm anywhere inside its limits, and return to `zero`. They call `Piper.start()` (CLI `piper start`) first and `Piper.stop()` (`piper stop`) last. They never command a slumped or park pose.
@@ -66,7 +66,15 @@ activate the controllers; if the arm is valid but not at zero, plan to zero; che
 Why zero is 0.01 rad inside: a pose exactly on a limit is rejected by planners and unreachable for the arm (it tracks a little short; the real arm ended 0.48 / -0.44 deg inside after a 0.57 deg aim). 0.01 rad is the guard's `limit_margin`, 7 times the 0.08 deg enable-test drift.
 Verified on the real arm 2026-10-14 only with the SDK tool (`arm_zero.py`, one `move_j`, 0.6 s); the ROS path (`go_zero`, `start`, `stop`) is tested with the fake driver (`test_real_start_stop.py`) and not yet on the real arm.
 
-## Park pose (recorded by hand 2026-10-14)
+## Park pose
+
+**Current (2026-11-10, user at the arm, `tools/real_arm/arm_jog.py`):** `park` = zero with joint 5 = **22.0 deg (0.3840 rad)**, joints 2/3 0.01 rad inside their limits, so it is a pose the guard allows.
+Holding the arm with j5 at 22.94 deg (motors on, no fault) left about 1 cm between the wrist and the support brackets; the gap cannot close because j2/j3 sit about 2.7 deg short of the stops.
+22.0 deg is below both slumped j5 values seen (22.72 deg on 2026-10-14, 24.06 on 2026-11-10), so the target is never at or past where the arm rests. The earlier park (16.82 deg) is the first record below.
+Not measured: the drop on disable from 22.0 deg (read `arm_joints.py` before and after the first `stop()`).
+An earlier trial with `arm_zero.py --park-j5` ended with the arm dropping hard or hitting the case (user report 2026-11-10, cause not established); values above 22.5 deg are refused by the tool.
+
+### First record (recorded by hand 2026-10-14)
 
 Pose recorded with the motors off, wrist a few mm above the support brackets: joints (deg) 0.23, -2.19, 2.45, -0.42, 16.82, 0.0 (`arm_poses.log`). Against zero only joint 5 is lowered
 (16.82 deg); joints 2/3 are at the stops (-2.19 / +2.45), which are outside the stored limits (j2 >= 0, j3 <= 0), so the pose cannot be commanded as recorded.
@@ -84,3 +92,13 @@ from 16.8° to its slumped position at 22.7° when the motors go off.
 2. Crash-protection level is 0 (no detection); changing it is a write to the arm, the user's decision.
 3. Whether the arm has a Revo2 hand or another device on the bus (extra frames 0x1C0-0x1C3 are seen).
 4. Joint torque rating: not reported by the firmware. The description uses the SDK's `move_mit` range (+-16 / +-13.012 N.m) as an upper bound; the real rating needs the vendor or a measurement.
+
+## Hardware log 2026-11-10 (user present, hand on the power switch, 10 % speed)
+
+- `arm_info.py`: read-out equals `piper-01.readout.json` (firmware S-V1.9-1, slave, MOVE_J, teach off, no faults). Slumped pose now 0.0, -2.14, 1.94, 0.0, 24.06, 0.0 deg (j5 was 22.72 on 2026-10-14): the sag varies by a degree or two. With motors off, motors 2, 3 and 5 report non-zero current/torque (j3 -4.8 N.m); last time all zero; cause not established.
+- Speed calibration: at `speed_percent` 10 joint 5 moves about 16-17.5 deg/s (0.28-0.30 rad/s) in 5 runs, i.e. 10 % of the firmware 3.0 rad/s. 100 % = 3.0 rad/s is confirmed at 10 % only. Moves of 22-27 deg take 1.4-1.7 s; the last 0.5 deg settle within 0.1 s. Final error 0.05-0.07 deg every time; zero is reached at j2 +0.52..0.55, j3 -0.50..-0.62 deg (aim +-0.57).
+- Poses on the arm through `arm_pose.py`: zero, park (j5 22.0 deg) and ready (j2 57.3, j3 -57.3, j5 57.3 deg) all reached; ready reads j3 -57.27, j5 57.33 deg.
+- Park chosen: j5 22.0 deg (`arm_jog.py`: holding at 22.94 deg left a gap of about 1 cm to the support brackets). One `arm_zero.py --park-j5` trial the same day ended with the arm dropping hard or hitting the case (user report; which value and which moment are not recorded).
+- Session routine `arm_session.py`: `start` from the slumped pose to zero (2.4-2.7 s), `stop` = zero, park, e-stop, reset, then `start` again at once: all worked. A first `stop` attempt printed "no joint/status feedback" (the status frame was read once without waiting; fixed to wait up to 5 s, cause on the bus not established).
+- E-stop (`arm_stop.py` default and in `stop`): the arm lowers under damping and rests deeper than after a plain disable: 0.0, -2.0, 1.0, 0.0, 27.2, 0.0 deg. Status 1 during the e-stop; `reset()` clears it (status 0, motors disabled) without a power cycle, the arm keeps answering and `start` works right after.
+- Not tested: `RealArm` (any method), `execute()` at 25 ms, gripper (read or write), speeds above 10 %, motion with a payload.

@@ -113,6 +113,7 @@ Screenshots: 01-06 RViz (model, MoveIt, zero and ready pose, wrist close-up), 07
 
 ## Log
 
+- 2026-11-10 real arm, user present: SDK-level session tools run on the arm (`arm_session.py` start/stop, `arm_pose.py` zero/park/ready, `arm_jog.py`, e-stop + reset drill); park moved to j5 22.0 deg (`piper-01.md`, hardware log). `RealArm`, the gripper API and `execute()` streaming are still untested on the arm (B3, C10 stay open). Plumbing tests test_6/test_8 failed in 3 runs after the park change (joint 1 streaming, not park related; baseline not compared).
 - 2026-11-08 pass 5: ROS-free Isaac Sim backend, `piper_isaac` (section G13), built on branch `curobo/piper-isaac`, verified and merged to `main`; all wheels 0.4.0.
 - 2026-11-08 pass 4: firmware-first bump (section G).
 - 2026-11-08 pass 2 (later): `piper_examples` carrier example (tested), `control.launch.py` `robot_name`/`robot_description_file`, `prefix:=none`, spawner timeouts (Gazebo GUI works on a virtual display, C3), `scripts/test_all.sh`; main pushed and tagged `v0.2.0` (user approved); robosim handoff references fixed (D3). Open and why: B3 `RealArm` and C10 (need the user at the arm), C5 (measure on the mount), C9 (needs real calibration data), C4, C6, C7, C11 (small, intermittent or cosmetic; see each).

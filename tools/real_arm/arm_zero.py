@@ -7,7 +7,7 @@
 
 Zero pose = all joints 0 (what the vendor's go-zero demo and the GUI's "Go Zero" use). By default joints whose stored limit IS 0 (joint 2 min, joint 3 max)
 are aimed 0.01 rad inside that limit (the SRDF 'zero') so the target never sits on the limit; --exact sends pure zeros like the vendor demo.
---park continues from zero to the park pose 'park' (joint 5 lowered 16.82 deg): the wrist hangs just above the support brackets, so disabling the motors
+--park continues from zero to the park pose 'park' (joint 5 lowered 22 deg): the wrist hangs just above the support brackets, so disabling the motors
 there drops the arm only a few mm. Routine: always come to zero first, then park, then disable.
 
 Sequence (nothing is sent until you press Enter):
@@ -29,7 +29,7 @@ from arm_common import angles, deg, open_arm, resolve_canbus
 MODE_J = 1
 DONE_DEG, DONE_HOLD_S = 0.5, 1.0
 ZERO_MARGIN = 0.01        # rad: joints whose stored limit is 0 (joint 2 min, joint 3 max) are aimed this far inside it (same as the SRDF 'zero' and the guard's limit_margin)
-PARK_J5 = 0.2936          # rad (16.82 deg): 'park' = zero with joint 5 lowered; same value as the SRDF 'park' (guarded by a unit test)
+PARK_J5 = 0.3840          # rad (22.0 deg): 'park' = zero with joint 5 lowered; same value as the SRDF 'park' (guarded by a unit test)
 
 
 def drv_faults(arm):
@@ -78,12 +78,17 @@ def main():
     ap.add_argument("--timeout", type=float, default=0.0, help="seconds allowed for the move (0 = no limit)")
     ap.add_argument("--exact", action="store_true", help="send pure zeros (no margin inside the stored limits)")
     ap.add_argument("--park", action="store_true", help="after zero, move on to the park pose 'park' (joint 5 lowered)")
+    ap.add_argument("--park-j5", type=float, default=None, metavar="DEG",
+                    help="trial: joint 5 angle of the park pose in degrees (default the SRDF park, 22.0; max 22.5, below the slumped 22.7-24 deg)")
     ap.add_argument("--stay", action="store_true", help="leave the motors enabled at the end (no disable prompt)")
     ap.add_argument("--yes", action="store_true", help="skip the Enter prompts")
     ap.add_argument("--dry-run", action="store_true", help="preflight and plan only")
     args = ap.parse_args()
     if not 1 <= args.speed <= 100:
         raise SystemExit("--speed must be 1..100")
+    park_j5 = PARK_J5 if args.park_j5 is None else math.radians(args.park_j5)
+    if not 0.0 <= park_j5 <= math.radians(22.5):
+        raise SystemExit("--park-j5 must be 0..22.5 deg (the slumped pose is 22.7-24 deg: a target past the stop would push against it)")
 
     try:
         arm, _, fw, profile = open_arm(resolve_canbus(args.canbus))
@@ -126,9 +131,9 @@ def main():
         margin = 0.0 if args.exact else ZERO_MARGIN
         target = [min(max(0.0, lim[i][0] + (margin if lim[i][0] == 0.0 else 0.0)), lim[i][1] - (margin if lim[i][1] == 0.0 else 0.0)) for i in range(1, 7)]
         park = list(target)
-        park[4] = PARK_J5
+        park[4] = park_j5
         goals = [("zero pose", target)] + ([("park pose", park)] if args.park else [])
-        dist = max(abs(deg(a - b)) for a, b in zip(cur, target))
+        dist = max(abs(deg(a - b)) for a, b in zip(cur, goals[-1][1]))     # distance to the LAST goal, so --park from zero still parks
         print("joint   now(deg)  zero(deg)  move(deg)" + ("   park(deg)" if args.park else "") + "   stored limits(deg)")
         for i in range(6):
             print(f"  {i + 1}    {deg(cur[i]):8.2f}   {deg(target[i]):8.2f}   {deg(target[i] - cur[i]):8.2f}" + (f"   {deg(park[i]):8.2f}" if args.park else "")
@@ -136,7 +141,7 @@ def main():
         print(f"largest move {dist:.1f} deg at {args.speed} % speed · now: mode_feedback {int(m.mode_feedback)}, "
               f"enabled {[bool(arm.get_joint_enable_status(i)) for i in range(1, 7)]}")
         if dist < DONE_DEG:
-            print("already at the zero pose: nothing to do (nothing was changed).")
+            print("already at the final pose: nothing to do (nothing was changed).")
             return
         if args.dry_run:
             print("dry run: only read requests were sent.")
@@ -195,7 +200,7 @@ def main():
 
         # ---- 4. end
         if reason or args.stay:
-            print("leaving the motors enabled." + ("" if args.stay else " Release it with tools/real_arm/arm_stop.py (hold the arm, or park it with --park first)."))
+            print("leaving the motors enabled." + ("" if args.stay else " Release it with tools/real_arm/arm_stop.py --disable (hold the arm, or park it with --park first)."))
             return
         if not args.yes:
             input(f"Press Enter to DISABLE (the arm is at the {'park' if args.park else 'zero'} pose{'' if args.park else ': for a short drop go to --park first'}); Ctrl-C leaves it enabled and holding... ")

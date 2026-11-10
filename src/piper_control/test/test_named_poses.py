@@ -41,7 +41,7 @@ def test_zero_is_computed_from_the_limits_and_the_margin():
 def test_park_is_zero_with_joint5_lowered():
     zero, park = srdf_pose("zero"), srdf_pose("park")
     assert [r - z for r, z in zip(park, zero)] == pytest.approx([0, 0, 0, 0, park[4], 0])
-    assert park[4] == pytest.approx(0.2936)  # 16.82 deg, recorded on the real arm 2026-10-14
+    assert park[4] == pytest.approx(0.3840)  # 22.0 deg, chosen on the real arm 2026-11-10
 
 
 def test_guard_margin_equals_the_zero_pose_margin():
@@ -57,3 +57,15 @@ def test_real_arm_tool_uses_the_same_numbers():
     spec.loader.exec_module(mod)
     assert mod.ZERO_MARGIN == pytest.approx(srdf_pose("zero")[1])
     assert mod.PARK_J5 == pytest.approx(srdf_pose("park")[4])
+
+
+def test_pose_table_of_arm_pose_tool_equals_the_srdf():
+    pytest.importorskip("pyAgxArm")
+    path = TOOL.parent / "arm_pose.py"
+    sys.path.insert(0, str(TOOL.parent))
+    spec = importlib.util.spec_from_file_location("arm_pose", path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    for name, q in mod.POSES.items():
+        assert q == pytest.approx(srdf_pose(name)), name
+    assert set(mod.POSES) == {"zero", "park", "ready"}

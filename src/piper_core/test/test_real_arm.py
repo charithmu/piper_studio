@@ -144,7 +144,7 @@ def test_stop_parks_and_powers_off_into_the_slump():
     r = arm.stop(settle=0.2)
     assert r, r
     assert not sdk.on and arm.pose_state() == "slumped"
-    assert sdk.sent[-1][4] == pytest.approx(0.2936)                                # the last pose before power-off was park
+    assert sdk.sent[-1][4] == pytest.approx(0.3840)                                # the last pose before power-off was park
     assert arm.stop()                                                              # a slumped arm is left alone
 
 

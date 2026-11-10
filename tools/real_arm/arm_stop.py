@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
-"""Real Piper: release or stop the arm. No questions asked, so it works in a hurry.
+"""Real Piper: EMERGENCY STOP. No questions asked, so it works in a hurry. Run it from a second terminal while another tool is moving the arm.
 
     source scripts/env.sh
-    python tools/real_arm/arm_stop.py            # motors OFF (disable): the arm goes limp. A raised arm FALLS: hold it by hand first.
-    python tools/real_arm/arm_stop.py --estop    # electronic emergency stop: a raised arm LOWERS SLOWLY with constant damping (vendor docs)
-    python tools/real_arm/arm_stop.py --reset    # vendor recovery order after an e-stop: e-stop, 1 s, reset(). reset() powers the arm off.
+    python tools/real_arm/arm_stop.py             # electronic e-stop (default): a raised arm LOWERS SLOWLY with constant damping (vendor docs)
+    python tools/real_arm/arm_stop.py --disable   # plain motors OFF: the arm goes limp. A raised arm FALLS: hold it by hand first.
+    python tools/real_arm/arm_stop.py --reset     # e-stop, 1 s, reset(): the vendor recovery order. Clears the e-stop and disables the motors; the arm stays powered.
 
-Plain disable is what arm_enable_test.py does at its end. The e-stop is the closest thing to a stop button this arm has (there is no hardware one);
-after it the arm reports EMERGENCY STOP and needs --reset (or a power cycle) before it takes commands again.
-Sends: the firmware query, then the chosen command(s). Prints the state before and after.
+The e-stop is the closest thing to a stop button this arm has (there is no hardware one; cutting power drops it). After it the arm reports EMERGENCY STOP and takes no commands until
+`arm_stop.py --reset` (no power cycle needed, verified 2026-11-10 in arm_session.py stop); then start again with arm_session.py start. Another program that is still sending (arm_pose.py, arm_session.py, a RealArm in Python) may fight the
+stop or keep running: stop it with Ctrl-C too. The bus is shared for reading, so this works beside a running tool, but only one writer should be active afterwards.
+Sends: the firmware query, then the chosen command(s). Prints the state before and after. Drilled on the real arm 2026-11-10 (from park: damped lowering, then reset).
 """
 import argparse
 import time
@@ -37,7 +38,8 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--canbus", "-b", help="CAN bus name, e.g. can0 (default: auto-detect)")
     g = ap.add_mutually_exclusive_group()
-    g.add_argument("--estop", action="store_true", help="electronic emergency stop (slow damped lowering)")
+    g.add_argument("--disable", action="store_true", help="plain motors off (the arm falls if raised)")
+    g.add_argument("--estop", action="store_true", help="electronic emergency stop (the default; kept for old command lines)")
     g.add_argument("--reset", action="store_true", help="e-stop, 1 s, reset (powers the arm off)")
     args = ap.parse_args()
     try:
@@ -46,13 +48,13 @@ def main():
         raise SystemExit(f"{e}\nNothing was sent to the arm except the firmware query.")
     try:
         show("before", arm)
-        if args.estop or args.reset:
+        if not args.disable:
             arm.electronic_emergency_stop()
             print("electronic emergency stop sent: the arm lowers slowly under damping")
             time.sleep(1.0)
             if args.reset:
                 arm.reset()
-                print("reset sent: the arm powers off")
+                print("reset sent: e-stop cleared, motors off")
                 time.sleep(1.0)
         else:
             for _ in range(20):
@@ -63,7 +65,7 @@ def main():
             print("disable sent: motors off")
         time.sleep(0.5)
         show("after ", arm)
-        if args.estop:
+        if not args.disable and not args.reset:
             print("the arm is in EMERGENCY STOP: run again with --reset (or power-cycle) before using it.")
     finally:
         arm.disconnect()

@@ -28,7 +28,7 @@ from piper_core.guard import GuardConfig, check_command
 from piper_core.poses import classify_state, zero_pose
 
 JOINTS = tuple(f"joint{i}" for i in range(1, 7))
-PARK_JOINT5 = 0.2936           # rad (16.82 deg): park = zero with joint 5 lowered (SRDF `park`, test_named_poses)
+PARK_JOINT5 = 0.3840           # rad (22.0 deg): park = zero with joint 5 lowered (SRDF `park`, test_named_poses)
 FIRMWARE_MAX_VELOCITY = 3.0    # rad/s, read from the arm (piper-01.readout.json)
 DONE_TOLERANCE = 0.01          # rad (0.57 deg): "at the goal"
 DONE_HOLD_S = 1.0
