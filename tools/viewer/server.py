@@ -139,9 +139,8 @@ def build_model(camera: str = "none", gripper: bool = True, calibration: str = "
         "poses": {k: v for k, v in poses.items()}, "zero_computed": zero_pose(limits, arm, 0.01),
         "slumped": slumped, "disabled_collisions": disabled,
         "firmware_values": firmware.read_text() if firmware.exists() else "",
-        # calibrations that belong to the chosen camera: the files are named after their mount (agilex_mid_stand*, zedxm_bracket_v*)
-        "calibrations": sorted(p.stem for p in (WS / "src/piper_description/config/camera_mounts").glob("*.yaml")
-                               if p.stem.startswith("zedxm_bracket" if camera == "zedxm" else "agilex_mid_stand")),
+        # the versions of the ZED X Mini bracket (zedxm_bracket_v1, _v2, ...); the newest is the default of the description
+        "calibrations": sorted(p.stem for p in (WS / "src/piper_description/config/camera_mounts").glob("zedxm_bracket_v*.yaml")) if camera == "zedxm" else [],
         "git": git_head(),
     }
 
@@ -164,7 +163,7 @@ def lite_mesh(path: Path) -> Path:
 def prewarm():
     """Build the light meshes of the default models in the background, so the first visitor does not wait for them."""
     try:
-        for cam in ("none", "d435"):
+        for cam in ("none", "zedxm"):
             m = build_model(cam)
             for l in m["links"]:
                 for s in l["visual"] + l["collision"]:

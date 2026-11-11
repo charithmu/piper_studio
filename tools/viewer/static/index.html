@@ -6,7 +6,7 @@
 <title>Piper Studio model viewer</title>
 <style>
   :root { --bg:#14171c; --panel:#1b1f26; --line:#2c323c; --fg:#d7dde6; --dim:#8b95a5; --acc:#5aa9ff; --warn:#ff8a3d; --bad:#ff5d5d; --ok:#5ecb8a; }
-  @media (prefers-color-scheme: light) { :root { --bg:#eef1f5; --panel:#fff; --line:#d5dbe3; --fg:#1d232c; --dim:#667082; --acc:#1b6fd1; --warn:#c25a0a; --bad:#c62828; --ok:#1f8a4c; } }
+  :root[data-theme=light] { --bg:#eef1f5; --panel:#fff; --line:#d5dbe3; --fg:#1d232c; --dim:#667082; --acc:#1b6fd1; --warn:#c25a0a; --bad:#c62828; --ok:#1f8a4c; }
   * { box-sizing: border-box; }
   html, body { margin:0; height:100%; background:var(--bg); color:var(--fg); font:13px/1.4 system-ui, sans-serif; }
   #app { display:grid; grid-template-columns: 1fr 380px; height:100%; }
@@ -48,14 +48,13 @@
     <div id="legend" class="dim">collision shapes:<i style="background:#4fb3ff"></i>mesh<i style="background:#ff9b3d"></i>box<i style="background:#5ecb8a"></i>sphere / cylinder<i style="background:#ff5d5d"></i>selected</div>
   </div>
   <div id="side">
-    <h1>Piper Studio model viewer</h1>
+    <div style="display:flex;justify-content:space-between;align-items:center"><h1>Piper Studio model viewer</h1><button id="theme" title="dark / light">light</button></div>
     <div class="dim" id="git"></div>
     <div id="err"></div>
 
     <h2>Description</h2>
-    <div class="row"><label>camera</label><select id="o-camera"><option value="none">none</option><option value="d435">D435 on stand</option><option value="zedxm">ZED X Mini on own bracket</option></select>
-      <label style="flex:0 0 auto">gripper</label><select id="o-gripper"><option value="true">fitted</option><option value="false">none</option></select></div>
-    <div class="row"><label>calibration</label><select id="o-cal"><option value="">nominal (default)</option></select></div>
+    <div class="row"><label>camera</label><select id="o-camera"><option value="zedxm">ZED X Mini on own bracket</option><option value="none">none</option></select></div>
+    <div class="row"><label>calibration</label><select id="o-cal"></select></div>
     <div class="row"><label>compare with</label><select id="o-cmp"><option value="">nothing</option></select></div><div class="dim" id="cmp-note"></div>
     <div class="dim" id="summary"></div>
 
@@ -111,8 +110,12 @@ renderer.setPixelRatio(devicePixelRatio);
 view.appendChild(renderer.domElement);
 const labelRenderer = new CSS2DRenderer(); labelRenderer.domElement.id = 'labels'; view.appendChild(labelRenderer.domElement);
 const scene = new THREE.Scene();
-const dark = !matchMedia('(prefers-color-scheme: light)').matches;
-scene.background = new THREE.Color(dark ? 0x14171c : 0xeef1f5);
+let theme = 'dark'; try { theme = localStorage.getItem('piper_viewer_theme') || 'dark'; } catch (e) {}      // dark by default, whatever the system says
+function applyTheme() {
+  document.documentElement.dataset.theme = theme; scene.background = new THREE.Color(theme === 'dark' ? 0x14171c : 0xeef1f5);
+  $('theme').textContent = theme === 'dark' ? 'light' : 'dark'; invalidate();
+}
+$('theme').onclick = () => { theme = theme === 'dark' ? 'light' : 'dark'; try { localStorage.setItem('piper_viewer_theme', theme); } catch (e) {} applyTheme(); };
 THREE.Object3D.DEFAULT_UP.set(0, 0, 1);
 const camera = new THREE.PerspectiveCamera(40, 1, 0.01, 50);
 camera.up.set(0, 0, 1);
@@ -410,15 +413,17 @@ function buildLimits() {
 // ---------------------------------------------------------------- loading a model from the server
 async function load() {
   $('err').textContent = '';
-  const o = {camera: $('o-camera').value, gripper: $('o-gripper').value, calibration: $('o-cal').value, compare: $('o-cmp').value};
+  const o = {camera: $('o-camera').value, gripper: 'true', calibration: $('o-cal').value, compare: $('o-cmp').value};
   const keep = {...q};
   try {
     const r = await fetch('api/model?' + new URLSearchParams(o)); const m = await r.json();
     if (m.error) { $('err').textContent = m.error + '\n' + (m.trace || ''); return; }
     model = m; selected = null;
     $('git').textContent = 'workspace ' + m.git;
-    const fill = (sel, first) => { const keep = sel.value; sel.innerHTML = ''; sel.add(new Option(first, '')); m.calibrations.forEach(c => sel.add(new Option(c, c))); if (m.calibrations.includes(keep)) sel.value = keep; };
-    fill($('o-cal'), 'nominal (default)'); fill($('o-cmp'), 'nothing');
+    const fill = (sel, first) => { const keep = sel.value; sel.innerHTML = ''; if (first !== null) sel.add(new Option(first, '')); m.calibrations.forEach(c => sel.add(new Option(c, c)));
+      sel.value = m.calibrations.includes(keep) ? keep : (first === null && m.calibrations.length ? m.calibrations[m.calibrations.length - 1] : ''); };
+    fill($('o-cal'), null); fill($('o-cmp'), 'nothing');      // calibration: the versions, the newest selected; compare: none or a version
+    for (const id of ['o-cal', 'o-cmp']) $(id).parentElement.style.display = m.calibrations.length ? '' : 'none';
     $('cmp-note').textContent = m.options.compare ? `orange = ${m.options.compare}, drawn on the same gripper; its names end in __cmp` : '';
     q = Object.keys(keep).length ? keep : {...m.poses.zero};
     for (const a of m.arm_joints) if (!(a in q)) q[a] = 0;
@@ -428,7 +433,8 @@ async function load() {
     setViewPreset('iso');
   } catch (e) { $('err').textContent = String(e); }
 }
-['o-camera', 'o-gripper', 'o-cal', 'o-cmp'].forEach(id => $(id).onchange = load);
+['o-camera', 'o-cal', 'o-cmp'].forEach(id => $(id).onchange = load);
+applyTheme();
 load();
 </script>
 </body>
