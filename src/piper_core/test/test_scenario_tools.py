@@ -107,10 +107,9 @@ def test_scenario_runs_in_the_simulator_and_ends_at_zero(tmp_path):
 
 
 def _gripper_tool():
-    import importlib.util
-    spec = importlib.util.spec_from_file_location("gripper_test", ROOT / "tools/real_arm/gripper_test.py")
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
+    pytest.importorskip("pyAgxArm")
+    sys.path.insert(0, str(ROOT / "src/piper_tools"))
+    import piper_tools.gripper_test as mod
     return mod
 
 

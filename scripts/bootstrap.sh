@@ -15,8 +15,8 @@ echo "== python environment (.venv, layered on ROS system packages)"
 [ -d .venv ] || uv venv --system-site-packages --python /usr/bin/python3.12 .venv
 touch .venv/COLCON_IGNORE
 uv pip sync --python .venv/bin/python env/requirements.txt
-# our own piper_core, piper_assets, piper_mujoco and piper_isaac, editable, no dependencies: `piper-arm` on the venv PATH, the scenario tools importable (the sync above would remove them)
-uv pip install --python .venv/bin/python --no-deps --no-build-isolation -e src/piper_core -e src/piper_assets -e src/piper_mujoco -e src/piper_isaac
+# our own piper_core, piper_assets, piper_mujoco, piper_isaac and piper_tools (the `piper-estop`, `piper-info`, ... commands), editable, no dependencies: `piper-arm` on the venv PATH, the scenario tools importable (the sync above would remove them)
+uv pip install --python .venv/bin/python --no-deps --no-build-isolation -e src/piper_core -e src/piper_assets -e src/piper_mujoco -e src/piper_isaac -e src/piper_tools
 
 set +u
 source /opt/ros/jazzy/setup.bash

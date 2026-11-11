@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build the wheels downstream projects install (no ROS needed to install them): piper_core, piper_assets, piper_mujoco and piper_isaac.
+# Build the wheels downstream projects install (no ROS needed to install them): piper_core, piper_assets, piper_mujoco, piper_isaac and piper_tools (the box bundle is `scripts/deploy_box.sh`).
 #   scripts/build_wheels.sh [--allow-dirty]      -> dist/*.whl   (needs the ROS environment once, to generate the assets)
 #   scripts/build_wheels.sh --dev                -> dist-dev/*.whl  a snapshot of the working tree for other projects to try before a release
 #                                                   (same version numbers; install with `uv pip install --no-deps --reinstall dist-dev/*.whl`)
@@ -20,7 +20,7 @@ python tools/release/build_assets.py
 python tools/release/build_mujoco.py
 python tools/release/build_isaac.py     # needs the USD of `scripts/isaac.sh build-usd` (and `scripts/isaac.sh check` to have passed)
 echo "SOURCE_COMMIT = \"$commit\"" > src/piper_core/piper_core/_source.py
-for pkg in piper_core piper_assets piper_mujoco piper_isaac; do
+for pkg in piper_core piper_assets piper_mujoco piper_isaac piper_tools; do
   rm -rf "src/$pkg/build" "src/$pkg"/*.egg-info
   python -m pip wheel --no-build-isolation --no-deps -q -w "$out" "src/$pkg"
   rm -rf "src/$pkg/build" "src/$pkg"/*.egg-info

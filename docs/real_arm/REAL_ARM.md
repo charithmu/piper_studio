@@ -127,7 +127,7 @@ stop a playback with the button.
 Master/leader mode (`set_leader_mode` / GUI "Master"): zero-force drag, the motors do not hold, only control frames are sent, and returning to position control needs a `reset()`
 with the arm at the zero pose. We do not use it.
 
-## 8. Our tools (`tools/`, all use `arm_common.py`)
+## 8. Our tools (code in `src/piper_tools`, commands `piper-*`; `tools/real_arm/arm_*.py` are shims with the old names; all use `arm_common.py`)
 
 | Tool | What it does | Sends |
 |---|---|---|

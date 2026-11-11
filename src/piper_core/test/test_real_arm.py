@@ -182,3 +182,43 @@ def test_execute_is_an_arm_backend_and_logs_the_run():
     with pytest.raises(Exception):
         arm.command([2.7, 0, 0, 0, 0, 0])
     arm.command([0.31, *[arm.state().q[i] for i in range(1, 6)]])
+
+
+def test_status_state_and_abort_from_other_threads_during_execute():
+    """The network server reads status()/state() and calls abort() from other threads while execute() runs on a worker thread."""
+    import threading
+    import time as _t
+    sdk = FakeSdk(SLUMPED)
+
+    def sleep(s):
+        _t.sleep(s)
+        sdk.advance(s)
+    arm = RealArm(sdk, sleep=sleep)
+    assert arm.start()
+    z = arm.zero()
+    traj = [(0.025 * k, [z[j] + (0.4 * k / 80 if j == "joint1" else 0.0) for j in JOINTS]) for k in range(81)]      # 2 s
+    result, errors, stop = {}, [], threading.Event()
+
+    def reader():
+        while not stop.is_set():
+            try:
+                st, s2 = arm.status(), arm.state()
+                assert st.feedback_age < 0.25 and not st.faults and s2.q.shape == (6,)
+            except Exception as e:                   # noqa: BLE001
+                errors.append(repr(e))
+                return
+
+    readers = [threading.Thread(target=reader) for _ in range(3)]
+    worker = threading.Thread(target=lambda: result.update(r=arm.execute(traj)))
+    for t in readers + [worker]:
+        t.start()
+    _t.sleep(0.4)
+    arm.abort()
+    worker.join(10)
+    stop.set()
+    for t in readers:
+        t.join(5)
+    assert not errors, errors
+    r = result["r"]
+    assert not r and r.reason == "stopped"
+    assert arm.status().enabled                      # aborted means holding, motors on

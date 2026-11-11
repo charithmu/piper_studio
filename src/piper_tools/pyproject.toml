@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "piper_tools"
+version = "0.10.1"
+description = "The Piper arm's hands-on tools as commands (info, e-stop, session, poses, jog, gripper, stream test). No ROS."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "Apache-2.0" }
+# pyAgxArm is not on PyPI: install it first from its pinned commit (env/requirements.in; scripts/deploy_box.sh puts it in a wheelhouse)
+dependencies = ["numpy>=1.24", "pyyaml", "python-can", "piper_core>=0.10.1", "pyAgxArm"]
+
+[project.scripts]
+piper-estop = "piper_tools.arm_stop:main"
+piper-can-up = "piper_tools.can_up:main"
+piper-info = "piper_tools.arm_info:main"
+piper-session = "piper_tools.arm_session:main"
+piper-pose = "piper_tools.arm_pose:main"
+piper-joints = "piper_tools.arm_joints:main"
+piper-jog = "piper_tools.arm_jog:main"
+piper-zero = "piper_tools.arm_zero:main"
+piper-enable-test = "piper_tools.arm_enable_test:main"
+piper-gripper-test = "piper_tools.gripper_test:main"
+piper-stream-test = "piper_tools.arm_stream_test:main"
+piper-realarm-smoke = "piper_tools.realarm_smoke:main"
+
+[tool.setuptools]
+packages = ["piper_tools"]
