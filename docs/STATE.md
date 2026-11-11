@@ -28,9 +28,10 @@ All green on 2026-11-11 (`ALL OK`). If a launch hangs, see "Fast DDS shared memo
 | rules without ROS: guard, limits, `RealArm`, `Trajectory`, `piper-arm` cockpit | `src/piper_core` |
 | controllers, MoveIt, Servo, the guard node, the real driver (ROS path, parked) | `src/piper_control`, launch in `src/piper_sim` |
 | Python client and `piper` CLI | `src/piper_py` |
-| wheels for other repos (`piper_core`, `piper_assets`, `piper_mujoco`, `piper_isaac`) | built by `scripts/build_wheels.sh` into `dist/`; assets data by `tools/release/build_assets.py` |
+| wheels for other repos (`piper_core`, `piper_assets`, `piper_mujoco`, `piper_isaac`, `piper_tools`) | built by `scripts/build_wheels.sh` into `dist/`; assets data by `tools/release/build_assets.py` |
 | cuRobo: tuned policy, pipeline, models, optional env | `tools/curobo/` (`policy.yaml`, `build_model.py`), `scripts/curobo_env.sh`, `docs/CUROBO.md` |
-| real-arm tools (SDK scripts, no ROS), scenario planner and runner, fixtures | `tools/real_arm/`; **what is mounted on the arm: `docs/real_arm/arms/piper-01.yaml`** |
+| real-arm tools (SDK scripts, no ROS) | code in `src/piper_tools` (commands `piper-estop`, `piper-info`, ...), same names as scripts in `tools/real_arm/` (shims); scenario planner and runner, fixtures stay in `tools/real_arm/`. **What is mounted on the arm: `docs/real_arm/arms/piper-01.yaml`** |
+| **the ZED Box** (CAN adapter and arm plugged in there) | `scripts/deploy_box.sh [--push]` builds / installs the wheels in `~/piper/venv` on the box; `docs/real_arm/BOX_DEPLOY.md`. CAN interface is chosen by USB, not by name (`piper_core.canbus`, `piper-can-up`). Installed and checked by the user 2026-11-11 (`piper-arm`, `piper-estop`, `piper-info`) |
 | web pages | home `tools/home/`, demo `tools/demo/`, model viewer `tools/viewer/`, cuRobo viewer `tools/curobo_viewer/`; registered in `artifacts.yaml` |
 | Isaac Sim side (own Python env, outside colcon) | `isaac/`, `scripts/isaac.sh` |
 | bulk data (USD, demo runs, scenarios, reports, cuRobo work files) | `~/data/ml/isaac/piper_studio/` (never in the repo) |
@@ -45,13 +46,14 @@ cuRobo viewer `/piper-studio/curobo/` (`scripts/curobo_viewer.sh start`). To add
 - **Real arm, user present:** `RealArm` (start, stop, execute with 25 ms setpoints, abort, gripper), the `piper-arm` cockpit, the SDK tools; a cuRobo scenario planned **with the camera model** ran through the guard on the real arm with the camera mounted: all 7 steps ok, worst joint error 0.32 deg, back at zero;
   a stream test with the camera on joint 1: rms 0.05 deg. Firmware kinematics equal our model (0.09 mm). Crash protection is 0 on every joint (no collision detection in the firmware; the user's decision).
 - **cuRobo model:** both models (with the camera 468 spheres, robot only 327) validated by planning 100 random tool poses from zero in a table scene: 92 of 100 each, no limit exceeded, goal error under 5 mm, no self-overlap at zero. Planned with cuRobo and executed in MuJoCo and Isaac Sim (sweep, picks, scenario).
-- **Not verified / open facts:** the ZED Box and the real camera driver have never been tried (`docs/real_arm/ZED_BOX.md` is written, not run); the camera pose is nominal (bracket v3), not hand-eye calibrated; bracket and camera masses are estimates; the bracket is covered by only about 71 % by its cuRobo spheres (up to 10 mm outside, `tools/curobo/policy.yaml`, `docs/CUROBO.md`): keep 2 cm extra clearance near the wrist.
+- **ZED Box:** the arm tools are installed and were checked there by the user (2026-11-11); the network arm server is being built by the `piper_pick` agent (`piper_pick/docs/ARM_SERVER_SPEC.md`, prototype in `piper_pick/box/`), Studio lifts the generic parts later.
+- **Not verified / open facts:** the real camera driver has never been tried (`docs/real_arm/ZED_BOX.md` is written, not run); the camera pose is nominal (bracket v3), not hand-eye calibrated; bracket and camera masses are estimates; the bracket is covered by only about 71 % by its cuRobo spheres (up to 10 mm outside, `tools/curobo/policy.yaml`, `docs/CUROBO.md`): keep 2 cm extra clearance near the wrist.
 - **Real arm, ROS path: experimental, parked (user decision 2026-11-10).** Use `RealArm`. The redesign for later is CLEANUP C14.
 
 ## The real arm: rules and the way to run something on it
 - **An agent never moves the real arm.** Everything that can move it needs the user present and approving each step. Prepare commands, plans, checklists and analysis; the user runs the hardware steps. Start read-only. No firmware or parameter writes (crash protection, payload) without explicit approval.
 - Operator: `scripts/can_up.sh` (sudo), `source scripts/env.sh`, `piper-arm` (keys: `s` start, `z` zero, `r` ready, `o`/`l`/`g` gripper, `e` e-stop, Space hold, `t` end session; each move waits for Enter). One program on the CAN bus at a time.
-  **E-stop terminal first, command typed and not run: `python tools/real_arm/arm_stop.py`** (Enter = e-stop; `--reset` clears it). A raised arm lowers slowly under damping.
+  **E-stop terminal first, command typed and not run: `piper-estop`** (`python tools/real_arm/arm_stop.py` is the same; on the box it must run on the box) (Enter = e-stop; `--reset` clears it). A raised arm lowers slowly under damping.
 - cuRobo scenario: `gpu-run <study venv>/bin/python tools/real_arm/curobo_plan_scenario.py` (plans for what `arms/piper-01.yaml` says is mounted), then `python tools/real_arm/run_scenario.py <scenario.json> --dry-run`, then `--backend real`.
   `run_scenario.py` **refuses a scenario planned for other hardware** (with or without the bracket, both directions, also in a dry run). **When the hardware changes, edit `arms/piper-01.yaml`.** The scenario that passed on the arm is stored: `tools/real_arm/fixtures/scenario_pick_25_0_05_zedxm.json`.
 - The off pose a powered-off arm rests in ("slumped") is internal to `piper_core`: never command it, never expose it downstream.
@@ -66,7 +68,7 @@ cuRobo viewer `/piper-studio/curobo/` (`scripts/curobo_viewer.sh start`). To add
 | real-arm tools | `python -m pytest src/piper_core/test/test_scenario_tools.py`, then a `--dry-run`; the user runs hardware |
 | the arm's hardware (camera, bracket, gripper) | `docs/real_arm/arms/piper-01.yaml`, the masses (`docs/description/MASSES.md`), the cuRobo model, `arms/piper-01.md` |
 
-**Release** (the unit downstream projects pin): commit everything; bump the version in the four packages (`src/piper_core/setup.py`, `src/piper_{assets,mujoco,isaac}/pyproject.toml`) and the wheel names in `INTEGRATION.md` and `HANDOFF.md`;
+**Release** (the unit downstream projects pin): commit everything; bump the version in the five packages (`src/piper_core/setup.py`, `src/piper_{assets,mujoco,isaac,tools}/pyproject.toml`) and the wheel names in `INTEGRATION.md` and `HANDOFF.md`;
 `scripts/build_wheels.sh` from a clean tree (stamps the commit into the wheels); reinstall them in `curobo_piper_study` (its `docs/07_SETUP.md`); `scripts/smoke.sh --all`; then tag `vX.Y.Z` on that commit and push **with the user's approval**. Update the notes for downstream readers.
 
 ## Downstream clients

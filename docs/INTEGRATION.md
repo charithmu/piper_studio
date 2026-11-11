@@ -14,6 +14,7 @@ You never need the simulators, scenes or demos of this repo. Take only the layer
 | The safety rules (limits, command guard, named poses) in plain Python | `piper_core` (pip wheel) | **no** |
 | The arm as data: flat URDF, meshes, SRDF, limits with sources, scene | `piper_assets` (pip wheel) | **no** |
 | Run planner trajectories in MuJoCo | `piper_mujoco` (pip wheel) | **no** |
+| The real-arm tools as commands (e-stop, info, session, CAN up), also on a box | `piper_tools` (pip wheel, needs `piper_core` and the vendor SDK pyAgxArm) | **no** |
 | Run planner trajectories in Isaac Sim | `piper_isaac` (pip wheel; Isaac Sim's own environment and the GPU on the same machine) | **no** |
 | Direct control of the real arm without ROS | `piper_core.RealArm` (tested on a fake SDK only; the first real run needs the user) | no |
 
@@ -35,7 +36,7 @@ uv pip install --no-deps piper_core-0.10.1-py3-none-any.whl piper_assets-0.10.1-
 
 | Package | Gives | Needs |
 |---|---|---|
-| `piper_core` | `Trajectory`, `ExecResult`, `ArmBackend` (`piper_core.backend`), `check_trajectory`, the guard, `zero_pose`, `RealArm` | numpy |
+| `piper_core` | `Trajectory`, `ExecResult`, `ArmBackend` (`piper_core.backend`), `check_trajectory`, the guard, `zero_pose`, `RealArm`, `Kinematics` (`piper_core.kinematics`: link, TCP and camera poses from the URDF), `resolve_canbus` (`piper_core.canbus`: the USB-CAN adapter's interface, by USB not by name) | numpy |
 | `piper_assets` | `urdf_path(gripper_width, camera=True)`, `srdf_path(camera=True)`, `camera()` (K, size, field of view, depth range, optical frame, its pose in gripper_base / the TCP / link6), `camera_pose(frame)`, `limits()` (hard, planning, velocity, acceleration, jerk, effort, each with its source), `zero_pose()`, `scene()` (placeholder table), `manifest()` | numpy, `piper_core`, **the cuRobo model** `curobo_model(camera)`, `curobo_config(camera)`, `curobo_provenance(camera)`, `curobo_model_is_current(camera)`, `curobo_planner_defaults()` (collision spheres, limits, ignore list; tuned and regenerated here: `docs/CUROBO.md`) | numpy (pyyaml for `curobo_config`) |
 | `piper_mujoco` | `PiperSim(scene="empty"|"table", gripper_width=0.07, camera=True)`: an `ArmBackend` on MuJoCo; `camera_image(depth=False)` renders the wrist camera (RGB, or RGB and metric depth), `camera_pose()` its optical frame in the base frame, `camera_info()` | `mujoco`, the two above |
 | `piper_isaac` | `PiperIsaacSim(scene="empty"|"table", gripper_width=0.07)`: an `ArmBackend` on Isaac Sim; starts `isaac/run_server.py` in Isaac's environment through `gpu-run` (`ISAAC_ENV_SH`), the runner and the USDs (with the camera, and the robot only) are inside the wheel; `camera=True` by default: `camera_image(depth)`, `camera_pose()`, `camera_info()` as in `PiperSim`; `render=True` and `record_start(path)` record a video; `gui=True` opens the full editor, also available as `python -m piper_isaac --gui` | the two above; Isaac Sim 6.x and a GPU at run time, not to install |

@@ -29,6 +29,7 @@ The cuRobo sphere model is owned here: `docs/CUROBO.md`. Check the tree with `sc
 | `src/piper_control`, `src/piper_py` | controllers, MoveIt, Servo, guard node; Python client and CLI | everyone |
 | `src/piper_sim`, `src/piper_examples` | simulators and scenes, the integration example | this repo only |
 | `isaac/` | Isaac Sim: `world.py` (the shared world), `run_piper.py` (ROS front end, topics only) and `run_server.py` (ROS-free front end, a socket), USD conversion; outside colcon, own Python environment (`scripts/isaac.sh`) | this repo only |
+| `src/piper_tools` | the real-arm tools as installable commands (`piper-estop`, `piper-info`, `piper-session`, `piper-can-up`, ...); `tools/real_arm/arm_*.py` are shims onto it; no ROS | everyone (as a wheel) |
 | `src/piper_isaac` | the ROS-free Isaac client wheel (`PiperIsaacSim`, an `ArmBackend`); no Isaac imports | everyone (as a wheel) |
 | `tools/` | real-arm SDK scripts (no ROS), demo page, capture | this repo only |
 
