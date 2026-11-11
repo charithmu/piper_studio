@@ -1,0 +1,19 @@
+# ZED X Mini on the user's own clamp bracket (Fusion design, meshes/zedxm_bracket_v1.stl): VERSION 1 (kept for comparison, superseded by zedxm_bracket_v2.yaml): NOMINAL poses, ring offset guessed. Mesh frame = the middle of the clamp ring.
+# Bracket frame (= mesh origin, camera_mount_link): origin at the middle of the clamp ring on the gripper body, Fusion Y = ring axis = towards the fingers,
+# Fusion Z = along the camera arm, Fusion X = Y x Z. Camera frame (zed_camera_link, Stereolabs' camera_link): x forward (viewing direction), y left, z up.
+mesh: zedxm_bracket_v1.stl                # in meshes/; collision: zedxm_bracket_v1_collision.stl; metres, ring-centre frame
+stand_in_gripper_base:        # the bracket frame in gripper_base; xyz in metres, rpy in radians
+  # Fusion Y -> gripper z (to the fingers), Fusion Z -> gripper -x (camera on the -x side, like the AgileX stand), Fusion X -> gripper -y.
+  # z = 0.032: the distance from gripper_base's origin to the middle of the ring. The user's rough value was "around 4 cm" (NOT YET MEASURED), then
+  # asked for the mount to be moved 8 mm back along the robot axis (2026-11-11): 0.040 - 0.008.
+  xyz: [0.0, 0.0, 0.032]
+  rpy: [1.5707963, 0.0, -1.5707963]
+camera_in_stand:              # the ZED X Mini's zed_camera_link (the threaded screw hole in its bottom = the origin of Stereolabs' mesh) in the bracket frame
+  # position: the point measured in Fusion (0, -13.686, +91.71 mm from the ring origin). It lies 0.75 mm from the cradle's seat plane, so it is the ZED CAD's own origin = the
+  # bottom screw point (confirm with the user).
+  # orientation: viewing direction = Fusion (0, +0.94, -0.34), i.e. towards the fingers and tilted 20 deg towards the gripper axis, as the cradle's tilted faces say;
+  # the camera's up = (0, +0.34, +0.94) (the seat's normal). Forward = towards the fingers fits the seat: the screw point is 12.7 mm from the seat's front end and the
+  # camera's front is 15.5 mm ahead of it (the other way round it would overhang by 19 mm). Confirm against the Fusion assembly.
+  xyz: [0.0, -0.013686, 0.09171]
+  rpy: [0.0, 0.349066, 1.570796]
+measured: null                # for a real calibration: {date: "2026-..", by: "..", method: "caliper | hand-eye (board, solver)", error_mm: ..}

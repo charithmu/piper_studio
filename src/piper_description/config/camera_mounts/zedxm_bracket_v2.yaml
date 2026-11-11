@@ -1,7 +1,8 @@
-# ZED X Mini on the user's own clamp bracket (Fusion design, meshes/zedxm_bracket.stl): VERSION 2 (2026-11-11), from the user's measurements in Fusion, not yet checked on the arm.
+# ZED X Mini on the user's own clamp bracket (Fusion design): VERSION 2 (2026-11-11), from the user's measurements in Fusion, not yet checked on the arm.
 # Bracket frame (= mesh origin, camera_mount_link) = the user's UCS at the gripper base: the mesh is expressed in that UCS (tools/build_zedxm_bracket_mesh.py), so the translation
 # to gripper_base is zero. UCS axes (they equal the Fusion world axes to 0.174 deg): Y = the gripper axis, towards the fingers; Z = along the camera arm; X = Y x Z.
 # Camera frame (zed_camera_link, Stereolabs' camera_link = the camera's bottom mounting hole): x forward (viewing direction), y left, z up.
+mesh: zedxm_bracket_v2.stl                # in meshes/; collision: zedxm_bracket_v2_collision.stl; metres, in the frame below
 stand_in_gripper_base:        # the bracket frame in gripper_base; xyz in metres, rpy in radians
   # UCS Y -> gripper z (to the fingers), UCS Z -> gripper -x (camera on the -x side, like the AgileX stand; the user has not confirmed the side), UCS X -> gripper -y.
   xyz: [0.0, 0.0, 0.0]
