@@ -1,9 +1,18 @@
+# Handoff (2026-11-11, final): 0.10.1, the camera is on the real arm
+
+**State.** The ZED X Mini on the user's bracket is mounted on `piper-01` and is the default everywhere. A cuRobo scenario planned with the camera model ran on the real arm (all steps ok, 0.32 deg worst joint error) and a stream test with the camera
+(joint 1, rms 0.05 deg): `docs/real_arm/arms/piper-01.md`, `docs/real_arm/CHECKLIST.md` R3. What is mounted is stored in `docs/real_arm/arms/piper-01.yaml`: `tools/real_arm/run_scenario.py` refuses a scenario planned for other hardware on the real arm
+(the old robot-only fixture is refused while the camera is mounted), `curobo_plan_scenario.py` plans for it by default. Regression check: `scripts/smoke.sh [--sims | --all]`. Wheels 0.10.1, tag `v0.10.1`; the API of 0.10.0 below is unchanged.
+**Open:** hand-eye calibration (R3.6), weighing the bracket and camera (R3.2), the stream test on joints 2, 3, 5 with the camera, crash protection 0 (the user's decision), and `piper_pick` adopting the model (its note: `~/projects/core/piper_pick/handoff/STUDIO_CUROBO_MODEL.md`).
+
+---
+
 # Handoff (2026-11-11, evening): Studio owns the cuRobo model (0.10.0, additive)
 
 **For downstream projects (piper_pick, curobo_piper_study, the bake-off).** The cuRobo sphere model of the Piper (robot only, and with the ZED X Mini on its bracket), its hand-tuned policy and the way to regenerate it live here now
 (`docs/CUROBO.md`). Import it from the `piper_assets` wheel: `curobo_config(camera)`, `curobo_model_is_current(camera)`, `curobo_provenance(camera)`, `curobo_planner_defaults()`; keep only planning code on your side.
 Regenerating needs the optional environment (`scripts/curobo_env.sh setup`); using the model needs no cuRobo. Viewer: `https://atlas.buri-fence.ts.net:8700/piper-studio/curobo/`.
-Wheels 0.10.0 in `dist/`. `curobo_piper_study` already consumes it; for `piper_pick` see `~/projects/core/piper_pick/handoff/STUDIO_CUROBO_MODEL.md` (its `camera=` defaults changed since 0.5.0).
+Wheels 0.10.1 in `dist/` (tag v0.10.1). `curobo_piper_study` already consumes it; for `piper_pick` see `~/projects/core/piper_pick/handoff/STUDIO_CUROBO_MODEL.md` (its `camera=` defaults changed since 0.5.0).
 
 ---
 
