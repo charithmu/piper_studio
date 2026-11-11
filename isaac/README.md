@@ -83,11 +83,12 @@ The servo gains are the provisional ones, equal to MuJoCo's: tracking numbers fr
 
 ## Wrist camera and scene objects
 
-`scripts/isaac.sh build-usd d435` builds a second USD (with the D435 meshes) and writes `camera_pose.json`: the colour optical frame in
-`link6`, turned 180 deg about x because USD cameras look along -Z with +Y up. `ros2 launch ... backend:=isaac camera:=d435` then makes the
-runner create a USD camera there (640x480, 69.4 deg horizontal, near 0.05 m) and publish it through Isaac's ROS 2 camera graph on the
-RealSense topics (`/camera/color/image_raw`, `/camera/aligned_depth_to_color/image_raw`, `/camera/color/camera_info`, frame
-`camera_color_optical_frame`). The static objects of `piper_sim/config/scene_objects.yaml` are passed as JSON (`--scene`) so all
+`scripts/isaac.sh build-usd` builds the USD with the ZED X Mini on its bracket (the default; `build-usd no_camera` builds the robot-only USD) and writes
+`camera_pose.json`: the left (colour) optical frame in `link6`, turned 180 deg about x because USD cameras look along -Z with +Y up, plus the image size,
+horizontal field of view, near/far and intrinsics of `piper_description/config/camera_models/zedxm.yaml` (960x600, 110 deg wide lens, 0.1 to 8 m). The runner
+creates a USD camera there and publishes it through Isaac's ROS 2 camera graph on the contract's topics (`/camera/color/image_raw`,
+`/camera/aligned_depth_to_color/image_raw`, `/camera/color/camera_info`, frame `piper_camera_color_optical_frame`); `camera:=none` runs the robot-only USD.
+The static objects of `piper_sim/config/scene_objects.yaml` are passed as JSON (`--scene`) so all
 simulators see the same scene. Cost: each rendered view is about 8 ms per frame (real-time factor ~0.6 with the wrist camera at 90 Hz frames).
 
 ## Things learned (each cost time)

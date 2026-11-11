@@ -2,7 +2,7 @@
 <!--
   Camera model: Stereolabs ZED X Mini (GMSL2, run on a ZED Box). Built after Stereolabs' own description, so the frames are the ones the ZED wrapper expects:
   https://github.com/stereolabs/zed-ros2-description (urdf/zed_macro.urdf.xacro, model zedxm, commit 2246824, Apache-2.0, copyright Stereolabs;
-  mesh meshes/zedxm.stl used for visual and collision, like Stereolabs does). Same interface as cameras/d435.xacro.
+  mesh meshes/zedxm.stl used for visual and collision, like Stereolabs does). Interface: piper_camera_model(prefix, parent, hardware, width, height, hfov_deg, update_rate, near, far, *origin).
 
   Stereolabs' frames, with name = `${prefix}zed` (what the wrapper gets as camera_name:=piper_zed):
     ${prefix}zed_camera_link                 the threaded screw hole in the bottom of the camera = the mesh origin = `origin` (the pose from the mount yaml); x forward, y left, z up
@@ -12,13 +12,13 @@
   Contract aliases (identity): camera_color_frame = zed_left_camera_frame, camera_color_optical_frame = zed_left_camera_frame_optical, camera_depth_optical_frame = the same
   (ZED depth is registered to the left image).
   The ZED wrapper publishes TF of its own: run it with its TF off, or it fights this description (one description only).
-  hfov_deg / width / height: for the lens and mode in use (piper.urdf.xacro's default 69.4 deg is the D435's, not the ZED's).
+  hfov_deg / width / height / near / far: from config/camera_models/zedxm.yaml (the lens and image mode), overridable in piper.urdf.xacro.
 -->
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro">
   <xacro:property name="zedxm_baseline" value="0.05" />
   <xacro:property name="zedxm_height" value="0.032" />
   <xacro:property name="zedxm_optical_offset_x" value="-0.005" />
-  <xacro:macro name="piper_camera_model" params="prefix parent hardware width height hfov_deg update_rate *origin">
+  <xacro:macro name="piper_camera_model" params="prefix parent hardware width height hfov_deg update_rate near:=0.1 far:=8.0 *origin">
     <joint name="${prefix}zed_camera_joint" type="fixed">
       <xacro:insert_block name="origin" />
       <parent link="${parent}" />
@@ -44,7 +44,7 @@
       <inertial>
         <origin xyz="-0.008 0 0" rpy="0 0 0" />
         <mass value="0.150" />
-        <inertia ixx="1.5e-4" ixy="0" ixz="0" iyy="1.1e-4" iyz="0" izz="1.5e-4" />
+        <inertia ixx="1.222e-4" ixy="0" ixz="0" iyy="4.07e-5" iyz="0" izz="1.376e-4" />   <!-- solid box 47.4 x 93.6 x 31.8 mm (x forward, y across, z up), 150 g -->
       </inertial>
     </link>
 
@@ -96,8 +96,8 @@
           <camera>
             <horizontal_fov>${hfov_deg * pi / 180.0}</horizontal_fov>
             <image><width>${width}</width><height>${height}</height></image>
-            <clip><near>0.07</near><far>6.0</far></clip>
-            <depth_camera><clip><near>0.1</near><far>6.0</far></clip></depth_camera>
+            <clip><near>${near}</near><far>${far}</far></clip>
+            <depth_camera><clip><near>${near}</near><far>${far}</far></clip></depth_camera>
           </camera>
         </sensor>
       </gazebo>

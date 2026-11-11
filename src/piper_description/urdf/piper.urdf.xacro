@@ -22,21 +22,16 @@
        fingertip centre: the finger meshes end at z = 0.138 m in gripper_base. -->
   <xacro:arg name="tcp_xyz" default="0 0 0.138" />
   <xacro:arg name="tcp_rpy" default="0 0 0" />
-  <!-- Wrist camera: a model (cameras/) on a mount (mounts/). camera: none | d435. camera_mount: agilex_mid_stand | custom.
-       camera_mount_mesh: other stand mesh path, or 'none' for a box. camera_xyz/camera_rpy: pose in gripper_base for camera_mount:=custom.
-       Simulated size/FOV follow the D435 colour stream at 640x480 (69.4 deg horizontal). -->
-  <xacro:arg name="camera" default="none" />
-  <xacro:arg name="camera_mount" default="agilex_mid_stand" />
-  <xacro:arg name="camera_mount_mesh" default="" />
-  <!-- camera_calibration: a yaml like config/camera_mounts/agilex_mid_stand.yaml with a measured stand and camera pose (a name in that folder,
-       or a path); replaces the nominal pose on every backend, so simulation and the real arm stay one description. Empty = nominal. -->
+  <!-- Wrist camera: the Stereolabs ZED X Mini on the own clamp bracket, ON BY DEFAULT (cameras/zedxm.xacro, mounts/zedxm_bracket.xacro, piper_camera.xacro).
+       camera:=none is the robot only (no camera, no bracket). camera_calibration: a version of the bracket (a name in config/camera_mounts, e.g. zedxm_bracket_v2, or a
+       yaml path with a measured pose); empty = the newest version. Lens, image size, field of view, rate: config/camera_models/zedxm.yaml, overridden by the args below. -->
+  <xacro:arg name="camera" default="zedxm" />
   <xacro:arg name="camera_calibration" default="" />
-  <xacro:arg name="camera_xyz" default="0 0 0" />
-  <xacro:arg name="camera_rpy" default="0 0 0" />
-  <xacro:arg name="camera_width" default="640" />
-  <xacro:arg name="camera_height" default="480" />
-  <xacro:arg name="camera_hfov_deg" default="69.4" />
-  <xacro:arg name="camera_rate" default="30" />
+  <xacro:arg name="camera_lens" default="" />
+  <xacro:arg name="camera_width" default="" />
+  <xacro:arg name="camera_height" default="" />
+  <xacro:arg name="camera_hfov_deg" default="" />
+  <xacro:arg name="camera_rate" default="" />
   <!-- Backend-specific inputs. -->
   <xacro:arg name="controllers_file" default="" />
   <xacro:arg name="mujoco_model" default="" />
@@ -54,16 +49,20 @@
 
   <xacro:if value="${'$(arg camera)' != 'none'}">
     <xacro:include filename="$(find piper_description)/urdf/cameras/$(arg camera).xacro" />
-    <xacro:include filename="$(find piper_description)/urdf/mounts/$(arg camera_mount).xacro" />
+    <xacro:include filename="$(find piper_description)/urdf/mounts/zedxm_bracket.xacro" />
     <xacro:include filename="$(find piper_description)/urdf/piper_camera.xacro" />
-    <xacro:if value="${'$(arg camera_calibration)' != '' and '$(arg camera_mount)' != 'custom'}">
+    <xacro:if value="${'$(arg camera_calibration)' != ''}">
       <xacro:property name="piper_mount_calibration"
                       value="${xacro.load_yaml('$(arg camera_calibration)' if '/' in '$(arg camera_calibration)' else '$(find piper_description)/config/camera_mounts/$(arg camera_calibration).yaml')}" />
     </xacro:if>
+    <!-- the camera model's numbers; the args override them one by one -->
+    <xacro:property name="cam_model" value="${xacro.load_yaml('$(find piper_description)/config/camera_models/$(arg camera).yaml')}" />
+    <xacro:property name="cam_lens" value="${'$(arg camera_lens)' or cam_model['lens']}" />
     <xacro:piper_camera prefix="${prefix}" parent="${prefix}gripper_base" hardware="$(arg hardware)"
-                        mount_mesh="$(arg camera_mount_mesh)" mount_xyz="$(arg camera_xyz)" mount_rpy="$(arg camera_rpy)"
-                        width="$(arg camera_width)" height="$(arg camera_height)"
-                        hfov_deg="$(arg camera_hfov_deg)" update_rate="$(arg camera_rate)" />
+                        width="${'$(arg camera_width)' or cam_model['image']['width']}" height="${'$(arg camera_height)' or cam_model['image']['height']}"
+                        hfov_deg="${'$(arg camera_hfov_deg)' or cam_model['lenses'][cam_lens]['hfov_deg']}"
+                        update_rate="${'$(arg camera_rate)' or cam_model['rate']}"
+                        near="${cam_model['lenses'][cam_lens]['depth_min']}" far="${cam_model['lenses'][cam_lens]['depth_max']}" />
   </xacro:if>
 
   <xacro:include filename="$(find piper_description)/urdf/piper.ros2_control.xacro" />

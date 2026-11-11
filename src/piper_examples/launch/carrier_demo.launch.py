@@ -37,7 +37,7 @@ def launch_setup(context):
         Node(package="controller_manager", executable="ros2_control_node", parameters=[controllers], output="screen",
              remappings=[("~/robot_description", "/robot_description")]),
         IncludeLaunchDescription(PythonLaunchDescriptionSource(str(control)), launch_arguments={
-            "backend": "external", "prefix": PREFIX, "robot_description_file": str(description_file), "robot_name": "carrier", "camera": "d435",  # tells the SRDF about the camera links (collision pairs)
+            "backend": "external", "prefix": PREFIX, "robot_description_file": str(description_file), "robot_name": "carrier", "camera": "zedxm",  # tells the SRDF about the camera links (collision pairs)
             
             "servo": "false", "rviz": LaunchConfiguration("rviz")}.items()),
     ]

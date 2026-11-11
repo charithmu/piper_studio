@@ -2,7 +2,7 @@
 # Run the repo's checks. Offline tests always; launch tests per backend on request.
 #   scripts/test_all.sh                      offline tests + generated-macro check (fast, no simulator)
 #   scripts/test_all.sh mock gazebo mujoco   also the launch tests of those backends and the carrier example
-#   scripts/test_all.sh isaac                add isaac (GPU; needs `scripts/isaac.sh build-usd d435` first)
+#   scripts/test_all.sh isaac                add isaac (GPU; needs `scripts/isaac.sh build-usd` first)
 # Each launch test gets its own ROS_DOMAIN_ID (from 150 up) and its daemon is stopped afterwards. Exit status is non-zero if anything failed.
 set -uo pipefail
 ws="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

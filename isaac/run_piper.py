@@ -27,9 +27,9 @@ ap.add_argument("--seconds", type=float, default=0.0, help="exit after this much
 ap.add_argument("--gui", action="store_true", help="open a window (default: headless)")
 ap.add_argument("--video", type=Path, help="record the camera view to this mp4 (needs ffmpeg)")
 ap.add_argument("--video-fps", type=float, default=30.0)
-ap.add_argument("--camera", default="none", help="none | d435: publish the wrist camera topics (USD must contain the camera)")
+ap.add_argument("--camera", default="zedxm", help="zedxm (default): publish the ZED X Mini wrist camera topics (the USD is the one with the bracket and camera) | none: the robot only")
 ap.add_argument("--prefix", default="piper_", help="prefix of every joint and link name in the USD (the description's prefix)")
-ap.add_argument("--camera-pose", type=Path, help="camera pose in link6 (JSON from export_urdf.py --camera-pose-out); needed with --camera")
+ap.add_argument("--camera-pose", type=Path, help="camera pose in link6 (JSON from export_urdf.py --camera-pose-out); needed unless --camera none")
 ap.add_argument("--scene", type=Path, help="JSON list of static objects (same file content as piper_sim/config/scene_objects.yaml)")
 ap.add_argument("--frame-hz", type=float, default=float(os.environ.get("PIPER_ISAAC_FRAME_HZ", "0")),
                 help="app updates (and ROS publishing) per second; 0 = auto: 240 without rendering, 90 with a camera/video "
@@ -172,8 +172,10 @@ og.Controller.edit(
     },
 )
 
-# ---- wrist camera: a USD camera under link6 at the D435 colour optical frame, published like the RealSense driver ----------
+# ---- wrist camera: a USD camera under link6 at the ZED X Mini left (colour) optical frame, published on the topics the RealSense driver had ----------
 if args.camera != "none":
+    if args.camera_pose is None:
+        sys.exit("--camera-pose is needed with the wrist camera (scripts/isaac.sh passes it); use --camera none for the robot only")
     import omni.replicator.core as rep
     from isaacsim.ros2.nodes import Ros2CameraGraphConfig, create_ros2_camera_graph
     from pxr import Gf, UsdGeom

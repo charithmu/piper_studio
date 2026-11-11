@@ -28,28 +28,22 @@ def description_arguments() -> list:
         DeclareLaunchArgument("prefix", default_value=DEFAULT_PREFIX,
                               description="prefix of every link, joint and frame name (none: no prefix, the official AgileX names)"),
         DeclareLaunchArgument("gripper", default_value="true", choices=["true", "false"]),
-        DeclareLaunchArgument("camera", default_value="none", choices=["none", "d435"],
-                              description="wrist camera model (urdf/cameras/<name>.xacro)"),
-        DeclareLaunchArgument("camera_mount", default_value="agilex_mid_stand",
-                              description="camera mount (urdf/mounts/<name>.xacro): agilex_mid_stand | custom"),
+        DeclareLaunchArgument("camera", default_value="zedxm", choices=["zedxm", "none"],
+                              description="wrist camera: zedxm (ZED X Mini on the own bracket, the default) | none (the robot only)"),
         DeclareLaunchArgument("camera_calibration", default_value="",
-                              description="measured stand and camera pose: a name in piper_description/config/camera_mounts or a yaml path (default: nominal)"),
-        DeclareLaunchArgument("camera_mount_mesh", default_value="",
-                              description="optional path of another stand mesh, or 'none' for a box (default: the mount's own mesh)"),
-        DeclareLaunchArgument("camera_xyz", default_value="0 0 0", description="camera_mount:=custom: camera position in gripper_base"),
-        DeclareLaunchArgument("camera_rpy", default_value="0 0 0", description="camera_mount:=custom: camera orientation in gripper_base"),
+                              description="a version of the bracket (a name in piper_description/config/camera_mounts, e.g. zedxm_bracket_v2) or a yaml path with a measured pose (default: the newest)"),
+        DeclareLaunchArgument("camera_lens", default_value="", description="wide | narrow (default: piper_description/config/camera_models/zedxm.yaml)"),
+        DeclareLaunchArgument("camera_width", default_value="", description="simulated image width, px (default: the camera model's)"),
+        DeclareLaunchArgument("camera_height", default_value="", description="simulated image height, px (default: the camera model's)"),
     ]
 
 
 def description_mappings(arg) -> dict:
     """xacro mappings from the launch arguments; `arg(name)` returns a launch argument's value."""
     mappings = {"prefix": normalize_prefix(arg("prefix")), "gripper": arg("gripper")}
+    mappings["camera"] = arg("camera")
     if arg("camera") != "none":
-        mappings.update(camera=arg("camera"), camera_mount=arg("camera_mount"), camera_xyz=arg("camera_xyz"), camera_rpy=arg("camera_rpy"))
-        if arg("camera_calibration"):
-            mappings["camera_calibration"] = arg("camera_calibration")
-        if arg("camera_mount_mesh"):  # default: the mount's own mesh (AgileX's stand, packaged in piper_description)
-            mappings["camera_mount_mesh"] = arg("camera_mount_mesh")
+        mappings.update({k: arg(k) for k in ("camera_calibration", "camera_lens", "camera_width", "camera_height") if arg(k)})
     return mappings
 
 
@@ -73,7 +67,7 @@ def real_arm_arguments() -> list:
 
 
 # ---- MoveIt ---------------------------------------------------------------------------------------------------------------------------
-def moveit_config(gripper: str, urdf: str, camera: str = "none", prefix: str = DEFAULT_PREFIX, robot_name: str = "piper"):
+def moveit_config(gripper: str, urdf: str, camera: str = "zedxm", prefix: str = DEFAULT_PREFIX, robot_name: str = "piper"):
     moveit_dir = share("piper_control") / "config/moveit"
     config = (
         MoveItConfigsBuilder("piper", package_name="piper_control")

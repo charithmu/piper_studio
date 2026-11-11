@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Isaac Sim helpers for Piper Studio. Isaac runs in its own environment (never installed into .venv).
-#   scripts/isaac.sh build-usd [d435]  export the description (ROS side) and convert it to USD (Isaac side); d435 adds the wrist camera
+#   scripts/isaac.sh build-usd [no_camera]  export the description (ROS side) and convert it to USD (Isaac side): with the ZED X Mini wrist camera (default) or the robot only
 #   scripts/isaac.sh run [args]    run the Isaac runner (isaac/run_piper.py); args: --seconds N --video f.mp4 --gui
-#   scripts/isaac.sh check         compare Isaac's USDs with the URDF (fingertip pose over random configs, mass; with the camera USD also the stand/camera frames and collision meshes)
+#   scripts/isaac.sh check         compare Isaac's USDs with the URDF (fingertip pose over random configs, mass; the camera USD also the bracket/camera frames and collision meshes)
 #   scripts/isaac.sh stop          stop this workspace's runner (by PID file; never touches other Isaac processes)
 # Configuration (environment variables):
 #   ISAAC_ENV_SH   script that activates an Isaac Sim 6.x python env   (default ~/projects/sim/robosim/env.sh)
@@ -15,8 +15,8 @@ ws="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ISAAC_ENV_SH="${ISAAC_ENV_SH:-$HOME/projects/sim/robosim/env.sh}"
 DATA="${PIPER_ISAAC_DATA:-$HOME/data/ml/isaac/piper_studio}"
 PIDFILE="$DATA/run.pid"
-USD="$DATA/usd/piper_isaac/piper_isaac.usda"
-USD_CAM="$DATA/usd_cam/piper_isaac_cam/piper_isaac_cam.usda"
+USD="$DATA/usd/piper_isaac/piper_isaac.usda"                                          # with the wrist camera (the default)
+USD_NOCAM="$DATA/usd_no_camera/piper_isaac_no_camera/piper_isaac_no_camera.usda"       # the robot only
 cmd="${1:-}"; shift || true
 
 # Run a command in a clean environment (no system ROS, no ~/.local) inside Isaac's env, on the GPU.
@@ -32,24 +32,24 @@ in_isaac() {
 case "$cmd" in
   build-usd)
     mkdir -p "$DATA"
-    if [ "${1:-}" = d435 ]; then
-      rm -rf "${DATA:?}/usd_cam"   # the importer would otherwise write to a numbered sibling
+    if [ "${1:-}" = no_camera ]; then
+      rm -rf "${DATA:?}/usd_no_camera"   # the importer would otherwise write to a numbered sibling
       ( set +u; source "$ws/scripts/env.sh"
-        ros2 run piper_sim export_urdf.py --hardware isaac --physics --camera d435 --out "$DATA/piper_isaac_cam.urdf" \
-          --camera-pose-out "$DATA/camera_pose.json" )
-      in_isaac python "$ws/isaac/convert_urdf.py" "$DATA/piper_isaac_cam.urdf" "$DATA/usd_cam" > "$DATA/convert_cam.log" 2>&1
-      grep "USD:" "$DATA/convert_cam.log"
+        ros2 run piper_sim export_urdf.py --hardware isaac --physics --camera none --out "$DATA/piper_isaac_no_camera.urdf" )
+      in_isaac python "$ws/isaac/convert_urdf.py" "$DATA/piper_isaac_no_camera.urdf" "$DATA/usd_no_camera" > "$DATA/convert_no_camera.log" 2>&1
+      grep "USD:" "$DATA/convert_no_camera.log"
     else
-      rm -rf "${DATA:?}/usd"   # the importer would otherwise write to usd/piper_isaac_1
+      rm -rf "${DATA:?}/usd"
       ( set +u; source "$ws/scripts/env.sh"
-        ros2 run piper_sim export_urdf.py --hardware isaac --physics --out "$DATA/piper_isaac.urdf" )
+        ros2 run piper_sim export_urdf.py --hardware isaac --physics --camera zedxm --out "$DATA/piper_isaac.urdf" \
+          --camera-pose-out "$DATA/camera_pose.json" )
       in_isaac python "$ws/isaac/convert_urdf.py" "$DATA/piper_isaac.urdf" "$DATA/usd" > "$DATA/convert.log" 2>&1
       grep "USD:" "$DATA/convert.log"
     fi ;;
   run)
-    usd="$USD"; extra=()
-    case " $* " in *" --camera d435 "*) usd="$USD_CAM"; extra=(--camera-pose "$DATA/camera_pose.json") ;; esac
-    [ -f "$usd" ] || { echo "no USD at $usd; run: scripts/isaac.sh build-usd [d435]" >&2; exit 1; }
+    usd="$USD"; extra=(--camera-pose "$DATA/camera_pose.json")      # the wrist camera is on by default
+    case " $* " in *" --camera none "*) usd="$USD_NOCAM"; extra=() ;; esac
+    [ -f "$usd" ] || { echo "no USD at $usd; run: scripts/isaac.sh build-usd [no_camera]" >&2; exit 1; }
     [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null && { echo "runner already running (pid $(cat "$PIDFILE"))" >&2; exit 1; }
     # gpu-run does not forward signals, so forward them to the runner (it writes its pid to $PIDFILE).
     in_isaac python "$ws/isaac/run_piper.py" --usd "$usd" "${extra[@]}" "$@" &
@@ -59,12 +59,13 @@ case "$cmd" in
     # a trapped signal interrupts wait; wait again until the runner is really gone
     while kill -0 "$child" 2>/dev/null; do wait "$child" || true; done ;;
   check)
-    ( set +u; source "$ws/scripts/env.sh"; python "$ws/isaac/make_fk_reference.py" "$DATA/fk_reference.json" )
-    in_isaac python "$ws/isaac/check_model.py" "$USD" "$DATA/fk_reference.json" 2>&1 | grep "check_model"
-    if [ -f "$USD_CAM" ]; then   # the wrist-camera USD: also the stand and camera frames and their collision meshes
-      ( set +u; source "$ws/scripts/env.sh"; python "$ws/isaac/make_fk_reference.py" "$DATA/fk_reference_cam.json" 10 --camera )
-      echo "[check_model] --- wrist camera USD ---"
-      in_isaac python "$ws/isaac/check_model.py" "$USD_CAM" "$DATA/fk_reference_cam.json" 2>&1 | grep "check_model"
+    ( set +u; source "$ws/scripts/env.sh"; python "$ws/isaac/make_fk_reference.py" "$DATA/fk_reference_cam.json" 10 )
+    echo "[check_model] --- with the wrist camera (default) ---"
+    in_isaac python "$ws/isaac/check_model.py" "$USD" "$DATA/fk_reference_cam.json" 2>&1 | grep "check_model"
+    if [ -f "$USD_NOCAM" ]; then
+      ( set +u; source "$ws/scripts/env.sh"; python "$ws/isaac/make_fk_reference.py" "$DATA/fk_reference.json" --no-camera )
+      echo "[check_model] --- robot only ---"
+      in_isaac python "$ws/isaac/check_model.py" "$USD_NOCAM" "$DATA/fk_reference.json" 2>&1 | grep "check_model"
     fi ;;
   stop)
     [ -f "$PIDFILE" ] || { echo "not running"; exit 0; }

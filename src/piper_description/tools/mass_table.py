@@ -15,13 +15,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from piper_description import robot_description  # noqa: E402
 
 VENDOR = "vendor URDF (agx_arm_urdf, CAD estimate)"
-OURS = {"camera_mount_link": "our placeholder (mounts/agilex_mid_stand.xacro), not weighed",
-        "camera_link": "cameras/d435.xacro (the file itself says the value is not reliable), not weighed"}
+OURS = {"camera_mount_link": "PLA estimate from the mesh volume (mounts/zedxm_bracket.xacro), not weighed",
+        "camera_link": "cameras/zedxm.xacro: 150 g from the Stereolabs datasheet"}
 NOTE = {"gripper_link": "virtual width joint, no mass"}
 
 
 def main() -> int:
-    root = ET.fromstring(robot_description("mock", camera="d435", prefix=""))
+    root = ET.fromstring(robot_description("mock", prefix=""))
     rows, groups = [], {"arm": 0.0, "gripper": 0.0, "camera": 0.0}
     for link in root.findall("link"):
         n = link.get("name")

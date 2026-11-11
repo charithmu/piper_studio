@@ -9,7 +9,7 @@ export ROS_DOMAIN_ID="${3:-$((140 + RANDOM % 60))}"
 set +u; source "$ws/scripts/env.sh"; set -u
 # Simulated wrist camera on backends that have one; its video (and Gazebo's overview camera) is recorded to OUTDIR.
 extra=(); cam=0
-case "$backend" in gazebo|mujoco|isaac) [ -z "${PIPER_NO_CAMERA:-}" ] && { extra+=("camera:=d435"); cam=1; } ;; esac
+case "$backend" in gazebo|mujoco|isaac) [ -z "${PIPER_NO_CAMERA:-}" ] && { extra+=("camera:=zedxm"); cam=1; } ;; esac
 [ "$backend" = isaac ] && [ -z "${PIPER_NO_VIDEO:-}" ] && extra+=("isaac_video:=$out/isaac.mp4")
 setsid ros2 launch piper_sim piper.launch.py "backend:=$backend" "${extra[@]}" > "$out/$backend.launch.log" 2>&1 < /dev/null &
 lpid=$!

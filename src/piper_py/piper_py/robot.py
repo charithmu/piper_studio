@@ -699,7 +699,7 @@ class Piper:
 
     def image(self, kind: str = "color", timeout: float = 5.0):
         """Wait for the next camera frame. Returns (array, header): color -> HxWx3 uint8 (RGB), depth -> HxW float32
-        in metres (NaN where invalid). Same topics on every backend (and the RealSense driver)."""
+        in metres (NaN where invalid). Same topics on every backend; the real ZED X Mini on the ZED Box is remapped to them."""
         topic, msg_type = (self.COLOR_TOPIC, Image) if kind == "color" else (self.DEPTH_TOPIC, Image)
         box: list = []
         done = threading.Event()

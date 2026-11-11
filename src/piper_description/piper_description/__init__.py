@@ -1,7 +1,8 @@
 """Generate the Piper robot description (xacro expansion) for any hardware backend.
 
     from piper_description import robot_description
-    urdf = robot_description("mock", camera="d435")
+    urdf = robot_description("mock")                  # with the ZED X Mini wrist camera (the default)
+    urdf = robot_description("mock", camera="none")   # the robot only
 
 Simulator-specific model processing (Gazebo, MuJoCo, Isaac) lives in piper_sim, not here.
 """
@@ -13,6 +14,7 @@ import tempfile
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
+DEFAULT_CAMERA = "zedxm"   # the wrist camera every description has unless `camera="none"` (robot only)
 DEFAULT_PREFIX = "piper_"  # prefix of every link, joint and frame name (piper.urdf.xacro `prefix`; "" gives the official names)
 
 
@@ -31,6 +33,22 @@ def robot_description(hardware: str = "mock", **mappings) -> str:
     import xacro
     args = {"hardware": hardware, **{k: str(v).lower() if isinstance(v, bool) else str(v) for k, v in mappings.items()}}
     return xacro.process_file(str(xacro_file()), mappings=args).toxml()
+
+
+def camera_model(lens: str | None = None, width: int | None = None, height: int | None = None, camera: str = DEFAULT_CAMERA) -> dict:
+    """The wrist camera's numbers (config/camera_models/<camera>.yaml, the one source of the simulated cameras): lens, width, height, hfov_deg, vfov_deg,
+    depth_min, depth_max, rate, baseline, `K` (3x3 pinhole intrinsics of the rectified left image) and the frame names `optical_frame` / `link` (without prefix)."""
+    import math
+    import yaml
+    from ament_index_python.packages import get_package_share_directory
+    m = yaml.safe_load((Path(get_package_share_directory("piper_description")) / "config" / "camera_models" / f"{camera}.yaml").read_text())
+    lens = lens or m["lens"]
+    L = m["lenses"][lens]
+    w, h = int(width or m["image"]["width"]), int(height or m["image"]["height"])
+    f = (w / 2) / math.tan(math.radians(L["hfov_deg"]) / 2)
+    return {"model": m["model"], "lens": lens, "width": w, "height": h, "hfov_deg": L["hfov_deg"], "vfov_deg": L["vfov_deg"],
+            "depth_min": L["depth_min"], "depth_max": L["depth_max"], "rate": m["rate"], "baseline": m["baseline"],
+            "K": [[f, 0.0, w / 2], [0.0, f, h / 2], [0.0, 0.0, 1.0]], "optical_frame": m["color_optical_frame"], "link": "gripper_base"}
 
 
 def apply_prefix(text: str, prefix: str = DEFAULT_PREFIX) -> str:

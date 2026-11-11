@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Move a running backend to the 'ready' pose and save its wrist-camera view (colour over depth) as a PNG.
 
-    python tools/capture/capture_stills.py OUT.png        # needs a launch with camera:=d435; prints the camera rates too
+    python tools/capture/capture_stills.py OUT.png        # needs a launch with the wrist camera (the default); prints the camera rates too
 """
 import sys
 import time

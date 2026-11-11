@@ -32,7 +32,7 @@ from launch_ros.actions import Node
 
 from piper_control import launch_lib as lib
 from piper_control.launch_lib import share
-from piper_description import normalize_prefix
+from piper_description import camera_model, normalize_prefix
 from piper_sim import SIMULATORS, mujoco_model, physics_model, robot_description
 from piper_sim.scene import gazebo_world, load_objects, mujoco_scene
 
@@ -87,6 +87,12 @@ def mujoco(controllers: str):
                  parameters=[controllers, {"use_sim_time": True}])]
 
 
+def camera_settings(arg) -> dict:
+    """The simulated wrist camera: config/camera_models/zedxm.yaml with the launch arguments camera_lens / camera_width / camera_height on top."""
+    return camera_model(arg("camera_lens") or None, int(arg("camera_width")) if arg("camera_width") else None,
+                        int(arg("camera_height")) if arg("camera_height") else None)
+
+
 def launch_setup(context):
     arg = lambda name: LaunchConfiguration(name).perform(context)  # noqa: E731
     backend, gripper, camera, prefix = arg("backend"), arg("gripper"), arg("camera"), normalize_prefix(arg("prefix"))
@@ -101,7 +107,7 @@ def launch_setup(context):
         scene_text = Path(tempfile.gettempdir()) / f"piper_scene_{os.getpid()}.xml"
         scene_text.write_text(mujoco_scene(cfg / "scene.xml", objects))
         scene = mujoco_model(urdf, cfg / "inputs.xml", scene_text, prefix=prefix,
-                             camera={"width": 640, "height": 480, "hfov_deg": 69.4} if camera != "none" else None)
+                             camera=camera_settings(arg) if camera != "none" else None)
         urdf = robot_description(backend, controllers_file=controllers, mujoco_model=scene, mujoco_headless=arg("gui") != "true", **mappings)
     config = lib.moveit_config(gripper, urdf, camera, prefix)
     sim_time = {"use_sim_time": backend in SIMULATORS}

@@ -27,17 +27,20 @@ def main():
     p.add_argument("--keep-mimic", action="store_true", help="with --physics: keep URDF mimic joints")
     p.add_argument("--no-gripper", action="store_true")
     p.add_argument("--gripper-width", type=float, default=None, help="fix the gripper at this opening in metres (0 closed, 0.07 open)")
-    p.add_argument("--camera", default="none", help="none | d435 (wrist RealSense)")
-    p.add_argument("--camera-mount", default="agilex_mid_stand", help="camera mount (urdf/mounts/<name>.xacro)")
-    p.add_argument("--camera-calibration", default="", help="measured camera pose: a name in config/camera_mounts or a yaml path (default: nominal)")
+    p.add_argument("--camera", default="zedxm", help="zedxm (the ZED X Mini wrist camera on the own bracket, default) | none (the robot only)")
+    p.add_argument("--camera-calibration", default="", help="a version of the bracket (a name in config/camera_mounts, e.g. zedxm_bracket_v2) or a yaml path (default: the newest)")
+    p.add_argument("--camera-lens", default="", help="wide | narrow (default: config/camera_models/zedxm.yaml)")
+    p.add_argument("--camera-width", type=int, default=0, help="simulated image width, px (default: the camera model's)")
+    p.add_argument("--camera-height", type=int, default=0, help="simulated image height, px (default: the camera model's)")
     p.add_argument("--prefix", default="piper_", help="prefix of every link, joint and frame name")
     p.add_argument("--camera-pose-out", type=Path,
                    help="with --camera: write the colour camera pose in link6 as JSON, for a simulator that creates the camera itself "
                         "(USD convention: the camera looks along -Z with +Y up, i.e. the optical frame turned 180 deg about x)")
     a = p.parse_args()
-    cam = {"camera": a.camera, "camera_mount": a.camera_mount} if a.camera != "none" else {}
-    if cam and a.camera_calibration:
-        cam["camera_calibration"] = a.camera_calibration
+    cam = {"camera": a.camera}
+    if a.camera != "none":
+        cam.update({k: v for k, v in (("camera_calibration", a.camera_calibration), ("camera_lens", a.camera_lens),
+                                      ("camera_width", a.camera_width or ""), ("camera_height", a.camera_height or "")) if v})
     urdf = robot_description(a.hardware, gripper=not a.no_gripper, prefix=a.prefix, **cam)
     if a.gripper_width is not None:
         urdf = fixed_gripper(urdf, a.gripper_width, a.prefix)
@@ -62,11 +65,14 @@ def main():
         import numpy as np
         from scipy.spatial.transform import Rotation
 
+        from piper_description import camera_model
+        cm = camera_model(a.camera_lens or None, a.camera_width or None, a.camera_height or None)
         m = model_audit.load_urdf("camera", a.out)
         rel = np.linalg.inv(m.fk({}, a.prefix + "link6")) @ m.fk({}, a.prefix + "camera_color_optical_frame")
         rot = Rotation.from_matrix(rel[:3, :3] @ np.diag([1.0, -1.0, -1.0]))
         a.camera_pose_out.write_text(json.dumps({"link": a.prefix + "link6", "pos": rel[:3, 3].tolist(), "quat_xyzw": rot.as_quat().tolist(),
-                                                 "width": 640, "height": 480, "hfov_deg": 69.4, "near": 0.05, "far": 6.0}))
+                                                 "width": cm["width"], "height": cm["height"], "hfov_deg": cm["hfov_deg"],
+                                                 "near": cm["depth_min"], "far": cm["depth_max"], "K": cm["K"]}))
         print(a.camera_pose_out)
 
 

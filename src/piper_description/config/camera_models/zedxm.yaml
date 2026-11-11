@@ -1,0 +1,13 @@
+# Stereolabs ZED X Mini (GMSL2, ZED Box): the one place the simulated camera's numbers live (xacro, Gazebo, MuJoCo, Isaac, piper_assets all read it).
+# Sources: Stereolabs product page / datasheet (lens, field of view, depth range, 1920x1200 global-shutter sensor, 16:10) and zed-ros2-description (baseline 0.05 m).
+# The images are rectified pinhole images: fx = fy = (width / 2) / tan(hfov / 2), principal point in the image centre, no distortion. The lens is a datasheet
+# value, NOT yet confirmed for the user's camera: `lens` below is the default, camera_lens:=narrow switches.
+model: zedxm
+lens: wide                      # wide = 2.2 mm, narrow = 4 mm
+lenses:
+  wide:   {focal_mm: 2.2, hfov_deg: 110.0, vfov_deg: 80.0, depth_min: 0.1,  depth_max: 8.0}
+  narrow: {focal_mm: 4.0, hfov_deg: 80.0,  vfov_deg: 52.0, depth_min: 0.15, depth_max: 12.0}
+image: {width: 960, height: 600}   # the 16:10 sensor binned to 960x600 (the ZED's 600p mode); 1920x1200 and 1920x1080 also exist. Pass camera_width/camera_height to change.
+rate: 30                          # Hz of the simulated stream
+baseline: 0.05                    # m between the left and right lens
+color_optical_frame: camera_color_optical_frame   # the LEFT lens; colour and depth are registered to it (names without prefix)

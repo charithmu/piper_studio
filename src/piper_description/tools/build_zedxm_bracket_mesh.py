@@ -16,8 +16,23 @@ from pathlib import Path
 import numpy as np
 import trimesh
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-from build_collision_meshes import MESHES, STAND_CELL, cluster
+MESHES = Path(__file__).resolve().parents[1] / "meshes"
+STAND_CELL = 0.003  # m
+
+
+def cluster(mesh: trimesh.Trimesh, cell: float) -> trimesh.Trimesh:
+    """Vertex clustering: vertices in the same grid cell merge to their mean; collapsed triangles are dropped."""
+    key = np.floor(mesh.vertices / cell).astype(np.int64)
+    _, inv = np.unique(key, axis=0, return_inverse=True)
+    inv = inv.reshape(-1)
+    sums = np.zeros((inv.max() + 1, 3))
+    np.add.at(sums, inv, mesh.vertices)
+    faces = inv[mesh.faces]
+    ok = (faces[:, 0] != faces[:, 1]) & (faces[:, 1] != faces[:, 2]) & (faces[:, 0] != faces[:, 2])
+    out = trimesh.Trimesh(sums / np.bincount(inv)[:, None], faces[ok], process=True)
+    out.remove_unreferenced_vertices()
+    return out
+
 
 ap = argparse.ArgumentParser()
 ap.add_argument("src")
