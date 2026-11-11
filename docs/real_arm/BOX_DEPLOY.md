@@ -1,6 +1,6 @@
 # The arm tools on a box (ZED Box), and on the workstation
 
-Same code, two ways to run it. Status 2026-11-11: **built and dry-run into a scratch home on Atlas; not yet installed on the box.**
+Same code, two ways to run it. Status 2026-11-11: **installed on the box and checked by the user, who was at the arm:** `piper-can-up` (found the USB adapter, `can0` on port `1-2`, already up at 1 Mbit/s), `piper-joints --once`, `piper-info` (firmware S-V1.9-1, no faults), every action in `piper-arm`, and `piper-estop` all worked. Not yet run on the box: `piper-session`, `piper-pose`, the stream and gripper tests, scenarios.
 
 | | Workstation (Atlas) | Box (CAN adapter and arm plugged in there) |
 |---|---|---|

@@ -155,6 +155,7 @@ class RealArm:
         self._op_lock, self._active = threading.Lock(), 0           # operations in progress; abort() only does something while one runs
         self.max_feedback_age = 0.25     # s: joint feedback that has not changed for longer is a fault (arm silent or CAN lost)
         self._ts_last, self._ts_seen, self._lock = None, self._now(), None
+        self._age_lock = threading.Lock()                            # feedback_age() is called from the motion thread and from status()/state() readers
         self.last_stream: dict | None = None                         # timing and fine-grained measured joints of the last execute(), see stream_metrics
 
     @classmethod
@@ -247,9 +248,10 @@ class RealArm:
         if ts is None:
             return 0.0
         now = self._now()
-        if ts != self._ts_last:
-            self._ts_last, self._ts_seen = ts, now
-        return now - self._ts_seen
+        with self._age_lock:                  # the pair (stamp, time seen) is updated together: a reader in another thread must never see one without the other
+            if ts != self._ts_last:
+                self._ts_last, self._ts_seen = ts, now
+            return now - self._ts_seen
 
     def problems(self) -> list[str]:
         """Everything that must stop a motion: no feedback, status or error code, driver fault bits, teach or master mode."""
