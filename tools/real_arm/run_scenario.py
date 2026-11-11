@@ -67,7 +67,7 @@ class Mujoco:
 
     def __init__(self, args):
         from piper_mujoco import PiperSim
-        self.sim = PiperSim(scene="table", gripper_width=0.07)
+        self.sim = PiperSim(scene="table", gripper_width=0.07, camera=bool(args.camera))
 
     def start(self):
         r = self.sim.start()
@@ -141,6 +141,7 @@ def main():
     ap.add_argument("--max-speed", type=float, default=0.3, help="rad/s cap for every leg (0: as planned)")
     ap.add_argument("--effort", type=float, default=1.0, help="gripper force in N (cap 3 N)")
     ap.add_argument("--canbus", "-b", default="can0")
+    ap.add_argument("--camera-mounted", action="store_true", help="real arm / ROS only: confirm that the ZED X Mini and its bracket are on the arm (needed for a scenario planned with --camera zedxm)")
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--yes", action="store_true", help="no Enter before each step (simulation only)")
     ap.add_argument("--sim-stack", action="store_true", help="with --backend ros: the ROS stack is a simulation (launch backend:=mock), so --yes is allowed")
@@ -149,11 +150,12 @@ def main():
     doc = json.loads(args.scenario.read_text())
     if doc.get("schema") != "piper.scenario/1":
         raise SystemExit("not a piper.scenario/1 file (make one with curobo_plan_scenario.py)")
+    args.camera = doc.get("camera")                      # None: planned for the robot only (older scenario files too); "zedxm": planned with the bracket and camera
     legs = {k: Trajectory.from_json(json.dumps(v)) for k, v in doc["legs"].items()}
     if args.max_speed > 0:
         legs = {k: retime(t, args.max_speed) for k, t in legs.items()}
     lim = pa.limits()
-    say(f"scenario: TCP target {doc['target_xyz']} m, yaw {doc['yaw_deg']} deg, {doc['planner']}; scene: {doc['scene']}")
+    say(f"scenario: TCP target {doc['target_xyz']} m, yaw {doc['yaw_deg']} deg, {doc['planner']}; arm: {args.camera or 'robot only'}; scene: {doc['scene']}")
     bad = False
     for k, t in legs.items():
         why = check_trajectory(t, lim.hard, margin=lim.margin, max_step=lim.max_step, max_velocity=lim.velocity)
@@ -164,6 +166,8 @@ def main():
     if args.dry_run or args.backend is None:
         say("dry run: nothing connected." if args.dry_run else "no --backend given: nothing connected.")
         return
+    if args.camera and args.backend in ("real", "ros") and not (args.camera_mounted or args.sim_stack):
+        raise SystemExit("this scenario was planned for the arm WITH the ZED X Mini and its bracket; the camera has not been on the real arm (CHECKLIST R3). Mount it and pass --camera-mounted, or plan with --camera none")
     if args.yes and not (args.backend == "mujoco" or (args.backend == "ros" and args.sim_stack)):
         raise SystemExit("--yes is for the simulation only: the arm needs an Enter before every step")
 

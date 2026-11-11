@@ -22,7 +22,7 @@ import numpy as np
 STUDY = Path.home() / "projects/ml_tests/experiments/curobo_piper_study"
 sys.path.insert(0, str(STUDY / "src"))
 from curobo_piper.motion import ZERO, tool_quat  # noqa: E402
-from curobo_piper.planner import PiperPlanner  # noqa: E402
+from curobo_piper.planner import MODELS, PiperPlanner  # noqa: E402
 
 
 def main():
@@ -32,10 +32,12 @@ def main():
     ap.add_argument("--approach", type=float, default=0.05, help="start of the descent this far above the target, metres")
     ap.add_argument("--open", type=float, default=0.07, help="gripper width at the start and after the lift, metres")
     ap.add_argument("--close", type=float, default=0.0, help="gripper width commanded at the grasp, metres (0: closes until it stalls on an object)")
+    ap.add_argument("--camera", choices=["none", "zedxm"], default="none", help="the arm to plan for: none = the robot only (what is on the real arm until the camera is mounted, CHECKLIST R3), zedxm = the ZED X Mini on its bracket (cuRobo knows the bracket and camera)")
     ap.add_argument("--out", default=str(Path.home() / "data/ml/isaac/piper_studio/scenario"))
     args = ap.parse_args()
 
-    planner = PiperPlanner(STUDY / "results/07_piper/piper_nocam_final.yml", gripper_width=0.07)
+    cam = None if args.camera == "none" else "zedxm"
+    planner = PiperPlanner(MODELS[cam], gripper_width=0.07, camera=cam)
     q0 = np.asarray(ZERO, dtype=float)
     legs, used_yaw = None, None
     for yaw in (args.yaw, args.yaw + 180 if args.yaw <= 0 else args.yaw - 180):
@@ -56,7 +58,7 @@ def main():
              {"op": "move", "leg": "home"}]
     trajs = {"approach": legs["approach"], "grasp": legs["grasp"], "lift": legs["lift"], "home": home}
     doc = {"schema": "piper.scenario/1", "target_xyz": args.xyz, "yaw_deg": used_yaw, "approach_m": args.approach, "steps": steps,
-           "legs": {k: json.loads(t.to_json()) for k, t in trajs.items()}, "planner": "curobo (curobo_piper_study PiperPlanner)",
+           "legs": {k: json.loads(t.to_json()) for k, t in trajs.items()}, "planner": "curobo (curobo_piper_study PiperPlanner)", "camera": cam,
            "scene": "table plane at base z = -3 mm only", "created": time.strftime("%Y-%m-%d %H:%M:%S")}
     out = Path(args.out) / time.strftime("%Y%m%d_%H%M%S")
     out.mkdir(parents=True, exist_ok=True)

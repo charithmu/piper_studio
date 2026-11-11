@@ -64,6 +64,7 @@ Terminal 1: `ros2 launch piper_sim piper.launch.py backend:=real canbus:=can0 sp
 | R3.7 | kill terminal 1 (Ctrl-C) while holding at zero | the arm keeps holding; `piper-arm` `e` stops it |
 | R3.9 | the same scenario through ROS: `python tools/real_arm/run_scenario.py tools/real_arm/fixtures/scenario_pick_25_0_05.json --backend ros` (stack from terminal 1, speed_percent at least 15) | all steps ok, back at zero, gripper closes and opens |
 | R3.8 | a small MoveIt plan with the camera/table scene, `piper pose ...` (tool-down reach limits in INTEGRATION.md) | executed, TCP within 5 mm of the request |
+| R3.10 | the cuRobo scenario with the camera model, after R3.0-R3.5: `gpu-run <study venv>/bin/python tools/real_arm/curobo_plan_scenario.py --camera zedxm`, then `python tools/real_arm/run_scenario.py <scenario.json> --backend real --camera-mounted` (planned for the arm with the bracket and camera; refused without `--camera-mounted`; the robot-only scenario of R1.5 is `--camera none`, the default) | steps ok, worst joint error, back at zero, the wrist and camera clear of the table | as R1.5 (all steps ok, below 1 deg worst joint error, at zero); the model's bracket spheres cover only 70 % of the bracket (worst 10.7 mm outside, `curobo_piper_study` docs/04 1b): keep 2 cm more clearance than the plan to anything near the wrist. Simulated 2026-11-11: MuJoCo, all steps ok. |
 
 ## What must be true before `piper_pick` runs on the arm
 
