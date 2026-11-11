@@ -32,6 +32,11 @@
   .t-none { background:color-mix(in srgb, var(--dim) 30%, transparent); } .t-other { background:color-mix(in srgb, var(--ok) 35%, transparent); }
   .out { color:var(--bad); } pre { white-space:pre-wrap; margin:4px 0; font-size:11px; color:var(--dim); }
   details summary { cursor:pointer; color:var(--dim); } #err { color:var(--bad); white-space:pre-wrap; }
+  #labels { position:absolute; inset:0; pointer-events:none; overflow:hidden; }
+  .flabel { font:11px ui-monospace, monospace; color:var(--fg); background:color-mix(in srgb, var(--panel) 80%, transparent); border:1px solid var(--line); border-radius:3px; padding:0 4px; margin-top:-14px; white-space:nowrap; pointer-events:none; }
+  #frames-box { max-height:260px; overflow:auto; border:1px solid var(--line); border-radius:5px; }
+  #frames td.c { width:34px; text-align:center; } #frames td.n { cursor:pointer; word-break:break-all; }
+  input[type=text] { background:var(--bg); color:var(--fg); border:1px solid var(--line); border-radius:5px; padding:3px 7px; font:inherit; width:100%; }
   @media (max-width: 800px) { #app { grid-template-columns: 1fr; grid-template-rows: 55vh 1fr; } #side { border-left:0; border-top:1px solid var(--line); } }
 </style>
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
@@ -60,7 +65,14 @@
 
     <h2>Show</h2>
     <div class="toggles" id="toggles"></div>
+    <div class="row"><label style="flex:0 0 96px">visual opacity</label><input id="op-all" type="range" min="0.05" max="1" step="0.01" value="1"><span class="val mono" id="op-all-v" style="flex:0 0 40px">100%</span></div>
+    <div class="row"><label style="flex:0 0 96px">frame size</label><input id="fsize" type="range" min="0.01" max="0.2" step="0.005" value="0.04"><span class="val mono" id="fsize-v" style="flex:0 0 40px">40 mm</span></div>
     <div class="btns"><button data-view="iso">iso</button><button data-view="front">front</button><button data-view="side">side</button><button data-view="top">top</button><button data-view="wrist">wrist</button><button id="fit">fit</button></div>
+
+    <h2>Frames <span class="dim" style="text-transform:none">(every URDF link is a frame; tick to draw its axes / its name)</span></h2>
+    <div class="btns"><button id="fr-all">all axes</button><button id="fr-none">no axes</button><button id="fl-all">all names</button><button id="fl-none">no names</button><button id="fr-geo">only frames without a mesh</button></div>
+    <input type="text" id="fr-filter" placeholder="filter frames, e.g. camera or link6" style="margin:4px 0">
+    <div id="frames-box"><table id="frames"></table></div>
 
     <h2>Links <span class="dim" style="text-transform:none">(click to select)</span></h2>
     <table id="links"></table>
@@ -77,11 +89,14 @@ import * as THREE from 'three';
 import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
 import {STLLoader} from 'three/addons/loaders/STLLoader.js';
 import {ColladaLoader} from 'three/addons/loaders/ColladaLoader.js';
+import {CSS2DRenderer, CSS2DObject} from 'three/addons/renderers/CSS2DRenderer.js';
 
 const $ = (id) => document.getElementById(id);
 const deg = (r) => (r * 180 / Math.PI);
 let model = null, q = {}, selected = null, S = null;               // q: joint name -> value; S: scene objects of the current model
-const show = {visual: true, collision: false, frames: false, axes: false, com: false, tcp: true};
+const show = {visual: true, collision: false, axes: false, com: false};
+const frameOn = new Set(), labelOn = new Set(), linkOp = {};       // per-frame axes / name toggles; per-link opacity overrides
+let opacity = 1, frameSize = 0.04, refFrame = null, framesInit = new Set(), frameFilter = '';
 let full = false; try { full = localStorage.getItem('piper_viewer_full') === '1'; } catch (e) {}     // light visuals by default (small download)
 let pending = 0, done = 0;
 function track(p) { pending++; progress(); return p.finally(() => { done++; progress(); }); }
@@ -93,6 +108,7 @@ const view = $('view');
 const renderer = new THREE.WebGLRenderer({antialias: true});
 renderer.setPixelRatio(devicePixelRatio);
 view.appendChild(renderer.domElement);
+const labelRenderer = new CSS2DRenderer(); labelRenderer.domElement.id = 'labels'; view.appendChild(labelRenderer.domElement);
 const scene = new THREE.Scene();
 const dark = !matchMedia('(prefers-color-scheme: light)').matches;
 scene.background = new THREE.Color(dark ? 0x14171c : 0xeef1f5);
@@ -108,12 +124,12 @@ scene.add(new THREE.AxesHelper(0.15));
 const robotRoot = new THREE.Group(); scene.add(robotRoot);
 
 let dirty = true; const invalidate = () => { dirty = true; };
-function resize() { const w = view.clientWidth, h = view.clientHeight; renderer.setSize(w, h); camera.aspect = w / h; camera.updateProjectionMatrix(); invalidate(); }
+function resize() { const w = view.clientWidth, h = view.clientHeight; renderer.setSize(w, h); labelRenderer.setSize(w, h); camera.aspect = w / h; camera.updateProjectionMatrix(); invalidate(); }
 addEventListener('resize', resize); resize();
 setViewPreset('iso');
 // render only when something changed (camera moved, pose, toggles, a mesh arrived): an always-on render loop keeps a software-GL browser or a phone at full load
 controls.addEventListener('change', invalidate);
-(function loop() { requestAnimationFrame(loop); if (controls.update()) dirty = true; if (dirty) { dirty = false; renderer.render(scene, camera); } })();
+(function loop() { requestAnimationFrame(loop); if (controls.update()) dirty = true; if (dirty) { dirty = false; renderer.render(scene, camera); labelRenderer.render(scene, camera); } })();
 
 function setViewPreset(v) {
   const t = controls.target;
@@ -154,6 +170,7 @@ async function visualObject(s, linkName) {
   // ColladaLoader turns a Z_UP file into Y-up (-90 deg about x). URDF poses expect the vertex data as it is in the file, whatever up_axis it
   // declares (d435_colored.dae says Y_UP but is already in the frame its URDF origin expects, and RViz / Gazebo show it that way), so undo it.
   o.quaternion.set(0, 0, 0, 1);
+  o.traverse(m => { if (m.isMesh && m.material) m.material = Array.isArray(m.material) ? m.material.map(x => x.clone()) : m.material.clone(); });
   const g = new THREE.Group(); g.add(o); g.scale.set(...s.scale); return g;
 }
 function primitive(s, mat) {
@@ -177,16 +194,19 @@ async function collisionObject(s) {
 
 // ---------------------------------------------------------------- building the robot from the model
 async function buildRobot() {
+  robotRoot.traverse(o => { if (o.isCSS2DObject) o.element.remove(); });      // the label layer does not remove the labels of a discarded model
   while (robotRoot.children.length) robotRoot.remove(robotRoot.children[0]);
   const links = {}, joints = {}, byName = Object.fromEntries(model.links.map(l => [l.name, l]));
   for (const l of model.links) {
     const g = new THREE.Group(); g.name = l.name;
-    g.userData.vis = new THREE.Group(); g.userData.col = new THREE.Group(); g.userData.fr = new THREE.AxesHelper(0.03); g.userData.com = null;
+    g.userData.vis = new THREE.Group(); g.userData.col = new THREE.Group(); g.userData.fr = new THREE.AxesHelper(1); g.userData.fr.scale.setScalar(frameSize); g.userData.fr.renderOrder = 999; g.userData.fr.material.depthTest = false; g.userData.fr.material.transparent = true; g.userData.com = null;
     g.userData.fr.visible = false; g.add(g.userData.vis, g.userData.col, g.userData.fr); g.userData.col.visible = false;
     if (l.com && l.mass) {
       const c = new THREE.Mesh(new THREE.SphereGeometry(0.006, 12, 8), new THREE.MeshBasicMaterial({color: 0xffd33d}));
       c.position.set(...l.com); c.visible = false; g.add(c); g.userData.com = c;
     }
+    const lab = document.createElement('div'); lab.className = 'flabel'; lab.textContent = l.name;
+    const lo = new CSS2DObject(lab); lo.visible = false; g.add(lo); g.userData.label = lo;
     links[l.name] = g;
   }
   const childLinks = new Set(model.joints.map(j => j.child));
@@ -206,11 +226,11 @@ async function buildRobot() {
   const jobs = [];
   for (const l of model.links) {
     const g = links[l.name];
-    for (const v of l.visual) jobs.push(track(visualObject(v, l.name).then(o => { g.userData.vis.add(place(o, v)); highlight(); }).catch(e => console.warn('visual', l.name, e))));
+    for (const v of l.visual) jobs.push(track(visualObject(v, l.name).then(o => { g.userData.vis.add(place(o, v)); applyOpacity(); highlight(); }).catch(e => console.warn('visual', l.name, e))));
   }
   loadCollisions();
   await Promise.all(jobs);
-  applyShow(); applyPose();
+  initFrames(); applyShow(); applyOpacity(); applyPose();
 }
 
 // collision shapes are fetched only once they are switched on (they are the larger part of the download)
@@ -238,7 +258,7 @@ function applyPose() {
   }
   robotRoot.updateMatrixWorld(true);
   invalidate();
-  updateReadouts();
+  updateReadouts(); updateRel();
 }
 function relPose(from, to) {
   const a = S.links[from], b = S.links[to]; if (!a || !b) return null;
@@ -291,18 +311,53 @@ function applyShow() {
   for (const l of model.links) {
     const g = S.links[l.name];
     g.userData.vis.visible = show.visual; g.userData.col.visible = show.collision;
-    g.userData.fr.visible = show.frames || (show.tcp && (l.name === model.tcp || l.name.endsWith('camera_color_optical_frame')));
+    g.userData.fr.visible = frameOn.has(l.name); g.userData.fr.scale.setScalar(frameSize); g.userData.label.visible = labelOn.has(l.name);
     if (g.userData.com) g.userData.com.visible = show.com;
   }
   for (const j of Object.values(S.joints)) if (j.userData.axis) j.userData.axis.visible = show.axes;
   highlight();
 }
 const FULL_BOX = '<label title="the real visual meshes: about 35 MB without the camera, slow on a mobile connection (the browser keeps them afterwards)"><input type="checkbox" id="t-full"> full-detail visuals (large download)</label>';
-const TOG = [['visual', 'visual meshes'], ['collision', 'collision shapes'], ['frames', 'all frames'], ['tcp', 'tcp / camera frame'], ['axes', 'joint axes'], ['com', 'centres of mass']];
+const TOG = [['visual', 'visual meshes'], ['collision', 'collision shapes'], ['axes', 'joint axes'], ['com', 'centres of mass']];
 $('toggles').innerHTML = TOG.map(([k, t]) => `<label><input type="checkbox" data-t="${k}" ${show[k] ? 'checked' : ''}>${t}</label>`).join('') + '<br>' + FULL_BOX;
 $('t-full').checked = full;
 $('t-full').onchange = (e) => { full = e.target.checked; try { localStorage.setItem('piper_viewer_full', full ? '1' : '0'); } catch (err) {} cache.clear(); load(); };
 document.querySelectorAll('[data-t]').forEach(c => c.onchange = () => { show[c.dataset.t] = c.checked; applyShow(); });
+
+// ---------------------------------------------------------------- opacity of the visual meshes (all links, or one link on its own)
+function applyOpacity() {
+  if (!S) return;
+  for (const l of model.links) {
+    const op = linkOp[l.name] ?? opacity;
+    S.links[l.name].userData.vis.traverse(o => { if (!o.isMesh || !o.material) return;
+      for (const m of (Array.isArray(o.material) ? o.material : [o.material])) { m.transparent = op < 1; m.opacity = op; m.depthWrite = op >= 1; m.needsUpdate = true; } });
+  }
+  invalidate();
+}
+$('op-all').oninput = e => { opacity = parseFloat(e.target.value); for (const k in linkOp) delete linkOp[k]; $('op-all-v').textContent = Math.round(opacity * 100) + '%'; applyOpacity(); detail(); };
+$('fsize').oninput = e => { frameSize = parseFloat(e.target.value); $('fsize-v').textContent = Math.round(frameSize * 1000) + ' mm'; applyShow(); };
+
+// ---------------------------------------------------------------- frames: axes and name per frame
+function initFrames() {
+  const p = model.prefix;       // defaults are applied once per frame, so a frame that appears later (a camera) comes up on, and one you switched off stays off
+  for (const n of [model.tcp, p + 'gripper_base', p + 'camera_mount_link', p + 'camera_color_optical_frame']) if (S.links[n] && !framesInit.has(n)) { framesInit.add(n); frameOn.add(n); labelOn.add(n); }
+  buildFrames();
+}
+function buildFrames() {
+  const f = frameFilter.toLowerCase();
+  const rows = model.links.filter(l => l.name.toLowerCase().includes(f)).map(l => `<tr data-l="${l.name}"><td class="c"><input type="checkbox" data-fa="${l.name}" ${frameOn.has(l.name) ? 'checked' : ''} title="axes"></td><td class="c"><input type="checkbox" data-fl="${l.name}" ${labelOn.has(l.name) ? 'checked' : ''} title="name"></td><td class="n mono" data-fn="${l.name}">${l.name}${l.visual.length ? '' : ' <span class="dim">(frame only)</span>'}</td></tr>`);
+  $('frames').innerHTML = '<tr><th>axes</th><th>name</th><th>frame</th></tr>' + rows.join('');
+  document.querySelectorAll('[data-fa]').forEach(c => c.onchange = () => { c.checked ? frameOn.add(c.dataset.fa) : frameOn.delete(c.dataset.fa); applyShow(); });
+  document.querySelectorAll('[data-fl]').forEach(c => c.onchange = () => { c.checked ? labelOn.add(c.dataset.fl) : labelOn.delete(c.dataset.fl); applyShow(); });
+  document.querySelectorAll('[data-fn]').forEach(c => c.onclick = () => { selected = c.dataset.fn; highlight(); detail(); });
+}
+const setAll = (set, names) => { set.clear(); names.forEach(n => set.add(n)); buildFrames(); applyShow(); };
+$('fr-all').onclick = () => setAll(frameOn, model.links.map(l => l.name));
+$('fr-none').onclick = () => setAll(frameOn, []);
+$('fl-all').onclick = () => setAll(labelOn, model.links.map(l => l.name));
+$('fl-none').onclick = () => setAll(labelOn, []);
+$('fr-geo').onclick = () => { const n = model.links.filter(l => !l.visual.length).map(l => l.name); setAll(frameOn, n); setAll(labelOn, n); };
+$('fr-filter').oninput = e => { frameFilter = e.target.value; buildFrames(); };
 
 function kindOf(l) { if (!l.collision.length) return 'none'; const k = new Set(l.collision.map(c => c.type)); return k.size === 1 ? [...k][0] : 'mixed'; }
 function tagClass(k) { return k === 'mesh' ? 't-mesh' : k === 'box' ? 't-box' : k === 'none' ? 't-none' : 't-other'; }
@@ -332,7 +387,17 @@ function detail() {
   $('detail').innerHTML = `<h2>${l.name}</h2><table><tr><th>parent joint</th><td class="mono">${j ? `${j.name} (${j.type}) from ${j.parent.replace(model.prefix, '')}<br>xyz ${j.xyz.join(' ')}<br>rpy ${j.rpy.join(' ')}${j.axis ? '<br>axis ' + j.axis.join(' ') : ''}` : 'root'}</td></tr>` +
     `<tr><th>visual</th><td class="mono">${shapes(l.visual)}</td></tr><tr><th>collision</th><td class="mono">${shapes(l.collision)}</td></tr>` +
     `<tr><th>mass</th><td class="mono">${l.mass ?? '–'} kg${l.com ? '<br>com ' + l.com.join(' ') : ''}</td></tr>` +
-    `<tr><th>collision off with</th><td>${pairs.length ? pairs.join(', ') : '–'}</td></tr></table>`;
+    `<tr><th>collision off with</th><td>${pairs.length ? pairs.join(', ') : '–'}</td></tr></table>` +
+    `<div class="row"><label style="flex:0 0 96px">this link's opacity</label><input id="op-one" type="range" min="0.05" max="1" step="0.01" value="${linkOp[l.name] ?? opacity}"></div>` +
+    `<div class="row"><label style="flex:0 0 40px">pose in</label><select id="ref">${model.links.map(x => `<option value="${x.name}" ${x.name === (refFrame ?? model.prefix + 'gripper_base') ? 'selected' : ''}>${x.name}</option>`).join('')}</select></div><pre id="rel" class="mono" style="color:var(--fg)"></pre>`;
+  $('op-one').oninput = e => { linkOp[l.name] = parseFloat(e.target.value); applyOpacity(); };
+  $('ref').onchange = e => { refFrame = e.target.value; updateRel(); };
+  updateRel();
+}
+function updateRel() {
+  const el = $('rel'); if (!el || !selected || !S) return;
+  const r = relPose(refFrame ?? model.prefix + 'gripper_base', selected); if (!r) return;
+  el.textContent = `xyz  ${r.p.toArray().map(v => (v * 1000).toFixed(2)).join('  ')} mm\n     ${r.p.toArray().map(v => v.toFixed(5)).join('  ')} m\nrpy  ${r.rpy.map(v => v.toFixed(5)).join('  ')} rad\n     ${r.rpy.map(v => deg(v).toFixed(2)).join('  ')} deg   (URDF order: fixed-axis roll, pitch, yaw)`;
 }
 function buildLimits() {
   $('limits').innerHTML = '<tr><th>joint</th><th>lower</th><th>upper</th><th>vel</th><th>effort</th></tr>' + motionJoints().concat(model.joints.filter(j => j.mimic)).map(j => {
@@ -355,7 +420,7 @@ async function load() {
     for (const a of m.arm_joints) if (!(a in q)) q[a] = 0;
     const g = m.prefix + 'gripper'; if (!(g in q)) q[g] = 0.07;
     buildPanel(); buildLinks(); buildLimits(); detail();
-    await buildRobot();
+    await buildRobot(); buildFrames();
     setViewPreset('iso');
   } catch (e) { $('err').textContent = String(e); }
 }
