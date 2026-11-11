@@ -129,6 +129,8 @@ python src/piper_description/tools/piper_arm_macro.py check                     
 
 ## Demo and visual checks
 
+**Home page of all Studio pages** (running status, how to start each, tools, documents): `https://atlas.buri-fence.ts.net:8700/piper-studio/` (always-on, static; rebuild after registering a page or tool: `python tools/home/build_home.py`).
+
 **cuRobo model** (collision spheres for planners; tuned and regenerated here, optional environment, `docs/CUROBO.md`): `piper_assets.curobo_config(camera)`; viewer `scripts/curobo_viewer.sh start` then <http://localhost:8782/> (tailnet: `https://atlas.buri-fence.ts.net:8700/piper-studio/curobo/`).
 
 **Model viewer** (browser, Three.js; `tools/viewer/`): `scripts/viewer.sh start` then <http://localhost:8781/> (tailnet: `https://atlas.buri-fence.ts.net:8700/piper-studio/viewer/`); `scripts/viewer.sh stop` stops it.

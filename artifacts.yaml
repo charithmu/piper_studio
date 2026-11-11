@@ -3,6 +3,26 @@ kind: ros
 owner: ros/piper_studio
 docs: [README.md, AGENTS.md, docs/CLEANUP.md]
 artifacts:
+  - id: piper-studio-home
+    pin: 6
+    type: web
+    title: Piper Studio home
+    desc: "The base page of Piper Studio: every Studio page under one roof with a live running/not-running status and the command to start it, the pages of projects built on Studio, the tools to run from a terminal, and the key documents. Generated from this file by tools/home/build_home.py."
+    group: Experiments
+    runtime: static
+    workdir: ~/data/ml/isaac/piper_studio/home
+    start: /usr/bin/python3 -m http.server --bind 127.0.0.1 8783
+    port: 8783
+    exposure: tailnet
+    route: /piper-studio
+    autostart: true
+    unit: web-piper-studio-home.service
+    unit_scope: user
+    manage: "web-pages restart piper-studio-home"
+    probe: {path: /}
+    notes: "Static, no GPU, no recordings. Rebuild after registering a page or tool: python tools/home/build_home.py (ROS env)."
+    links:
+      - {label: Open Studio home, local: "http://localhost:8783/", tailnet: "https://{ts}:8700/piper-studio/"}
   - id: piper-demo
     pin: 7
     type: web

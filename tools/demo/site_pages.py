@@ -44,7 +44,7 @@ PAGES = [("index.html", "Demo"), ("status.html", "Status"), ("control.html", "Co
 
 
 def nav(here: str) -> str:
-    return "<nav>" + "".join(f'<a href="{f}"{" class=here" if f == here else ""}>{t}</a>' for f, t in PAGES) + "</nav>"
+    return '<nav><a href="/piper-studio/">&larr; Piper Studio</a>' + "".join(f'<a href="{f}"{" class=here" if f == here else ""}>{t}</a>' for f, t in PAGES) + "</nav>"
 
 
 def page(here: str, title: str, body: str, meta: str) -> str:
