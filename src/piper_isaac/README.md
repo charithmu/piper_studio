@@ -18,7 +18,7 @@ in Isaac Sim's own Python environment through `gpu-run` (one process per instanc
 Between chunks the guard is applied to the first setpoint against the measured state; a rejection holds the pose. Simulation time advances only while a command runs.
 
 Needs at run time: Isaac Sim 6.x (an environment script, `$ISAAC_ENV_SH`, default `~/projects/sim/robosim/env.sh`), `gpu-run`, a GPU with about 4 GB free. The runner and the
-no-camera USD are inside the wheel (built by `tools/release/build_isaac.py` from `scripts/isaac.sh build-usd`).
+USDs (with the ZED X Mini camera, the default, and the robot only: `camera=False`) are inside the wheel (built by `tools/release/build_isaac.py` from `scripts/isaac.sh build-usd`).
 
 **Provisional:** the servo gains are the same stand-ins as MuJoCo's (not the identified firmware loop), so tracking error and lag say nothing about the real arm. Self-contacts are
 not reported (self-collision is off in the USD). `margin_percent` is accepted and ignored. The table is a PLACEHOLDER (unmeasured). The real arm has never run `RealArm.execute`.

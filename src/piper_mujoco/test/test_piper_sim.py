@@ -45,8 +45,10 @@ def test_out_and_back_ends_at_zero_without_contacts(sim):
     r = sim.execute(out)
     assert r.ok and r.reason == "done" and r.contacts == []
     assert len(r.t) == len(r.q_cmd) == len(r.q_meas) and np.max(np.abs(sim.state().q - out.q[-1])) < 1e-3
-    back = plan(start=sim.state().q, amp=tuple(Z - sim.state().q))               # planned from state().q, like a planner in a loop
-    back.q[0] = sim.state().q
+    lo, hi = pa.limits().as_arrays("planning")
+    q_now = np.clip(sim.state().q, lo, hi)                                         # a planner clamps its start into the planning limits (the arm settles a hair inside the margin band)
+    back = plan(start=q_now, amp=tuple(Z - q_now))                                 # planned from state().q, like a planner in a loop
+    back.q[0] = q_now
     r = sim.execute(back)
     assert r.ok and np.max(np.abs(sim.state().q - Z)) < 1e-3                       # within 1 mrad of zero
 
@@ -144,3 +146,57 @@ def test_wheel_urdf_and_mjcf_agree_on_the_zero_pose_tcp():
     import mujoco
     mujoco.mj_forward(sim.model, sim.data)
     assert sim.data.body("link6").xpos == pytest.approx(p, abs=1e-6)
+
+
+# ---- the ZED X Mini wrist camera (the default) and the robot-only variant -----------------------------------------------------------------
+def _link6_pose(sim):          # the converter fuses the fixed flange, gripper base, bracket and camera into link6
+    b = sim.model.body("link6").id
+    T = np.eye(4)
+    T[:3, :3] = sim.data.xmat[b].reshape(3, 3)
+    T[:3, 3] = sim.data.xpos[b]
+    return T
+
+
+def test_camera_is_on_by_default_and_sits_where_the_description_puts_it():
+    """The optical frame in the simulator equals link6 x the description's optical pose (piper_assets.camera_pose), at several arm poses."""
+    sim = PiperSim(scene="empty")
+    assert sim.camera_enabled and sim.model.ncam == 1
+    rng = np.random.default_rng(0)
+    lo, hi = pa.limits().as_arrays("planning")
+    for _ in range(4):
+        q = rng.uniform(lo, hi)
+        for a, v in zip(sim._qadr, q):
+            sim.data.qpos[a] = v
+        import mujoco
+        mujoco.mj_forward(sim.model, sim.data)
+        want = _link6_pose(sim) @ pa.camera_pose("link6")
+        got = sim.camera_pose()
+        assert np.abs(got[:3, 3] - want[:3, 3]).max() < 1e-4, "optical frame position differs from the description"
+        assert np.abs(got[:3, :3] - want[:3, :3]).max() < 1e-4, "optical frame orientation differs from the description"
+
+
+def test_camera_image_has_the_model_size_and_valid_depth():
+    pytest.importorskip("mujoco")
+    sim = PiperSim(scene="table")
+    try:
+        rgb, depth = sim.camera_image(depth=True)
+    except Exception as e:      # no OpenGL backend on this machine
+        pytest.skip(f"no offscreen OpenGL: {e}")
+    c = sim.camera_info()
+    assert rgb.shape == (c["height"], c["width"], 3) and depth.shape == (c["height"], c["width"])
+    assert np.isfinite(depth).mean() > 0.2 and np.nanmin(depth) >= c["depth_min"] and np.nanmax(depth) <= c["depth_max"]
+    assert abs(c["K"][0][0] - (c["width"] / 2) / np.tan(np.radians(c["hfov_deg"]) / 2)) < 1e-6
+    # MuJoCo's vertical field of view is the pinhole one of the horizontal field of view
+    vfov = np.degrees(2 * np.arctan(np.tan(np.radians(c["hfov_deg"]) / 2) * c["height"] / c["width"]))
+    assert abs(sim.model.cam_fovy[0] - vfov) < 0.01
+    sim.close()
+
+
+def test_robot_only_variant_has_no_camera_and_no_bracket():
+    sim = PiperSim(scene="empty", camera=False)
+    assert not sim.camera_enabled and sim.model.ncam == 0
+    with pytest.raises(RuntimeError):
+        sim.camera_image()
+    with_cam = PiperSim(scene="empty")
+    assert with_cam.model.ngeom > sim.model.ngeom                      # bracket and camera collision shapes are in the default model
+    assert with_cam.start().ok and sim.start().ok

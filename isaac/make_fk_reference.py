@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """Write reference forward kinematics (from the URDF) for isaac/check_model.py: random configs, TCP pose, total mass.
 
-    python isaac/make_fk_reference.py OUT.json [N] [--camera]
+    python isaac/make_fk_reference.py OUT.json [N] [--no-camera]
 
---camera  the description with the D435 on its stand; the reference then also holds, per configuration, the pose of every link frame of the wrist
-          (tcp, stand, camera, optical frame) and the world bounding box of the stand's and the camera's collision mesh, so check_model.py can
-          verify that the camera and stand are where the description puts them.
+The description with the ZED X Mini on its bracket (the default); the reference then also holds, per configuration, the pose of every link frame of the wrist
+(tcp, bracket, camera, optical frame) and the world bounding box of the bracket's and the camera's collision mesh, so check_model.py can verify that the camera
+and bracket are where the description puts them. --no-camera: the robot only.
 """
 import json
 import sys
@@ -18,7 +18,7 @@ import model_audit  # noqa: E402
 from piper_sim import physics_model, robot_description  # noqa: E402
 
 args = [a for a in sys.argv[1:] if not a.startswith("--")]
-camera = "--camera" in sys.argv
+camera = "--no-camera" not in sys.argv
 FRAMES = ["gripper_base", "tcp_link", "camera_mount_link", "camera_link", "camera_color_optical_frame"]
 
 
@@ -48,7 +48,7 @@ def box(urdf_file, link, q):
 
 
 out, n = Path(args[0]), int(args[1]) if len(args) > 1 else 25
-urdf = physics_model(robot_description("isaac", prefix="", **({"camera": "d435"} if camera else {})))  # official names; the USD (prefixed) is compared by DOF order
+urdf = physics_model(robot_description("isaac", prefix="", **({} if camera else {"camera": "none"})))  # official names; the USD (prefixed) is compared by DOF order
 tmp = out.with_suffix(".urdf")
 tmp.write_text(urdf)
 m = model_audit.load_urdf("ref", tmp)

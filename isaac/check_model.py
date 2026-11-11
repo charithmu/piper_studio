@@ -1,5 +1,5 @@
 """Check Isaac's USD against the URDF: fingertip pose over random configurations and total mass; for the wrist-camera USD also the pose of
-every wrist frame (tcp, stand, camera, optical frame) and the world bounding box of the stand's and the camera's collision mesh.
+every wrist frame (tcp, bracket, camera, optical frame) and the world bounding box of the bracket's and the camera's collision mesh.
 
     scripts/isaac.sh check            (writes the references from the ROS side, then runs this in Isaac's env, for both USDs)
 Compares in the base_link frame. No ROS needed here.

@@ -5,7 +5,8 @@ The Piper arm as data, for projects that do not run ROS (planners such as cuRobo
 
 ```python
 import piper_assets as pa
-pa.urdf_path(gripper_width=0.07, camera=None)   # flat URDF, no prefix (joint1..joint6, base_link, tcp_link), meshes by relative path
+pa.urdf_path(gripper_width=0.07)                # flat URDF, no prefix (joint1..joint6, base_link, tcp_link), meshes by relative path, WITH the ZED X Mini wrist camera on its bracket (camera=None: the robot only)
+pa.camera()                                      # the simulated wrist camera: K, size, field of view, depth range, optical frame and its pose in gripper_base / tcp_link / link6
 pa.srdf_path()                                   # self-collision pairs (Adjacent / Never) for the same links
 lim = pa.limits()                                # lim.hard["joint2"] -> (lo, hi); lim.planning = hard shrunk by the 0.01 rad margin; lim.sources
 pa.zero_pose()                                   # the one start/end pose: [0, 0.01, -0.01, 0, 0, 0]

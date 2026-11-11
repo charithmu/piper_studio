@@ -24,28 +24,9 @@ VIRTUAL_LINK_INERTIA = 1e-6  # kg m^2
 
 
 def robot_description(hardware: str = "mock", **mappings) -> str:
-    """The description for a backend; for simulators, with virtual moving links made simulatable and a realistic camera inertia."""
+    """The description for a backend (with the ZED X Mini wrist camera unless camera="none"); for simulators, with virtual moving links made simulatable."""
     urdf = _description(hardware, **mappings)
-    return fix_camera_inertia(add_virtual_inertials(urdf), str(mappings.get("prefix", DEFAULT_PREFIX))) if hardware in SIMULATORS else urdf
-
-
-# realsense2_description's D435 model declares ixx = 3.9e-3 kg m^2 for a 72 g body (about 70x too large), which would
-# distort the wrist dynamics in physics simulators. Box 90 x 25 x 25 mm (x forward, y across, z up) instead.
-_D435_MASS = 0.072
-_D435_INERTIA = {"ixx": _D435_MASS / 12 * (0.09**2 + 0.025**2), "iyy": _D435_MASS / 12 * (0.025**2 + 0.025**2),
-                 "izz": _D435_MASS / 12 * (0.09**2 + 0.025**2)}
-
-
-def fix_camera_inertia(urdf: str, prefix: str = DEFAULT_PREFIX) -> str:
-    root = ET.fromstring(urdf)
-    link = next((l for l in root.findall("link") if l.get("name") == prefix + "camera_link"), None)
-    inertia = None if link is None else link.find("inertial/inertia")
-    if inertia is not None:
-        for k, v in _D435_INERTIA.items():
-            inertia.set(k, f"{v:.6e}")
-        for k in ("ixy", "ixz", "iyz"):
-            inertia.set(k, "0")
-    return ET.tostring(root, encoding="unicode")
+    return add_virtual_inertials(urdf) if hardware in SIMULATORS else urdf
 
 
 # Physics-model limit margins. Gazebo/DART velocity control cannot move a joint off a limit it is

@@ -46,9 +46,9 @@ def test_physics_model_widens_limits_and_drops_mimic():
 
 
 def test_gazebo_sdf_collisions_match_the_description(tmp_path):
-    """The SDF Gazebo builds from the description (gz sdf -p) holds every collision mesh at the pose the URDF gives it, camera and stand included.
+    """The SDF Gazebo builds from the description (gz sdf -p) holds every collision mesh at the pose the URDF gives it, camera and bracket included.
 
-    sdformat lumps the fixed links (flange, gripper base, stand, camera) into link6, so each lumped collision's pose is compared with the one
+    sdformat lumps the fixed links (flange, gripper base, bracket, camera) into link6, so each lumped collision's pose is compared with the one
     the URDF predicts relative to its SDF link. Skipped without the gz command.
     """
     import re
@@ -66,7 +66,7 @@ def test_gazebo_sdf_collisions_match_the_description(tmp_path):
     import model_audit
 
     urdf_file = tmp_path / "gz.urdf"
-    urdf_file.write_text(robot_description("gazebo", camera="d435", controllers_file="/tmp/controllers.yaml"))
+    urdf_file.write_text(robot_description("gazebo", controllers_file="/tmp/controllers.yaml"))
     sdf = ET.fromstring(subprocess.run(["gz", "sdf", "-p", str(urdf_file)], capture_output=True, text=True, check=True).stdout).find("model")
     ref = model_audit.load_urdf("gz", urdf_file)
     urdf = ET.parse(urdf_file).getroot()

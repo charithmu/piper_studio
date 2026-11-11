@@ -13,7 +13,7 @@ except FileNotFoundError:
     pytest.skip("data not built", allow_module_level=True)
 
 
-@pytest.mark.parametrize("camera", [None, "d435"])
+@pytest.mark.parametrize("camera", [None, "zedxm"])
 @pytest.mark.parametrize("width", [0.0, 0.07, None])
 def test_urdf_is_flat_unprefixed_and_its_meshes_exist(camera, width):
     path = pa.urdf_path(width, camera)
@@ -24,7 +24,7 @@ def test_urdf_is_flat_unprefixed_and_its_meshes_exist(camera, width):
     assert moving == set(pa.JOINT_NAMES) | ({"gripper", "gripper_joint1", "gripper_joint2"} if width is None else set())
     files = re.findall(r'filename="([^"]+)"', path.read_text())
     assert files and all(not f.startswith(("/", "file:", "package:")) and (path.parent / f).is_file() for f in files)
-    assert ("camera_link" in {l.get("name") for l in root.findall("link")}) == (camera == "d435")
+    assert ("camera_link" in {l.get("name") for l in root.findall("link")}) == (camera == "zedxm")
 
 
 def test_other_gripper_width_is_made_in_the_cache(tmp_path, monkeypatch):

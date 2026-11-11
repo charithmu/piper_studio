@@ -31,7 +31,9 @@ class PiperSim:
     joint_names = list(ARM_JOINTS)
 
     def __init__(self, scene: str = "empty", gripper_width: float = 0.07, physics_dt: float = 0.001, ctrl_hz: float = 500.0,
-                 realtime: bool = False, render: bool = False):
+                 realtime: bool = False, render: bool = False, camera: bool = True):
+        """`camera=True` (the default): the arm carries the ZED X Mini on its bracket (a body with collision, `camera_image()` renders from its left lens);
+        `camera=False`: the robot only."""
         if scene not in ("empty", "table"):
             raise ValueError("scene must be 'empty' or 'table'")
         self.limits_info = piper_assets.limits()
@@ -42,7 +44,8 @@ class PiperSim:
             raise ValueError("1 / (ctrl_hz * physics_dt) must be a whole number of physics steps")
         self.scene, self.ctrl_dt, self.realtime, self.render_enabled = scene, 1.0 / ctrl_hz, realtime, render
         self.gripper_width = gripper_width
-        self.model = mujoco.MjModel.from_xml_path(str(data_dir() / "model" / f"scene_{scene}.xml"))
+        self.camera_enabled = bool(camera)
+        self.model = mujoco.MjModel.from_xml_path(str(data_dir() / ("model" if camera else "model_no_camera") / f"scene_{scene}.xml"))
         self.model.opt.timestep = physics_dt
         self.data = mujoco.MjData(self.model)
         self.limits = dict(self.limits_info.hard)
@@ -60,6 +63,7 @@ class PiperSim:
                 k = self.model.body_parentid[k]
             self._arm_body[b] = k == link1
         self._renderer = None
+        self._cam_renderer = None
         self._wall0 = None
         self.reset()
 
@@ -101,10 +105,54 @@ class PiperSim:
         self._renderer.update_scene(self.data, camera=camera)
         return self._renderer.render()
 
+    # ------------------------------------------------------------------ wrist camera (the ZED X Mini's left lens)
+    def camera_info(self) -> dict:
+        """piper_assets.camera(): intrinsics K, width, height, hfov_deg, depth range, optical frame name and its pose in gripper_base / the TCP."""
+        self._need_camera()
+        return piper_assets.camera()
+
+    def camera_pose(self) -> np.ndarray:
+        """4x4 pose of the camera's optical frame (z forward, x right, y down) in the base frame, at the current state."""
+        self._need_camera()
+        i = self.model.camera("camera").id
+        T = np.eye(4)
+        T[:3, :3] = self.data.cam_xmat[i].reshape(3, 3) @ np.diag([1.0, -1.0, -1.0])      # MuJoCo cameras look along -z with +y up
+        T[:3, 3] = self.data.cam_xpos[i]
+        return T
+
+    def camera_image(self, depth: bool = False, width: int | None = None, height: int | None = None):
+        """What the wrist camera sees: RGB (height, width, 3) uint8, or (rgb, depth) with depth in metres along the optical axis (NaN outside the lens's
+        depth range). Default size is the camera model's (960 x 600); K of `camera_info()` is for that size. Needs an OpenGL backend (MUJOCO_GL=egl)."""
+        self._need_camera()
+        c = piper_assets.camera()
+        w, h = width or c["width"], height or c["height"]
+        if self._cam_renderer is None or (self._cam_renderer.width, self._cam_renderer.height) != (w, h):
+            if self._cam_renderer is not None:
+                self._cam_renderer.close()
+            self._cam_renderer = mujoco.Renderer(self.model, h, w)
+        r = self._cam_renderer
+        r.update_scene(self.data, camera="camera")
+        rgb = r.render().copy()
+        if not depth:
+            return rgb
+        r.enable_depth_rendering()
+        r.update_scene(self.data, camera="camera")
+        z = r.render().copy()
+        r.disable_depth_rendering()
+        z[(z < c["depth_min"]) | (z > c["depth_max"])] = np.nan
+        return rgb, z
+
+    def _need_camera(self) -> None:
+        if not self.camera_enabled:
+            raise RuntimeError("this PiperSim was created with camera=False (the robot only)")
+
     def close(self) -> None:
         if self._renderer is not None:
             self._renderer.close()
             self._renderer = None
+        if self._cam_renderer is not None:
+            self._cam_renderer.close()
+            self._cam_renderer = None
 
     # ------------------------------------------------------------------ lifecycle (ArmBackend)
     def start(self) -> Outcome:

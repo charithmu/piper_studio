@@ -27,12 +27,11 @@
   <xacro:include filename="$(find piper_description)/urdf/piper.tool.xacro" />
   <xacro:piper_tool_frames prefix="${prefix}" gripper="true" tcp_xyz="0 0 0.138" tcp_rpy="0 0 0" />
 
-  <!-- wrist camera: one model on one mount -->
-  <xacro:include filename="$(find piper_description)/urdf/cameras/d435.xacro" />
-  <xacro:include filename="$(find piper_description)/urdf/mounts/agilex_mid_stand.xacro" />
+  <!-- wrist camera: the ZED X Mini on the own bracket (the contract's default camera): one model, one mount, newest bracket version -->
+  <xacro:include filename="$(find piper_description)/urdf/cameras/zedxm.xacro" />
+  <xacro:include filename="$(find piper_description)/urdf/mounts/zedxm_bracket.xacro" />
   <xacro:include filename="$(find piper_description)/urdf/piper_camera.xacro" />
-  <xacro:piper_camera prefix="${prefix}" parent="${prefix}gripper_base" hardware="mock" mount_mesh="" mount_xyz="0 0 0" mount_rpy="0 0 0"
-                      width="640" height="480" hfov_deg="69.4" update_rate="30" />
+  <xacro:piper_camera prefix="${prefix}" parent="${prefix}gripper_base" hardware="mock" width="960" height="600" hfov_deg="110.0" update_rate="30" />
 
   <!-- the carrier's own hardware: mock here; your simulator's plugin in a real project -->
   <xacro:include filename="$(find piper_description)/urdf/piper.ros2_control.xacro" />

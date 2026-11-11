@@ -30,7 +30,7 @@ def expand(**args):
 
 def expand_official(**args):
     """The description with prefix:="" , whose names are the official ones."""
-    return expand(prefix="", **args)
+    return expand(prefix="", **{"camera": "none", **args})          # the official model has no camera
 
 
 def write(tmp_path, xml, name="piper.urdf"):
@@ -50,7 +50,7 @@ def test_expands(hardware):
 
 def test_every_name_has_the_prefix():
     """Links, joints and frames all carry the prefix (only `world`, the caller's frame, does not)."""
-    root = ET.fromstring(expand(camera="d435"))
+    root = ET.fromstring(expand())                    # with the wrist camera, the default
     bad = [e.get("name") for e in root.findall("link") + root.findall("joint")
            if not e.get("name").startswith(P) and e.get("name") != "world"]
     assert bad == []
@@ -165,25 +165,68 @@ def _fixed_chain(root, child, parent):
     return pose
 
 
-@pytest.mark.parametrize("stand", ["packaged", "none"])
-def test_wrist_camera_mount(stand):
-    """camera_link in gripper_base equals AgileX's own mount numbers (agx_arm_sim piper_girpper_D435.urdf, DECISIONS D11).
-    The stand is clamped to the gripper body, so it follows gripper_base, 4.5 mm out from link6 (user-confirmed, CLEANUP C5).
+def test_camera_is_the_default_and_none_is_the_robot_only():
+    """The ZED X Mini on its bracket is in every description unless camera:=none (the robot only: no bracket, no camera frames)."""
+    with_cam, bare = ET.fromstring(expand()), ET.fromstring(expand(camera="none"))
+    names = lambda r: {l.get("name") for l in r.findall("link")}  # noqa: E731
+    cam_links = {P + n for n in ("camera_mount_link", "zed_camera_link", "camera_link", "camera_color_optical_frame", "camera_depth_optical_frame",
+                                 "zed_left_camera_frame_optical", "zed_right_camera_frame_optical")}
+    assert cam_links <= names(with_cam) and not cam_links & names(bare)
+    assert names(with_cam) - names(bare) >= cam_links
+    assert names(bare) <= names(with_cam)                                   # nothing else differs
 
-    Regression guard: the pose once came from a description whose link6 frame was rotated 90 deg, which put the camera in line
-    with one finger. The camera must sit behind the gripper, on -x of link6, looking along the gripper (+x of link6 tilted to +z).
-    """
-    extra = {"camera_mount_mesh": "none"} if stand == "none" else {}
-    root = ET.fromstring(expand(camera="d435", **extra))
-    pose = _fixed_chain(root, P + "camera_link", P + "gripper_base")
-    assert pose[:3, 3] == pytest.approx([-0.0731, -0.0115, 0.0381], abs=5e-4)
-    in_link6 = _fixed_chain(root, P + "camera_link", P + "link6")
-    assert in_link6[2, 3] == pytest.approx(0.0381 + 0.0045, abs=5e-4)           # the 4.5 mm gripper_base offset
-    assert pose[:3, 0] == pytest.approx([0.344, 0.0, 0.939], abs=2e-3)          # viewing direction
-    assert abs(pose[1, 3]) < 0.02, "camera must sit near the plane between the fingers (they open along +-y of link6)"
-    mesh = [m.get("filename") for m in root.iter("mesh")]
-    assert any("d435_colored.dae" in f for f in mesh)
-    assert any("realsense_mid_stand.dae" in f for f in mesh) == (stand == "packaged")
+
+def test_wrist_camera_mount():
+    """The camera on the bracket (version 3, the user's Fusion measures): bracket origin = gripper_base, camera mounting hole 16.314 mm along the gripper axis and
+    91.71 mm out on the -x side, looking along the gripper (towards the fingers) and tilted 20 deg towards the gripper axis, between the finger planes."""
+    import numpy as np
+
+    root = ET.fromstring(expand())
+    assert np.allclose(_fixed_chain(root, P + "camera_mount_link", P + "gripper_base")[:3, 3], 0)
+    hole = _fixed_chain(root, P + "zed_camera_link", P + "gripper_base")
+    assert hole[:3, 3] == pytest.approx([-0.09171, 0.0, 0.016314], abs=1e-6)
+    optical = _fixed_chain(root, P + "camera_color_optical_frame", P + "gripper_base")
+    z = optical[:3, 2]                                                      # viewing direction
+    assert z == pytest.approx([math.sin(math.radians(20)), 0.0, math.cos(math.radians(20))], abs=1e-6)
+    assert optical[1, 3] == pytest.approx(0.025, abs=1e-6)                  # the LEFT lens, 25 mm of the 50 mm baseline from the camera centre plane
+    right = _fixed_chain(root, P + "zed_right_camera_frame", P + "gripper_base")
+    left = _fixed_chain(root, P + "zed_left_camera_frame", P + "gripper_base")
+    assert np.linalg.norm(left[:3, 3] - right[:3, 3]) == pytest.approx(0.05, abs=1e-6)
+    mesh = {m.get("filename") for m in root.iter("mesh")}
+    assert any(f.endswith("zedxm.stl") for f in mesh) and any(f.endswith("zedxm_bracket_v3.stl") for f in mesh)
+
+
+def test_frames_equal_stereolabs_zed_description():
+    """Optical and camera frames follow Stereolabs' zed_macro for the zedxm: centre 16 mm above the screw point, lenses 5 mm behind the centre, +-25 mm, optical rotation."""
+    import numpy as np
+
+    root = ET.fromstring(expand())
+    centre = _fixed_chain(root, P + "camera_link", P + "zed_camera_link")
+    assert centre[:3, 3] == pytest.approx([0, 0, 0.016])
+    left = _fixed_chain(root, P + "zed_left_camera_frame", P + "camera_link")
+    assert left[:3, 3] == pytest.approx([-0.005, 0.025, 0])
+    opt = _fixed_chain(root, P + "zed_left_camera_frame_optical", P + "zed_left_camera_frame")
+    rot = opt[:3, :3]
+    assert rot[:, 2] == pytest.approx([1, 0, 0]) and rot[:, 0] == pytest.approx([0, -1, 0]) and rot[:, 1] == pytest.approx([0, 0, -1])   # z forward, x right, y down
+    for alias in ("camera_color_optical_frame", "camera_depth_optical_frame"):
+        assert np.allclose(_fixed_chain(root, P + alias, P + "zed_left_camera_frame_optical"), np.eye(4))
+
+
+def test_camera_model_numbers_reach_the_simulated_sensor():
+    """config/camera_models/zedxm.yaml is the one source: the Gazebo sensor takes its size, field of view and depth range; the args override them."""
+    from piper_description import camera_model
+
+    def sensor(**args):
+        r = ET.fromstring(expand(hardware="gazebo", controllers_file="/tmp/c.yaml", **args))
+        cam = r.find("gazebo/sensor/camera")
+        return (float(cam.find("horizontal_fov").text), int(cam.find("image/width").text), int(cam.find("image/height").text),
+                float(cam.find("clip/near").text), float(cam.find("clip/far").text))
+    m = camera_model()
+    assert sensor() == pytest.approx((math.radians(m["hfov_deg"]), m["width"], m["height"], m["depth_min"], m["depth_max"]))
+    n = camera_model("narrow", 1920, 1200)
+    assert sensor(camera_lens="narrow", camera_width=1920, camera_height=1200) == pytest.approx((math.radians(80), 1920, 1200, 0.15, 12.0))
+    assert n["K"][0][0] == pytest.approx(960 / math.tan(math.radians(40)))
+    assert m["K"][0][2] == m["width"] / 2 and m["K"][1][2] == m["height"] / 2
 
 
 def test_integration_doc_snippet_expands(tmp_path):
@@ -198,7 +241,7 @@ def test_integration_doc_snippet_expands(tmp_path):
     path.write_text(snippet)
     root = ET.fromstring(xacro.process_file(str(path)).toxml())
     assert root.find("joint[@name='piper_mount_joint']/parent").get("link") == "trunk"
-    assert root.find("link[@name='piper_camera_color_optical_frame']") is not None
+    assert root.find("link[@name='piper_camera_color_optical_frame']") is not None          # the snippet carries the wrist camera
 
 
 @pytest.mark.skipif(not READOUT.exists(), reason="no saved arm read-out")
@@ -236,33 +279,32 @@ def test_fixed_gripper_puts_the_fingers_where_the_joints_would(width):
         fixed_gripper(urdf, 0.08, "")
 
 
-def test_camera_calibration_replaces_the_nominal_pose(tmp_path):
-    """camera_calibration:=<yaml> moves the stand and the camera (a measured pose), nothing else; the default stays the nominal pose."""
+def test_bracket_versions_and_measured_calibration(tmp_path):
+    """The default is the newest bracket version; camera_calibration:=<name> selects another version (its own mesh and poses); a yaml path is a measured pose."""
     import yaml
 
-    nominal = ET.fromstring(expand(camera="d435"))
-    cal = tmp_path / "measured.yaml"
-    cal.write_text(yaml.safe_dump({"stand_in_gripper_base": {"xyz": [-0.03, 0.002, 0.025], "rpy": [0, 0, 0]},
-                                   "camera_in_stand": {"xyz": [-0.03, -0.03, 0.002], "rpy": [0, -1.2, 0]},
-                                   "measured": {"date": "test"}}))
-    measured = ET.fromstring(expand(camera="d435", camera_calibration=str(cal)))
     origin = lambda r, n: r.find(f"joint[@name='{P}{n}']/origin").attrib  # noqa: E731
-    assert origin(nominal, "camera_mount_joint")["xyz"] == "-0.034 -0.001 0.022"
-    assert origin(measured, "camera_mount_joint")["xyz"] == "-0.03 0.002 0.025"
-    assert origin(measured, "camera_joint")["rpy"] == "0 -1.2 0"
-    assert origin(measured, "camera_link_joint") == origin(nominal, "camera_link_joint")       # the D435 body itself is unchanged
-    named = ET.fromstring(expand(camera="d435", camera_calibration="agilex_mid_stand"))        # a name in config/camera_mounts
-    assert origin(named, "camera_mount_joint") == origin(nominal, "camera_mount_joint")
+    mesh = lambda r: r.find(f"link[@name='{P}camera_mount_link']/visual/geometry/mesh").get("filename").split("/")[-1]  # noqa: E731
+    newest = ET.fromstring(expand())
+    assert mesh(newest) == "zedxm_bracket_v3.stl" and origin(newest, "camera_mount_joint")["xyz"] == "0.0 0.0 0.0"
+    v1, v2 = (ET.fromstring(expand(camera_calibration=f"zedxm_bracket_v{n}")) for n in (1, 2))
+    assert mesh(v1) == "zedxm_bracket_v1.stl" and origin(v1, "camera_mount_joint")["xyz"] == "0.0 0.0 0.032"
+    assert mesh(v2) == "zedxm_bracket_v2.stl" and origin(v2, "zed_camera_joint")["xyz"] == "0.0 0.016036 0.091759"
+    cal = tmp_path / "measured.yaml"
+    cal.write_text(yaml.safe_dump({"mesh": "zedxm_bracket_v3.stl",
+                                   "stand_in_gripper_base": {"xyz": [0.001, 0.002, 0.003], "rpy": [1.5707963, 0.0, -1.5707963]},
+                                   "camera_in_stand": {"xyz": [0.0, 0.0165, 0.0915], "rpy": [0, 0.35, 1.570796]}, "measured": {"date": "test"}}))
+    measured = ET.fromstring(expand(camera_calibration=str(cal)))
+    assert origin(measured, "camera_mount_joint")["xyz"] == "0.001 0.002 0.003"
+    assert origin(measured, "zed_camera_joint")["rpy"] == "0 0.35 1.570796"
 
 
-def test_camera_and_stand_collision_are_the_real_shapes_not_boxes():
-    """The packaged stand and the D435 collide as their own (simplified) meshes, in the frame of their visual; a custom stand falls back to a box."""
-    root = ET.fromstring(expand(camera="d435"))
-    for link, stl in (("camera_mount_link", "realsense_mid_stand_collision.stl"), ("camera_link", "d435_collision.stl")):
+def test_camera_and_bracket_collide_as_their_real_meshes():
+    """The bracket and the ZED X Mini collide as their own meshes (the bracket simplified), in the frame of their visual."""
+    root = ET.fromstring(expand())
+    for link, stl in (("camera_mount_link", "zedxm_bracket_v3_collision.stl"), ("camera_link", "zedxm.stl")):
         col = root.find(f"link[@name='{P}{link}']/collision")
-        assert col.find("geometry/mesh") is not None and col.find("geometry/mesh").get("filename").endswith(stl), link
+        assert col.find("geometry/mesh").get("filename").endswith(stl), link
         vis = root.find(f"link[@name='{P}{link}']/visual")
         assert col.find("origin").attrib == vis.find("origin").attrib, f"{link}: collision must use the visual's frame"
-    assert (PKG / "meshes/realsense_mid_stand_collision.stl").stat().st_size < 400_000       # low-poly, not the 15 MB visual
-    box = ET.fromstring(expand(camera="d435", camera_mount_mesh="none"))
-    assert box.find(f"link[@name='{P}camera_mount_link']/collision/geometry/box") is not None
+    assert (PKG / "meshes/zedxm_bracket_v3_collision.stl").stat().st_size < 400_000       # light, not the visual
