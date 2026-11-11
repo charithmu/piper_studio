@@ -1,0 +1,39 @@
+<?xml version="1.0"?>
+<!--
+  Camera mount: the user's clamp bracket for the ZED X Mini (meshes/zedxm_bracket.stl, built by tools/build_zedxm_bracket_mesh.py from the Fusion export).
+  Same interface as mounts/agilex_mid_stand.xacro. The mesh origin is `${prefix}camera_mount_link` (the middle of the clamp ring); its pose in gripper_base and the
+  camera's pose on it are in config/camera_mounts/zedxm_bracket.yaml (version 1: nominal, the ring offset is a guess), replaceable with camera_calibration:=<yaml>.
+  Collision: the visual mesh clustered on a 3 mm grid (not convex: simulators that need convex shapes (MuJoCo, Isaac) need a decomposition first).
+  Mass: 0.098 kg is the PLA estimate from the mesh volume (1.24 g/cm3, solid), inertia a placeholder; replace by the weighed value.
+-->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+  <xacro:property name="piper_mount_calibration" value="${xacro.load_yaml('$(find piper_description)/config/camera_mounts/zedxm_bracket.yaml')}" />
+  <xacro:property name="piper_mount_camera_xyz" value="${' '.join(map(str, piper_mount_calibration['camera_in_stand']['xyz']))}" />
+  <xacro:property name="piper_mount_camera_rpy" value="${' '.join(map(str, piper_mount_calibration['camera_in_stand']['rpy']))}" />
+  <xacro:property name="piper_mount_default_mesh" value="$(find piper_description)/meshes/zedxm_bracket.stl" />
+
+  <xacro:macro name="piper_camera_mount" params="prefix parent mesh:='' xyz:='0 0 0' rpy:='0 0 0'">
+    <xacro:property name="stand_mesh" value="${mesh if mesh else piper_mount_default_mesh}" />
+    <link name="${prefix}camera_mount_link">
+      <inertial>
+        <origin xyz="0 -0.010 0.045" rpy="0 0 0" />
+        <mass value="0.098" />
+        <inertia ixx="1e-4" ixy="0" ixz="0" iyy="1e-4" iyz="0" izz="1e-4" />
+      </inertial>
+      <visual>
+        <origin xyz="0 0 0" rpy="0 0 0" />
+        <geometry><mesh filename="file://${stand_mesh}" /></geometry>
+      </visual>
+      <collision>
+        <origin xyz="0 0 0" rpy="0 0 0" />
+        <geometry><mesh filename="file://$(find piper_description)/meshes/zedxm_bracket_collision.stl" /></geometry>
+      </collision>
+    </link>
+    <joint name="${prefix}camera_mount_joint" type="fixed">
+      <origin xyz="${' '.join(map(str, piper_mount_calibration['stand_in_gripper_base']['xyz']))}"
+              rpy="${' '.join(map(str, piper_mount_calibration['stand_in_gripper_base']['rpy']))}" />
+      <parent link="${parent}" />
+      <child link="${prefix}camera_mount_link" />
+    </joint>
+  </xacro:macro>
+</robot>

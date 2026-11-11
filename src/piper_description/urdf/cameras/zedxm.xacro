@@ -1,0 +1,79 @@
+<?xml version="1.0"?>
+<!--
+  Camera model: Stereolabs ZED X Mini (GMSL2, run on a ZED Box). VERSION 1: frames and a placeholder body (a box of the official outer size 94 x 30 x 37 mm);
+  the real mesh follows (STEP from stereolabs.com/3dmodels, ~/data/ml/cad_downloads/zedxm/). Same interface as cameras/d435.xacro.
+  Frames (names as in the contract; the stereo pair is the ZED's left / right lens, baseline 50 mm):
+    camera_link                    x forward (viewing direction), y left, z up, in the middle of the front glass, between the lenses (= the pose from the mount yaml)
+    camera_color_frame / camera_color_optical_frame      the LEFT lens (the ZED's colour and depth reference), optical: z forward, x right, y down
+    camera_depth_optical_frame     same as the left optical frame (ZED depth is registered to the left image)
+    camera_right_optical_frame     the right lens
+  The ZED Box driver (zed_ros2_wrapper) publishes its own TF: switch its TF off or parent it here (docs/INTEGRATION.md), one description only.
+  hfov_deg / width / height: pass the real ones for the lens in use (the default of piper.urdf.xacro is the D435's 69.4 deg: not the ZED's).
+-->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+  <xacro:property name="zedxm_baseline" value="0.050" />
+  <xacro:macro name="piper_camera_model" params="prefix parent hardware width height hfov_deg update_rate *origin">
+    <joint name="${prefix}camera_joint" type="fixed">
+      <xacro:insert_block name="origin" />
+      <parent link="${parent}" />
+      <child link="${prefix}camera_link" />
+    </joint>
+    <link name="${prefix}camera_link">
+      <visual>
+        <origin xyz="-0.0185 0 0" rpy="0 0 0" />
+        <geometry><box size="0.037 0.094 0.030" /></geometry>
+        <material name="${prefix}zedxm_black"><color rgba="0.08 0.08 0.09 1" /></material>
+      </visual>
+      <collision>
+        <origin xyz="-0.0185 0 0" rpy="0 0 0" />
+        <geometry><box size="0.037 0.094 0.030" /></geometry>
+      </collision>
+      <inertial>
+        <origin xyz="-0.0185 0 0" rpy="0 0 0" />
+        <mass value="0.150" />
+        <inertia ixx="1.5e-4" ixy="0" ixz="0" iyy="1.1e-4" iyz="0" izz="1.5e-4" />
+      </inertial>
+    </link>
+
+    <joint name="${prefix}camera_color_joint" type="fixed">
+      <origin xyz="0 ${zedxm_baseline / 2} 0" rpy="0 0 0" />
+      <parent link="${prefix}camera_link" /><child link="${prefix}camera_color_frame" />
+    </joint>
+    <link name="${prefix}camera_color_frame" />
+    <joint name="${prefix}camera_color_optical_joint" type="fixed">
+      <origin xyz="0 0 0" rpy="${-pi/2} 0 ${-pi/2}" />
+      <parent link="${prefix}camera_color_frame" /><child link="${prefix}camera_color_optical_frame" />
+    </joint>
+    <link name="${prefix}camera_color_optical_frame" />
+    <joint name="${prefix}camera_depth_optical_joint" type="fixed">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <parent link="${prefix}camera_color_optical_frame" /><child link="${prefix}camera_depth_optical_frame" />
+    </joint>
+    <link name="${prefix}camera_depth_optical_frame" />
+    <joint name="${prefix}camera_right_joint" type="fixed">
+      <origin xyz="0 ${-zedxm_baseline / 2} 0" rpy="${-pi/2} 0 ${-pi/2}" />
+      <parent link="${prefix}camera_link" /><child link="${prefix}camera_right_optical_frame" />
+    </joint>
+    <link name="${prefix}camera_right_optical_frame" />
+
+    <!-- Simulated sensor (Gazebo), on the left lens: the front glass is the plane of camera_link, nothing of the body is in front of it -->
+    <xacro:if value="${hardware == 'gazebo'}">
+      <gazebo reference="${prefix}camera_color_frame">
+        <sensor name="camera" type="rgbd_camera">
+          <always_on>1</always_on>
+          <update_rate>${update_rate}</update_rate>
+          <visualize>0</visualize>
+          <topic>camera</topic>
+          <pose>0.005 0 0 0 0 0</pose>
+          <gz_frame_id>${prefix}camera_color_optical_frame</gz_frame_id>
+          <camera>
+            <horizontal_fov>${hfov_deg * pi / 180.0}</horizontal_fov>
+            <image><width>${width}</width><height>${height}</height></image>
+            <clip><near>0.07</near><far>6.0</far></clip>
+            <depth_camera><clip><near>0.1</near><far>6.0</far></clip></depth_camera>
+          </camera>
+        </sensor>
+      </gazebo>
+    </xacro:if>
+  </xacro:macro>
+</robot>

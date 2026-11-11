@@ -80,6 +80,8 @@ def build_model(camera: str = "none", gripper: bool = True, calibration: str = "
     from piper_description import robot_description
 
     maps = {"camera": camera, "gripper": gripper, "prefix": prefix}
+    if camera == "zedxm":                       # the ZED X Mini goes with the user's own bracket
+        maps["camera_mount"] = "zedxm_bracket"
     if camera != "none" and calibration:
         maps["camera_calibration"] = calibration
     root = ET.fromstring(robot_description("mock", **maps))

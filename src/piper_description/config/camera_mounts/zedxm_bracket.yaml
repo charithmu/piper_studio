@@ -1,0 +1,15 @@
+# ZED X Mini on the user's own clamp bracket (Fusion design, meshes/zedxm_bracket.stl): VERSION 1, NOMINAL poses, not measured.
+# Bracket frame (= mesh origin, camera_mount_link): origin at the middle of the clamp ring on the gripper body, Fusion Y = ring axis = towards the fingers,
+# Fusion Z = along the camera arm, Fusion X = Y x Z. Camera frame (camera_link) as the ZED wrapper's camera_link: x forward (viewing direction), y left, z up.
+stand_in_gripper_base:        # the bracket frame in gripper_base; xyz in metres, rpy in radians
+  # Fusion Y -> gripper z (to the fingers), Fusion Z -> gripper -x (camera on the -x side, like the AgileX stand), Fusion X -> gripper -y.
+  # z = 0.040 is a rough guess (user: "around 4 cm", NOT YET MEASURED): the distance from gripper_base's origin to the middle of the ring.
+  xyz: [0.0, 0.0, 0.040]
+  rpy: [1.5707963, 0.0, -1.5707963]
+camera_in_stand:              # the ZED X Mini camera_link (front glass, middle of the baseline) in the bracket frame
+  # position: the point measured in Fusion (0, -13.686, +91.71 mm from the ring origin), ASSUMED to be the middle of the front glass.
+  # orientation: viewing direction = Fusion (0, +0.94, -0.34), i.e. towards the fingers and tilted 20 deg towards the gripper axis, as the cradle's tilted faces say;
+  # the camera's up = (0, +0.34, +0.94). To be confirmed against the official CAD (STEP, ~/data/ml/cad_downloads/zedxm/) and the Fusion assembly.
+  xyz: [0.0, -0.013686, 0.09171]
+  rpy: [0.0, 0.349066, 1.570796]
+measured: null                # for a real calibration: {date: "2026-..", by: "..", method: "caliper | hand-eye (board, solver)", error_mm: ..}

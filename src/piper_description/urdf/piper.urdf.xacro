@@ -56,7 +56,7 @@
     <xacro:include filename="$(find piper_description)/urdf/cameras/$(arg camera).xacro" />
     <xacro:include filename="$(find piper_description)/urdf/mounts/$(arg camera_mount).xacro" />
     <xacro:include filename="$(find piper_description)/urdf/piper_camera.xacro" />
-    <xacro:if value="${'$(arg camera_calibration)' != '' and '$(arg camera_mount)' == 'agilex_mid_stand'}">
+    <xacro:if value="${'$(arg camera_calibration)' != '' and '$(arg camera_mount)' != 'custom'}">
       <xacro:property name="piper_mount_calibration"
                       value="${xacro.load_yaml('$(arg camera_calibration)' if '/' in '$(arg camera_calibration)' else '$(find piper_description)/config/camera_mounts/$(arg camera_calibration).yaml')}" />
     </xacro:if>
