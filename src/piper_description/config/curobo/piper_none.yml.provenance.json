@@ -1,0 +1,109 @@
+{
+  "description_commit": "cfcd72c+dirty",
+  "urdf": "piper_none_w0.07.urdf",
+  "srdf": "piper_none.srdf",
+  "fingerprint": "e22eee30b800be65",
+  "decisions": {
+    "base_link": "base_link",
+    "limits_source": "piper_assets limits.json: vendor URDF = limits stored in the arm (firmware S-V1.9-1, docs/real_arm/arms/piper-01.md); velocity 3.0 rad/s (firmware (max_joint_spd), measured on the arm)",
+    "max_acceleration_rad_s2": 5.0,
+    "max_jerk_rad_s3": 25.0,
+    "operating_scale": 0.5,
+    "velocity_scale_note": "cuRobo applies velocity_scale TWICE (kinematics_loader.py:1084 and cspace_params.scale_joint_limits), so velocity_scale = sqrt(operating_scale); acceleration and jerk scales are applied once. Verified by validate.py.",
+    "default_joint_position": [
+      0.0,
+      0.01,
+      -0.01,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "position_limit_clip_rad": 0.01,
+    "collision_sphere_buffer_m": 0.002,
+    "self_collision_buffer_m": 0.0,
+    "self_collision_ignore": "SRDF disable_collisions (Adjacent + Never) restricted to links with spheres; the builder's sampled matrix is NOT used"
+  },
+  "policy_file": "tools/curobo/policy.yaml",
+  "sphere_counts": {
+    "base_link": 35,
+    "flange_link": 9,
+    "gripper_base": 25,
+    "gripper_link1": 9,
+    "gripper_link2": 8,
+    "link1": 23,
+    "link2": 117,
+    "link3": 56,
+    "link4": 19,
+    "link5": 26
+  },
+  "ignore_pairs": {
+    "base_link": [
+      "link1",
+      "link2",
+      "link3",
+      "world"
+    ],
+    "flange_link": [
+      "gripper_base",
+      "gripper_link1",
+      "gripper_link2",
+      "link5"
+    ],
+    "gripper_base": [
+      "flange_link",
+      "gripper_link",
+      "gripper_link1",
+      "gripper_link2",
+      "link5",
+      "tcp_link"
+    ],
+    "gripper_link": [
+      "gripper_base"
+    ],
+    "gripper_link1": [
+      "flange_link",
+      "gripper_base",
+      "gripper_link2"
+    ],
+    "gripper_link2": [
+      "flange_link",
+      "gripper_base",
+      "gripper_link1"
+    ],
+    "link1": [
+      "base_link",
+      "link2",
+      "link3"
+    ],
+    "link2": [
+      "base_link",
+      "link1",
+      "link3",
+      "link4"
+    ],
+    "link3": [
+      "base_link",
+      "link1",
+      "link2",
+      "link4",
+      "link5"
+    ],
+    "link4": [
+      "link2",
+      "link3",
+      "link5"
+    ],
+    "link5": [
+      "flange_link",
+      "gripper_base",
+      "link3",
+      "link4"
+    ],
+    "tcp_link": [
+      "gripper_base"
+    ],
+    "world": [
+      "base_link"
+    ]
+  }
+}

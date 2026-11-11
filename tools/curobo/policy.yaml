@@ -1,0 +1,29 @@
+# Hand-tuned values of the cuRobo Piper model (Piper Studio owns them; see README.md and docs/CUROBO.md). Every number here is a decision, with its reason.
+# Regenerate after ANY change of this file or of the description: scripts/curobo_env.sh run tools/curobo/build_model.py
+
+# ---- sphere fit (fit_spheres.py): inscribed greedy cover of the URDF collision meshes
+fit:
+  overhang_mm: 12        # default: each sphere's radius = its depth below the mesh surface + this, so a sphere sticks out of the mesh by at most about this
+  tolerance_mm: 3        # a mesh surface point counts as covered when it is within radius + this of a sphere centre
+  default: {max: 120, stop: 0.0005, min_depth_mm: 1.5}     # max spheres per link; stop at this uncovered share; ignore centres shallower than min_depth_mm
+  links:
+    base_link: {max: 120, floor_z: 0.003, floor_exempt: 0.004}   # spheres may not reach below the base plane (the base sits on the table)
+    link6: {skip: true}                                          # a 35 x 35 x 4 mm plate between link5's end and the flange: no spheres (cuRobo docs, curobo_piper_study 04)
+    # The ZED X Mini bracket is a thin clamp (plates from 1.5 mm) 15 mm from the fingers. The default 12 mm overhang put its spheres INTO the finger spheres at zero
+    # (-0.7 and -5.0 mm, 0 of 100 plans), so it gets its own, tighter overhang. Cost: it is covered only about 70 %, worst 10.7 mm outside the spheres (quality_*.json).
+    camera_mount_link: {max: 200, overhang_mm: 6.0}
+
+# ---- finalize (finalize.py): decisions written into the model yml; limits, acceleration, jerk and the zero pose come from piper_assets (limits.json), not from here
+model:
+  operating_scale: 0.5            # plan at 50 % of the limits (effective 1.5 rad/s, 2.5 rad/s^2, 12.5 rad/s^3) until the arm has run faster ones (CHECKLIST R1.4)
+  collision_sphere_buffer_m: 0.002   # padding on every sphere; keeps >= ~3 mm between the closest link pairs at zero. NOT a tracking-error margin (unmeasured)
+  self_collision_buffer_m: 0.0
+  velocity_scale_note: "cuRobo applies velocity_scale TWICE (kinematics_loader.py:1084 and cspace_params.scale_joint_limits), so velocity_scale = sqrt(operating_scale); acceleration and jerk scales are applied once. Verified by validate.py."
+
+# ---- planner defaults a downstream planner may read (piper_assets.curobo_planner_defaults()); they are not applied by the model yml
+planner:
+  graph_planner_algorithm: rrt
+  interpolation_dt: 0.025          # s (cuRobo default)
+  collision_cache: {cuboid: 8, mesh: 2}
+  num_warmup_iterations: 3
+  note: "starting values from curobo_piper_study (92-93 of 100 random tool poses planned from zero in a table scene); downstream projects tune their own on top (piper_pick: docs/)"

@@ -42,6 +42,40 @@ artifacts:
     links:
       - {label: Open viewer, local: "http://localhost:8781/", tailnet: "https://{ts}:8700/piper-studio/viewer/"}
     ops_notes: "Loopback only; the :8700 gateway route is the tailnet exposure. Serves only .stl/.dae files under the piper_studio workspace. Three.js is loaded by the browser from cdn.jsdelivr.net (pinned 0.160.0); nothing is installed on this machine."
+  - id: piper-curobo-viewer
+    type: web
+    title: Piper cuRobo model viewer
+    desc: "3D view of the cuRobo collision-sphere models Piper Studio ships (piper_assets.curobo_model): the arm with the ZED X Mini on its bracket and the robot only, spheres per link with live self-collision highlight, joint sliders, the named poses zero and ready, URDF meshes, and whether the model is current for the description. Needs no cuRobo."
+    group: Experiments
+    runtime: python-server
+    workdir: .
+    start: scripts/curobo_viewer.sh start
+    stop: scripts/curobo_viewer.sh stop
+    port: 8782
+    bind: loopback
+    exposure: tailnet
+    route: /piper-studio/curobo
+    autostart: false
+    data: none
+    probe: {path: /}
+    links:
+      - {label: Open viewer, local: "http://localhost:8782/", tailnet: "https://{ts}:8700/piper-studio/curobo/"}
+    ops_notes: "Loopback only; the :8700 gateway route is the tailnet exposure. Serves only .stl/.dae files under the piper_assets data directory. Three.js is loaded by the browser from cdn.jsdelivr.net; nothing is installed on this machine."
+  - id: piper-curobo-regenerate
+    type: job
+    title: Regenerate the cuRobo Piper models (optional)
+    desc: "tools/curobo/build_model.py: builder, sphere fit (policy.yaml), finalize, mesh-coverage check and planning validation for the robot only and the ZED X Mini model; writes src/piper_description/config/curobo/. Needs the optional cuRobo environment (scripts/curobo_env.sh setup, about 7 GB) and the GPU; only for changing the description or the policy. Nothing moves a robot."
+    runtime: one-shot
+    workdir: .
+    start: scripts/curobo_env.sh run tools/curobo/build_model.py
+    stop: null
+    port: 0
+    route: null
+    autostart: false
+    exposure: loopback
+    data: none
+    needs: [gpu]
+    notes: "Run tools/release/build_assets.py first (after a description change) and again afterwards; then python -m pytest src/piper_assets (staleness and consistency tests). docs/CUROBO.md."
   - id: piper-run-demo
     type: job
     title: Run the scripted demo on one backend

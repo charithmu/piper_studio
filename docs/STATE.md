@@ -26,6 +26,9 @@ git log --oneline | head; sed -n 1,60p docs/CLEANUP.md              # what was d
 - Code: `from piper_core import RealArm` (`start()`, `execute(traj)`, `set_gripper()`, `status()`, `stop()`); `execute` defaults to `lookahead="auto"` (the arm trails a streamed setpoint by about 35 ms + 73 ms per rad/s). The off pose a powered-off arm rests in is internal to this layer: never exposed, never commanded.
 - Scenario test (cuRobo plan, any backend): `gpu-run <cuRobo study venv>/bin/python tools/real_arm/curobo_plan_scenario.py`, then `python tools/real_arm/run_scenario.py <scenario.json> --backend mujoco|real|ros`; the stored plan and the dry run are tested without GPU or arm.
 
+## cuRobo model (0.10.0)
+The cuRobo sphere model of the Piper (robot only, and with the ZED X Mini on its bracket) is **owned here**: `piper_assets.curobo_config(camera)`, tuned in `tools/curobo/policy.yaml`, regenerated with the optional environment (`scripts/curobo_env.sh`), checked for staleness by the offline tests. `docs/CUROBO.md`. Downstream planners (`piper_pick`, `curobo_piper_study`) import it and keep only planning code.
+
 ## Packages for other repos
 `scripts/build_wheels.sh` builds `piper_core`, `piper_assets`, `piper_mujoco` and `piper_isaac` wheels (no ROS to install them; `piper_isaac` needs the USD of `scripts/isaac.sh build-usd`); contract and usage: `INTEGRATION.md` section 0, log: `CLEANUP.md` G12.
 

@@ -69,6 +69,71 @@ def srdf_path(camera: str | bool | None = True) -> Path:
     return data_dir() / f"piper_{_camera(camera)}.srdf"
 
 
+def urdf_fingerprint(urdf: str | Path, srdf: str | Path | None = None) -> str:
+    """A hash of what a cuRobo sphere model depends on: every joint (type, parent, child, origin, axis, limits), every collision geometry (type, size, origin, the CONTENT of
+    its mesh file) and the SRDF's disabled pairs. Masses, visuals and comments do not count. A model built for another fingerprint is stale (curobo_model_is_current)."""
+    import hashlib
+    import xml.etree.ElementTree as ET
+    urdf = Path(urdf)
+    root = ET.fromstring(re.sub(r"<!--.*?-->", "", urdf.read_text(), flags=re.S))
+    parts = []
+    for j in sorted(root.iter("joint"), key=lambda e: e.get("name")):
+        if j.find("parent") is None:
+            continue                                    # ros2_control <joint> entries
+        o, a, lim = j.find("origin"), j.find("axis"), j.find("limit")
+        parts.append(("joint", j.get("name"), j.get("type"), j.find("parent").get("link"), j.find("child").get("link"), None if o is None else (o.get("xyz"), o.get("rpy")),
+                      None if a is None else a.get("xyz"), None if lim is None else (lim.get("lower"), lim.get("upper"))))
+    for link in sorted(root.findall("link"), key=lambda e: e.get("name")):
+        for c in link.findall("collision"):
+            g, o = c.find("geometry")[0], c.find("origin")
+            mesh = None
+            if g.tag == "mesh":
+                f = (urdf.parent / g.get("filename")).resolve()
+                mesh = (g.get("scale"), hashlib.sha256(f.read_bytes()).hexdigest()) if f.exists() else (g.get("scale"), g.get("filename"))
+            parts.append(("collision", link.get("name"), g.tag, None if g.tag == "mesh" else dict(g.attrib), mesh, None if o is None else (o.get("xyz"), o.get("rpy"))))
+    if srdf is not None:
+        pairs = sorted(tuple(sorted((e.get("link1"), e.get("link2")))) for e in ET.fromstring(Path(srdf).read_text()).iter("disable_collisions"))
+        parts.append(("srdf", pairs))
+    return hashlib.sha256(json.dumps(parts, sort_keys=True, default=str).encode()).hexdigest()[:16]
+
+
+def curobo_model(camera: str | bool | None = True) -> Path:
+    """The cuRobo model (collision spheres, limits, self-collision ignore list) for the arm WITH the ZED X Mini on its bracket (default) or the robot only (camera=None).
+    Hand-tuned and regenerated in Piper Studio (tools/curobo/, docs/CUROBO.md); needs no cuRobo to read. Use `curobo_config` to load it."""
+    return data_dir() / "curobo" / f"piper_{_camera(camera)}.yml"
+
+
+def curobo_config(camera: str | bool | None = True, gripper_width: float = 0.07) -> dict:
+    """The model as the dict cuRobo's RobotCfg.create() takes, with `kinematics.urdf_path` set to the shipped URDF of the same camera and `gripper_width` (the file itself carries no path).
+    A planner may change what it needs (load_dynamics, position_limit_clip, ...) on the returned dict; the model file stays as it is."""
+    import yaml
+    raw = yaml.safe_load(curobo_model(camera).read_text())
+    top = raw.get("robot_cfg", raw)
+    top["kinematics"]["urdf_path"] = str(urdf_path(gripper_width, camera))
+    return top
+
+
+def curobo_provenance(camera: str | bool | None = True) -> dict:
+    """How the model was made: description commit, URDF/SRDF fingerprint, every decision, sphere counts, ignore pairs; plus `validation` and `quality` (the measured results)."""
+    base = curobo_model(camera)
+    out = json.loads(Path(str(base) + ".provenance.json").read_text())
+    for key, name in (("validation", f"validation_{_camera(camera)}.json"), ("quality", f"quality_{_camera(camera)}.json")):
+        f = base.parent / name
+        out[key] = json.loads(f.read_text()) if f.exists() else None
+    return out
+
+
+def curobo_model_is_current(camera: str | bool | None = True) -> bool:
+    """True when the model was built for the URDF and SRDF this package ships (same fingerprint). False: regenerate (docs/CUROBO.md)."""
+    prov = curobo_provenance(camera)
+    return prov["fingerprint"] == urdf_fingerprint(urdf_path(0.07, camera), srdf_path(camera))
+
+
+def curobo_planner_defaults() -> dict:
+    """Starting values for a cuRobo planner (algorithm, interpolation step, collision cache sizes, warmup): tools/curobo/policy.yaml, section planner. Downstream projects tune their own on top."""
+    return json.loads((data_dir() / "curobo" / "planner_defaults.json").read_text())
+
+
 @dataclass(frozen=True)
 class Limits:
     joints: list

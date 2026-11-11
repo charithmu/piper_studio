@@ -1,0 +1,140 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Piper cuRobo model viewer</title>
+<style>
+:root{--bg:#14161a;--fg:#e6e8eb;--mut:#8b929c;--pn:#1d2026;--bd:#2c313a;--ac:#4aa3ff}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);font:13px system-ui,sans-serif}
+#app{display:grid;grid-template-columns:320px 1fr;height:100%}
+#side{background:var(--pn);border-right:1px solid var(--bd);overflow:auto;padding:10px 12px}
+#view{position:relative}#c{width:100%;height:100%;display:block}
+h3{margin:14px 0 6px;font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--mut)}
+label{display:flex;align-items:center;gap:6px;margin:3px 0}
+.row{display:grid;grid-template-columns:54px 1fr 54px;gap:6px;align-items:center;margin:3px 0}
+.row span:last-child{text-align:right;font-variant-numeric:tabular-nums;color:var(--mut)}
+input[type=range]{width:100%}select,button{background:var(--bg);color:var(--fg);border:1px solid var(--bd);border-radius:5px;padding:4px 8px;font:inherit}
+button{cursor:pointer;margin:2px 2px 2px 0}button:hover{border-color:var(--ac)}
+#hud{position:absolute;left:10px;top:10px;background:#000a;padding:6px 10px;border-radius:6px;pointer-events:none;max-width:60%}
+.bad{color:#ff6b6b}.ok{color:#6bd28a}.sw{width:10px;height:10px;border-radius:50%;display:inline-block}
+#links label{font-size:12px}
+@media(max-width:800px){#app{grid-template-columns:1fr;grid-template-rows:45% 55%}#side{order:2}}
+</style></head><body><div id="app"><div id="side">
+<h3>Model</h3><select id="model"></select>
+<div id="src" style="color:var(--mut);margin-top:4px"></div>
+<h3>Pose</h3><div id="sliders"></div>
+<button data-p="zero">zero</button><button data-p="ready">ready</button><button data-p="raw0">all 0 (on the limits)</button><button data-p="mid">mid-range</button><button data-p="lo">all lower</button><button data-p="hi">all upper</button>
+<h3>Show</h3>
+<label><input type="checkbox" id="tmesh" checked> collision meshes</label>
+<div class="row"><span>opacity</span><input type="range" id="mop" min="0.05" max="1" step="0.05" value="0.35"><span id="mopv">0.35</span></div>
+<label><input type="checkbox" id="tvis"> visual meshes (real CAD, .dae; loads 40+ MB the first time)</label>
+<label><input type="checkbox" id="tsph" checked> cuRobo spheres</label>
+<div class="row"><span>sphere α</span><input type="range" id="sop" min="0.05" max="1" step="0.05" value="0.35"><span id="sopv">0.35</span></div>
+<label><input type="checkbox" id="tfr" checked> frames (tcp, camera, links)</label>
+<label><input type="checkbox" id="tpair" checked> highlight overlapping sphere pairs</label>
+<label><input type="checkbox" id="tbuf"> inflate by collision_sphere_buffer</label>
+<h3>Links (spheres / mesh)</h3><div id="links"></div>
+<h3>Self-collision now</h3><div id="pairs" style="font-size:12px"></div>
+<h3>Notes</h3><div style="color:var(--mut)">Z up, metres. Overlap = sphere distance &lt; 0 after subtracting self_collision_buffer of both links; pairs in self_collision_ignore are skipped (same rule as the cuRobo check). Left-drag rotate, right-drag pan, wheel zoom.</div>
+</div><div id="view"><canvas id="c"></canvas><div id="hud"></div></div></div>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
+<script type="module">
+import * as THREE from 'three';
+import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
+import {STLLoader} from 'three/addons/loaders/STLLoader.js';
+import {ColladaLoader} from 'three/addons/loaders/ColladaLoader.js';
+const $=id=>document.getElementById(id);
+const cv=$('c'),R=new THREE.WebGLRenderer({canvas:cv,antialias:true});R.setPixelRatio(devicePixelRatio);
+const scene=new THREE.Scene();scene.background=new THREE.Color(0x14161a);
+const cam=new THREE.PerspectiveCamera(45,1,0.005,20);cam.up.set(0,0,1);cam.position.set(0.7,-0.7,0.5);
+const ctl=new OrbitControls(cam,cv);ctl.target.set(0,0,0.25);
+scene.add(new THREE.HemisphereLight(0xffffff,0x334455,1.1));const dl=new THREE.DirectionalLight(0xffffff,1.2);dl.position.set(1,-1,2);scene.add(dl);
+const grid=new THREE.GridHelper(2,20,0x445566,0x2a3038);grid.rotation.x=Math.PI/2;scene.add(grid);scene.add(new THREE.AxesHelper(0.15));
+const COL=['#4aa3ff','#ffb454','#6bd28a','#c792ea','#ff6b9d','#59d0d0','#e6db74','#f78c6c','#82aaff','#c3e88d','#ff9cac','#89ddff','#d0a8ff','#a0b0c0'];
+let M=null,links={},joints=[],rootObj=null,sphereObjs=[],meshObjs=[],frameObjs=[],q=[],state={};
+function parseUrdf(txt){
+  const d=new DOMParser().parseFromString(txt,'text/xml');const L={},J=[];
+  for(const l of d.querySelectorAll('robot > link')){const o=new THREE.Group();o.name=l.getAttribute('name');
+    L[o.name]={obj:o,meshes:[]};}
+  for(const j of d.querySelectorAll('robot > joint')){
+    const f=s=>(s||'0 0 0').trim().split(/\s+/).map(Number);const og=j.querySelector('origin');
+    const xyz=f(og&&og.getAttribute('xyz')),rpy=f(og&&og.getAttribute('rpy'));
+    const ax=f(j.querySelector('axis')&&j.querySelector('axis').getAttribute('xyz')||'1 0 0');
+    const lim=j.querySelector('limit');
+    J.push({name:j.getAttribute('name'),type:j.getAttribute('type'),parent:j.querySelector('parent').getAttribute('link'),child:j.querySelector('child').getAttribute('link'),
+      xyz,rpy,axis:new THREE.Vector3(...ax).normalize(),lo:lim?+lim.getAttribute('lower'):0,hi:lim?+lim.getAttribute('upper'):0});}
+  for(const l of d.querySelectorAll('robot > link')){const name=l.getAttribute('name');
+    for(const c of l.querySelectorAll('collision')){const m=c.querySelector('mesh'),b=c.querySelector('box');const og=c.querySelector('origin');
+      const f=s=>(s||'0 0 0').trim().split(/\s+/).map(Number);L[name].meshes.push({file:m&&m.getAttribute('filename'),box:b&&f(b.getAttribute('size')),xyz:f(og&&og.getAttribute('xyz')),rpy:f(og&&og.getAttribute('rpy')),
+        scale:m&&m.getAttribute('scale')?f(m.getAttribute('scale')):[1,1,1]});}}
+  for(const l of d.querySelectorAll('robot > link')){const name=l.getAttribute('name');L[name].visuals=[];
+    for(const c of l.querySelectorAll('visual')){const m=c.querySelector('mesh');if(!m||!m.getAttribute('filename').toLowerCase().endsWith('.dae'))continue;const og=c.querySelector('origin');
+      const f=s=>(s||'0 0 0').trim().split(/\s+/).map(Number);L[name].visuals.push({file:m.getAttribute('filename'),xyz:f(og&&og.getAttribute('xyz')),rpy:f(og&&og.getAttribute('rpy'))});}}
+  return {L,J};
+}
+const eul=(r)=>new THREE.Euler(r[0],r[1],r[2],'ZYX');   // URDF rpy = fixed-axis XYZ = intrinsic ZYX
+function clearScene(){visLoaded=false;visObjs=[];if(rootObj)scene.remove(rootObj);rootObj=null;sphereObjs=[];meshObjs=[];frameObjs=[];$('links').innerHTML='';$('sliders').innerHTML='';}
+async function load(name){
+  clearScene();M=await (await fetch('api/model?name='+encodeURIComponent(name))).json();
+  const {L,J}=parseUrdf(M.urdf);links=L;joints=J;
+  const children=new Set(J.map(j=>j.child));const root=Object.keys(L).find(n=>!children.has(n));rootObj=L[root].obj;scene.add(rootObj);
+  for(const j of J){const o=new THREE.Group();o.position.set(...j.xyz);o.quaternion.setFromEuler(eul(j.rpy));j.pivot=new THREE.Group();o.add(j.pivot);
+    L[j.parent].obj.add(o);j.pivot.add(L[j.child].obj);}
+  const act=J.filter(j=>j.type==='revolute'||j.type==='prismatic');q=act.map(()=>0);state.act=act;
+  act.forEach((j,i)=>{const r=document.createElement('div');r.className='row';r.innerHTML=`<span>${j.name}</span><input type="range" min="${j.lo}" max="${j.hi}" step="0.001" value="0"><span>0.000</span>`;
+    r.querySelector('input').oninput=e=>{q[i]=+e.target.value;r.lastChild.textContent=q[i].toFixed(3);apply();};$('sliders').appendChild(r);j.row=r;});
+  // meshes
+  const ldr=new STLLoader();const names=Object.keys(L);
+  names.forEach((n,i)=>{const col=new THREE.Color(COL[i%COL.length]);L[n].color=col;
+    for(const m of L[n].meshes){
+      const add=g=>{const mat=new THREE.MeshStandardMaterial({color:0x9aa7b5,transparent:true,opacity:+$('mop').value,depthWrite:false,side:THREE.DoubleSide});const ms=new THREE.Mesh(g,mat);
+        ms.position.set(...m.xyz);ms.quaternion.setFromEuler(eul(m.rpy));ms.scale.set(...m.scale);ms.userData.link=n;ms.renderOrder=0;L[n].obj.add(ms);meshObjs.push(ms);};
+      if(m.box)add(new THREE.BoxGeometry(...m.box));
+      else if(m.file&&m.file.toLowerCase().endsWith('.stl'))ldr.load('mesh?p='+encodeURIComponent(m.file),add,undefined,()=>{});
+      else if(m.file&&m.file.toLowerCase().endsWith('.dae'))new ColladaLoader().load('mesh?p='+encodeURIComponent(m.file),c=>{const g=new THREE.Group();g.position.set(...m.xyz);g.quaternion.setFromEuler(eul(m.rpy));
+        c.scene.traverse(o=>{if(o.isMesh){o.material=new THREE.MeshStandardMaterial({color:0xffb454,transparent:true,opacity:+$('mop').value,depthWrite:false,side:THREE.DoubleSide});o.userData.link=n;o.renderOrder=0;meshObjs.push(o);}});const w=new THREE.Group();w.quaternion.copy(c.scene.quaternion).invert();w.add(c.scene);g.add(w);   // ColladaLoader rotates Z_UP assets to Y-up; undo it (our scene is Z-up like ROS)
+        L[n].obj.add(g);});}
+    // spheres
+    for(const s of (M.spheres[n]||[])){const g=new THREE.SphereGeometry(s.r,16,12);const mat=new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:+$('sop').value,depthWrite:false});
+      const sm=new THREE.Mesh(g,mat);sm.position.set(...s.c);sm.userData={link:n,r:s.r,c:s.c};sm.renderOrder=1;L[n].obj.add(sm);sphereObjs.push(sm);}
+    // frames
+    if(n==='tcp_link'||n.startsWith('camera_')||n.startsWith('zed_')||/^link\d|gripper_base|flange/.test(n)){const a=new THREE.AxesHelper(n==='tcp_link'?0.06:0.03);a.userData.link=n;L[n].obj.add(a);frameObjs.push(a);}
+    const lb=document.createElement('label');lb.innerHTML=`<input type="checkbox" checked><span class="sw" style="background:${'#'+col.getHexString()}"></span>${n} <span style="color:var(--mut)">${(M.spheres[n]||[]).length} sph</span>`;
+    lb.querySelector('input').onchange=e=>{sphereObjs.filter(s=>s.userData.link===n).forEach(s=>s.userData.hide=!e.target.checked);meshObjs.filter(s=>s.userData.link===n).forEach(s=>s.userData.hide=!e.target.checked);vis();};$('links').appendChild(lb);});
+  $('src').textContent=`${sphereObjs.length} spheres · tool: ${M.tool_frames.join(',')}${M.info?' · '+M.info:''}`;
+  setPose('zero');vis();
+}
+let visLoaded=false,visObjs=[];
+function loadVisuals(){visLoaded=true;const cl=new ColladaLoader();
+  for(const n of Object.keys(links))for(const v of links[n].visuals||[]){cl.load('mesh?p='+encodeURIComponent(v.file),c=>{
+    const yUp=Math.abs(c.scene.quaternion.w-1)<1e-6;                       // loader leaves Y_UP assets alone, rotates Z_UP ones to Y-up
+    const w=new THREE.Group();if(yUp)w.rotation.x=Math.PI/2;else w.quaternion.copy(c.scene.quaternion).invert();   // ROS/RViz rule: Y_UP -> Z_UP by +90 deg about X
+    w.add(c.scene);const g=new THREE.Group();g.position.set(...v.xyz);g.quaternion.setFromEuler(eul(v.rpy));g.add(w);
+    c.scene.traverse(o=>{if(o.isMesh&&o.material){const ms=Array.isArray(o.material)?o.material:[o.material];ms.forEach(mm=>{mm.transparent=true;mm.opacity=0.55;mm.depthWrite=false;});o.renderOrder=-1;}});
+    g.visible=$('tvis').checked;g.userData.vis=true;links[n].obj.add(g);visObjs.push(g);});}}
+function vis(){if($('tvis').checked&&!visLoaded)loadVisuals();visObjs.forEach(g=>g.visible=$('tvis').checked);sphereObjs.forEach(s=>s.visible=$('tsph').checked&&!s.userData.hide);meshObjs.forEach(s=>s.visible=$('tmesh').checked&&!s.userData.hide);frameObjs.forEach(f=>f.visible=$('tfr').checked);
+  const k=$('tbuf').checked?M.sphere_buffer:0;sphereObjs.forEach(s=>s.scale.setScalar((s.userData.r+k)/s.userData.r));}
+function setPose(p){const a=state.act;let v;
+  if(p==='raw0')v=a.map(()=>0);else if(p==='zero'||p==='ready')v=(M.poses[p]||M.default_joint_position).slice(0,a.length);
+  else if(p==='mid')v=a.map(j=>(j.lo+j.hi)/2);else if(p==='lo')v=a.map(j=>j.lo);else v=a.map(j=>j.hi);
+  q=v.slice();a.forEach((j,i)=>{j.row.querySelector('input').value=q[i];j.row.lastChild.textContent=q[i].toFixed(3);});apply();}
+const tmp=new THREE.Vector3(),qq=new THREE.Quaternion();
+function apply(){state.act.forEach((j,i)=>{if(j.type==='revolute')j.pivot.quaternion.setFromAxisAngle(j.axis,q[i]);else j.pivot.position.copy(j.axis).multiplyScalar(q[i]);});
+  rootObj.updateMatrixWorld(true);overlaps();}
+function overlaps(){
+  const W=sphereObjs.map(s=>{const p=new THREE.Vector3();s.getWorldPosition(p);return {p,r:s.userData.r,l:s.userData.link,o:s};});
+  sphereObjs.forEach(s=>s.material.color.copy(links[s.userData.link].color));
+  const bad={};const buf=M.buffer||{},ign=M.ignore||{};
+  for(let i=0;i<W.length;i++)for(let j=i+1;j<W.length;j++){const a=W[i],b=W[j];if(a.l===b.l)continue;
+    if((ign[a.l]||[]).includes(b.l)||(ign[b.l]||[]).includes(a.l))continue;
+    const d=a.p.distanceTo(b.p)-a.r-b.r-(buf[a.l]||0)-(buf[b.l]||0);
+    if(d<0){const k=[a.l,b.l].sort().join(' | ');bad[k]=Math.min(bad[k]??9,d);if($('tpair').checked){a.o.material.color.set('#ff2d2d');b.o.material.color.set('#ff2d2d');}}}
+  const ks=Object.keys(bad);$('pairs').innerHTML=ks.length?ks.map(k=>`<div class="bad">${k}: ${(bad[k]*1000).toFixed(1)} mm</div>`).join(''):'<span class="ok">no overlapping pairs</span>';
+  $('hud').innerHTML=`q = [${q.map(x=>x.toFixed(3)).join(', ')}] &nbsp; ${ks.length?`<span class="bad">${ks.length} overlapping pair(s)</span>`:'<span class="ok">self-collision free</span>'}`;}
+function size(){const v=$('view');R.setSize(v.clientWidth,v.clientHeight,false);cam.aspect=v.clientWidth/v.clientHeight;cam.updateProjectionMatrix();}
+addEventListener('resize',size);size();
+(function loop(){requestAnimationFrame(loop);ctl.update();R.render(scene,cam);})();
+for(const id of['tmesh','tsph','tfr','tbuf','tvis'])$(id).onchange=vis;$('tpair').onchange=overlaps;
+$('mop').oninput=e=>{$('mopv').textContent=e.target.value;meshObjs.forEach(m=>m.material.opacity=+e.target.value);};
+$('sop').oninput=e=>{$('sopv').textContent=e.target.value;sphereObjs.forEach(m=>m.material.opacity=+e.target.value);};
+document.querySelectorAll('button[data-p]').forEach(b=>b.onclick=()=>setPose(b.dataset.p));
+const names=await (await fetch('api/models')).json();names.forEach(n=>{const o=document.createElement('option');o.value=o.textContent=n;$('model').appendChild(o);});
+$('model').onchange=async()=>{await load($('model').value);setPose('zero');};const def=names.includes('piper_zedxm')?'piper_zedxm':names[0];$('model').value=def;await load(def);setPose('zero');
+</script></body></html>

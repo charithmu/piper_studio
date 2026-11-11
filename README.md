@@ -129,6 +129,8 @@ python src/piper_description/tools/piper_arm_macro.py check                     
 
 ## Demo and visual checks
 
+**cuRobo model** (collision spheres for planners; tuned and regenerated here, optional environment, `docs/CUROBO.md`): `piper_assets.curobo_config(camera)`; viewer `scripts/curobo_viewer.sh start` then <http://localhost:8782/> (tailnet: `https://atlas.buri-fence.ts.net:8700/piper-studio/curobo/`).
+
 **Model viewer** (browser, Three.js; `tools/viewer/`): `scripts/viewer.sh start` then <http://localhost:8781/> (tailnet: `https://atlas.buri-fence.ts.net:8700/piper-studio/viewer/`); `scripts/viewer.sh stop` stops it.
 It builds the description live from the xacro and SRDF, so reload the page after a change. It shows visual and collision shapes (mesh and box marked apart), joint sliders with limits, the named poses (and the powered-off `slumped` pose, display only),
 gripper width, camera and calibration options, link masses, collision pairs disabled in the SRDF, and the TCP and camera poses. Meshes are read in place from the workspace; the browser loads Three.js from cdn.jsdelivr.net (pinned). Visuals are light copies by default (about 1.3 MB gzip with the camera, grey; made once by the server and cached in `tools/viewer/run/cache`); the "full-detail visuals" box loads the real meshes (about 35 MB raw, 11 MB gzip). Collision shapes load only when switched on. Files are gzip-compressed and cached by ETag.

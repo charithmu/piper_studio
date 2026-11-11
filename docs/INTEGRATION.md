@@ -30,13 +30,13 @@ The bracket and its pose are versioned (`config/camera_mounts/zedxm_bracket_v1..
 Four wheels, one version, built into `dist/` from the tagged commit by `scripts/build_wheels.sh` (needs the ROS environment once, to generate the data). A downstream project installs them into its own venv (Python 3.10 or newer) and never reads this repo's `install/`:
 
 ```bash
-uv pip install --no-deps piper_core-0.9.0-py3-none-any.whl piper_assets-0.9.0-py3-none-any.whl piper_mujoco-0.9.0-py3-none-any.whl piper_isaac-0.9.0-py3-none-any.whl
+uv pip install --no-deps piper_core-0.10.0-py3-none-any.whl piper_assets-0.10.0-py3-none-any.whl piper_mujoco-0.10.0-py3-none-any.whl piper_isaac-0.10.0-py3-none-any.whl
 ```
 
 | Package | Gives | Needs |
 |---|---|---|
 | `piper_core` | `Trajectory`, `ExecResult`, `ArmBackend` (`piper_core.backend`), `check_trajectory`, the guard, `zero_pose`, `RealArm` | numpy |
-| `piper_assets` | `urdf_path(gripper_width, camera=True)`, `srdf_path(camera=True)`, `camera()` (K, size, field of view, depth range, optical frame, its pose in gripper_base / the TCP / link6), `camera_pose(frame)`, `limits()` (hard, planning, velocity, acceleration, jerk, effort, each with its source), `zero_pose()`, `scene()` (placeholder table), `manifest()` | numpy, `piper_core` |
+| `piper_assets` | `urdf_path(gripper_width, camera=True)`, `srdf_path(camera=True)`, `camera()` (K, size, field of view, depth range, optical frame, its pose in gripper_base / the TCP / link6), `camera_pose(frame)`, `limits()` (hard, planning, velocity, acceleration, jerk, effort, each with its source), `zero_pose()`, `scene()` (placeholder table), `manifest()` | numpy, `piper_core`, **the cuRobo model** `curobo_model(camera)`, `curobo_config(camera)`, `curobo_provenance(camera)`, `curobo_model_is_current(camera)`, `curobo_planner_defaults()` (collision spheres, limits, ignore list; tuned and regenerated here: `docs/CUROBO.md`) | numpy (pyyaml for `curobo_config`) |
 | `piper_mujoco` | `PiperSim(scene="empty"|"table", gripper_width=0.07, camera=True)`: an `ArmBackend` on MuJoCo; `camera_image(depth=False)` renders the wrist camera (RGB, or RGB and metric depth), `camera_pose()` its optical frame in the base frame, `camera_info()` | `mujoco`, the two above |
 | `piper_isaac` | `PiperIsaacSim(scene="empty"|"table", gripper_width=0.07)`: an `ArmBackend` on Isaac Sim; starts `isaac/run_server.py` in Isaac's environment through `gpu-run` (`ISAAC_ENV_SH`), the runner and the USDs (with the camera, and the robot only) are inside the wheel; `camera=True` by default: `camera_image(depth)`, `camera_pose()`, `camera_info()` as in `PiperSim`; `render=True` and `record_start(path)` record a video; `gui=True` opens the full editor, also available as `python -m piper_isaac --gui` | the two above; Isaac Sim 6.x and a GPU at run time, not to install |
 
