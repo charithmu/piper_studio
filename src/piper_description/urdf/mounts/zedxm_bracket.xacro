@@ -1,14 +1,13 @@
 <?xml version="1.0"?>
 <!--
   Camera mount: the user's clamp bracket for the ZED X Mini (meshes/zedxm_bracket_v<N>.stl, chosen by the `mesh:` key of the yaml, built by tools/build_zedxm_bracket_mesh.py from the Fusion export).
-  Same interface as mounts/agilex_mid_stand.xacro. The mesh origin is `${prefix}camera_mount_link` = the user's UCS at the gripper base (version 2,
-  2026-11-11: the mesh is expressed in that UCS, so its translation to gripper_base is 0); the camera's pose on it is in config/camera_mounts/zedxm_bracket_v2.yaml (default; _v1 = the first version)
+  Same interface as mounts/agilex_mid_stand.xacro. The mesh origin is `${prefix}camera_mount_link` = the user's UCS at the gripper base (version 3, 2026-11-11: the mesh is expressed in that frame, so its translation to gripper_base is 0); the camera's pose on it is in config/camera_mounts/zedxm_bracket_v3.yaml (default; _v1, _v2 = earlier versions)
   (the user's Fusion measures), replaceable with camera_calibration:=<yaml>.
   Collision: the visual mesh clustered on a 3 mm grid (not convex: simulators that need convex shapes (MuJoCo, Isaac) need a decomposition first).
   Mass: 0.098 kg is the PLA estimate from the mesh volume (1.24 g/cm3, solid), inertia a placeholder; replace by the weighed value.
 -->
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro">
-  <xacro:property name="piper_mount_calibration" value="${xacro.load_yaml('$(find piper_description)/config/camera_mounts/zedxm_bracket_v2.yaml')}" />
+  <xacro:property name="piper_mount_calibration" value="${xacro.load_yaml('$(find piper_description)/config/camera_mounts/zedxm_bracket_v3.yaml')}" />
   <xacro:property name="piper_mount_camera_xyz" value="${' '.join(map(str, piper_mount_calibration['camera_in_stand']['xyz']))}" />
   <xacro:property name="piper_mount_camera_rpy" value="${' '.join(map(str, piper_mount_calibration['camera_in_stand']['rpy']))}" />
   <xacro:property name="piper_mount_default_mesh" value="$(find piper_description)/meshes/${piper_mount_calibration['mesh']}" />

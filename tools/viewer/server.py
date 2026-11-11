@@ -74,7 +74,7 @@ def shapes(link, tag):
     return out
 
 
-def build_model(camera: str = "none", gripper: bool = True, calibration: str = "", prefix: str = "piper_") -> dict:
+def build_model(camera: str = "none", gripper: bool = True, calibration: str = "", prefix: str = "piper_", compare: str = "") -> dict:
     import xacro
     from piper_core import limits_from_urdf, named_poses_from_srdf, zero_pose
     from piper_description import robot_description
@@ -117,13 +117,31 @@ def build_model(camera: str = "none", gripper: bool = True, calibration: str = "
     # the powered-off arm: shown for checking only, it is never a command target (docs/real_arm/arms/piper-01.md)
     slumped = {f"{prefix}joint{i}": v for i, v in enumerate([0.004, -0.0382, 0.0427, -0.0073, 0.3859, 0.0], 1)}
     firmware = (WS / "src/piper_description/config/firmware_values.yaml")
+    if compare and camera != "none":      # overlay: the camera mount subtree of another calibration (version) of the same camera, links renamed `<name>__cmp`
+        other = build_model(camera, gripper, compare, prefix)
+        mount = prefix + "camera_mount_link"
+        sub, grew = {mount}, True
+        while grew:
+            grew = False
+            for j in other["joints"]:
+                if j["parent"] in sub and j["child"] not in sub:
+                    sub.add(j["child"]); grew = True
+        for l in other["links"]:
+            if l["name"] in sub:
+                links.append({**l, "name": l["name"] + "__cmp"})
+        for j in other["joints"]:
+            if j["child"] in sub:
+                joints.append({**j, "name": j["name"] + "__cmp", "child": j["child"] + "__cmp",
+                               "parent": j["parent"] + "__cmp" if j["parent"] in sub else j["parent"]})
     return {
-        "name": root.get("name"), "prefix": prefix, "options": {"camera": camera, "gripper": gripper, "calibration": calibration},
+        "name": root.get("name"), "prefix": prefix, "options": {"camera": camera, "gripper": gripper, "calibration": calibration, "compare": compare},
         "links": links, "joints": joints, "arm_joints": arm, "tcp": f"{prefix}tcp_link",
         "poses": {k: v for k, v in poses.items()}, "zero_computed": zero_pose(limits, arm, 0.01),
         "slumped": slumped, "disabled_collisions": disabled,
         "firmware_values": firmware.read_text() if firmware.exists() else "",
-        "calibrations": sorted(p.stem for p in (WS / "src/piper_description/config/camera_mounts").glob("*.yaml")),
+        # calibrations that belong to the chosen camera: the files are named after their mount (agilex_mid_stand*, zedxm_bracket_v*)
+        "calibrations": sorted(p.stem for p in (WS / "src/piper_description/config/camera_mounts").glob("*.yaml")
+                               if p.stem.startswith("zedxm_bracket" if camera == "zedxm" else "agilex_mid_stand")),
         "git": git_head(),
     }
 
@@ -200,7 +218,7 @@ class Handler(BaseHTTPRequestHandler):
         q = {k: v[0] for k, v in parse_qs(url.query).items()}
         try:
             if url.path == "/api/model":
-                model = build_model(q.get("camera", "none"), q.get("gripper", "true") == "true", q.get("calibration", ""))
+                model = build_model(q.get("camera", "none"), q.get("gripper", "true") == "true", q.get("calibration", ""), compare=q.get("compare", ""))
                 return self.send(200, json.dumps(model).encode(), "application/json")
             if url.path == "/mesh":
                 p = Path(q.get("p", "")).resolve()

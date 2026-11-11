@@ -53,9 +53,10 @@
     <div id="err"></div>
 
     <h2>Description</h2>
-    <div class="row"><label>camera</label><select id="o-camera"><option value="none">none</option><option value="d435">D435 on stand</option><option value="zedxm">ZED X Mini on own bracket (v2)</option></select>
+    <div class="row"><label>camera</label><select id="o-camera"><option value="none">none</option><option value="d435">D435 on stand</option><option value="zedxm">ZED X Mini on own bracket</option></select>
       <label style="flex:0 0 auto">gripper</label><select id="o-gripper"><option value="true">fitted</option><option value="false">none</option></select></div>
     <div class="row"><label>calibration</label><select id="o-cal"><option value="">nominal (default)</option></select></div>
+    <div class="row"><label>compare with</label><select id="o-cmp"><option value="">nothing</option></select></div><div class="dim" id="cmp-note"></div>
     <div class="dim" id="summary"></div>
 
     <h2>Pose</h2>
@@ -154,11 +155,12 @@ function rpyQuat(r) { return new THREE.Quaternion().setFromEuler(new THREE.Euler
 function place(obj, s) { obj.position.set(...s.xyz); obj.quaternion.copy(rpyQuat(s.rpy)); return obj; }
 
 async function visualObject(s, linkName) {
-  if (s.type !== 'mesh') return primitive(s, new THREE.MeshStandardMaterial({color: 0x9aa5b5}));
+  const cmp = linkName.endsWith('__cmp');
+  if (s.type !== 'mesh') return primitive(s, new THREE.MeshStandardMaterial({color: cmp ? 0xff8a3d : 0x9aa5b5}));
   if (!full) {      // light copy made by the server (vertices clustered on a 2.5 mm grid, gzip, cached): a few hundred KB instead of tens of MB
     const g = await loadStl(s.url + '&lite=1');
     const dark = /camera|mount/.test(linkName) ;
-    return new THREE.Mesh(g, new THREE.MeshStandardMaterial({color: dark ? 0x3a3f48 : 0xb9c1cf, metalness: 0.1, roughness: 0.75, flatShading: false}));
+    return new THREE.Mesh(g, new THREE.MeshStandardMaterial({color: cmp ? 0xff8a3d : dark ? 0x3a3f48 : 0xb9c1cf, metalness: 0.1, roughness: 0.75, flatShading: false}));
   }
   const url = s.url;
   if (url.endsWith('.stl') || url.includes('.stl&')) {
@@ -408,14 +410,16 @@ function buildLimits() {
 // ---------------------------------------------------------------- loading a model from the server
 async function load() {
   $('err').textContent = '';
-  const o = {camera: $('o-camera').value, gripper: $('o-gripper').value, calibration: $('o-cal').value};
+  const o = {camera: $('o-camera').value, gripper: $('o-gripper').value, calibration: $('o-cal').value, compare: $('o-cmp').value};
   const keep = {...q};
   try {
     const r = await fetch('api/model?' + new URLSearchParams(o)); const m = await r.json();
     if (m.error) { $('err').textContent = m.error + '\n' + (m.trace || ''); return; }
     model = m; selected = null;
     $('git').textContent = 'workspace ' + m.git;
-    const cal = $('o-cal'); if (cal.options.length === 1) m.calibrations.forEach(c => cal.add(new Option(c, c)));
+    const fill = (sel, first) => { const keep = sel.value; sel.innerHTML = ''; sel.add(new Option(first, '')); m.calibrations.forEach(c => sel.add(new Option(c, c))); if (m.calibrations.includes(keep)) sel.value = keep; };
+    fill($('o-cal'), 'nominal (default)'); fill($('o-cmp'), 'nothing');
+    $('cmp-note').textContent = m.options.compare ? `orange = ${m.options.compare}, drawn on the same gripper; its names end in __cmp` : '';
     q = Object.keys(keep).length ? keep : {...m.poses.zero};
     for (const a of m.arm_joints) if (!(a in q)) q[a] = 0;
     const g = m.prefix + 'gripper'; if (!(g in q)) q[g] = 0.07;
@@ -424,7 +428,7 @@ async function load() {
     setViewPreset('iso');
   } catch (e) { $('err').textContent = String(e); }
 }
-['o-camera', 'o-gripper', 'o-cal'].forEach(id => $(id).onchange = load);
+['o-camera', 'o-gripper', 'o-cal', 'o-cmp'].forEach(id => $(id).onchange = load);
 load();
 </script>
 </body>
