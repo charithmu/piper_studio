@@ -1,18 +1,15 @@
-# ZED X Mini on the user's own clamp bracket (Fusion design, meshes/zedxm_bracket.stl): VERSION 1, NOMINAL poses, not measured.
-# Bracket frame (= mesh origin, camera_mount_link): origin at the middle of the clamp ring on the gripper body, Fusion Y = ring axis = towards the fingers,
-# Fusion Z = along the camera arm, Fusion X = Y x Z. Camera frame (zed_camera_link, Stereolabs' camera_link): x forward (viewing direction), y left, z up.
+# ZED X Mini on the user's own clamp bracket (Fusion design, meshes/zedxm_bracket.stl): VERSION 2 (2026-11-11), from the user's measurements in Fusion, not yet checked on the arm.
+# Bracket frame (= mesh origin, camera_mount_link) = the user's UCS at the gripper base: the mesh is expressed in that UCS (tools/build_zedxm_bracket_mesh.py), so the translation
+# to gripper_base is zero. UCS axes (they equal the Fusion world axes to 0.174 deg): Y = the gripper axis, towards the fingers; Z = along the camera arm; X = Y x Z.
+# Camera frame (zed_camera_link, Stereolabs' camera_link = the camera's bottom mounting hole): x forward (viewing direction), y left, z up.
 stand_in_gripper_base:        # the bracket frame in gripper_base; xyz in metres, rpy in radians
-  # Fusion Y -> gripper z (to the fingers), Fusion Z -> gripper -x (camera on the -x side, like the AgileX stand), Fusion X -> gripper -y.
-  # z = 0.032: the distance from gripper_base's origin to the middle of the ring. The user's rough value was "around 4 cm" (NOT YET MEASURED), then
-  # asked for the mount to be moved 8 mm back along the robot axis (2026-11-11): 0.040 - 0.008.
-  xyz: [0.0, 0.0, 0.032]
+  # UCS Y -> gripper z (to the fingers), UCS Z -> gripper -x (camera on the -x side, like the AgileX stand; the user has not confirmed the side), UCS X -> gripper -y.
+  xyz: [0.0, 0.0, 0.0]
   rpy: [1.5707963, 0.0, -1.5707963]
-camera_in_stand:              # the ZED X Mini's zed_camera_link (the threaded screw hole in its bottom = the origin of Stereolabs' mesh) in the bracket frame
-  # position: the point measured in Fusion (0, -13.686, +91.71 mm from the ring origin). It lies 0.75 mm from the cradle's seat plane, so it is the ZED CAD's own origin = the
-  # bottom screw point (confirm with the user).
-  # orientation: viewing direction = Fusion (0, +0.94, -0.34), i.e. towards the fingers and tilted 20 deg towards the gripper axis, as the cradle's tilted faces say;
-  # the camera's up = (0, +0.34, +0.94) (the seat's normal). Forward = towards the fingers fits the seat: the screw point is 12.7 mm from the seat's front end and the
-  # camera's front is 15.5 mm ahead of it (the other way round it would overhang by 19 mm). Confirm against the Fusion assembly.
-  xyz: [0.0, -0.013686, 0.09171]
-  rpy: [0.0, 0.349066, 1.570796]
+camera_in_stand:              # zed_camera_link in the bracket frame
+  # position: the user's Measure result, selection 1 = the UCS at the gripper base, selection 2 = the camera's mounting hole: UCS delta (0, 16.036, 91.759) mm, 93.15 mm apart.
+  xyz: [0.0, 0.016036, 0.091759]
+  # orientation: viewing direction = (0, +cos t, -sin t), up = the seat's normal (0, +sin t, +cos t), with t = 19.826 deg = the seat's 20.000 deg in the Fusion world axes
+  # (STEP and STL agree) minus the UCS's 0.174 deg. The user's 70.00 deg measure is the seat normal against the ring axis in the Fusion world axes (70.0012 deg in the STEP); in the UCS axes it is 70.17 deg.
+  rpy: [0.0, 0.346029, 1.570796]
 measured: null                # for a real calibration: {date: "2026-..", by: "..", method: "caliper | hand-eye (board, solver)", error_mm: ..}
