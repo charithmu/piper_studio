@@ -16,6 +16,15 @@ export PYTHONNOUSERSITE=1
 "$venv/bin/python" -m pip install --quiet -r "$here/pins.txt"
 "$venv/bin/python" -m pip install --quiet --no-deps --force-reinstall "$here"/piper_core-*.whl "$here"/piper_assets-*.whl "$here"/piper_tools-*.whl
 
+# pyzed (ZED SDK Python API) may live in the user site (~/.local), which PYTHONNOUSERSITE hides: link only pyzed into the venv, not the user site's NumPy 2 and the rest
+if ! "$venv/bin/python" -c "import pyzed" 2>/dev/null; then
+  usp="$(PYTHONNOUSERSITE= python3 -c 'import pyzed,os;print(os.path.dirname(os.path.dirname(pyzed.__file__)))' 2>/dev/null || true)"
+  if [ -n "$usp" ]; then
+    mkdir -p "$root/pyzed-link"; for d in "$usp"/pyzed "$usp"/pyzed-*.dist-info; do [ -e "$d" ] && ln -sfn "$d" "$root/pyzed-link/$(basename "$d")"; done
+    "$venv/bin/python" -c "import sysconfig;print(sysconfig.get_paths()['purelib'])" | { read -r sp; echo "$root/pyzed-link" > "$sp/pyzed_link.pth"; }
+  fi
+fi
+
 cp "$here"/arms/*.yaml "$HOME/.config/piper/arms/"
 cp "$here"/pins.txt "$here"/SHA256SUMS "$here"/VERSION "$root/" 2>/dev/null || true
 
