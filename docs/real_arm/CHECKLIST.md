@@ -68,3 +68,18 @@ Terminal 1: `ros2 launch piper_sim piper.launch.py backend:=real canbus:=can0 sp
 ## What must be true before `piper_pick` runs on the arm
 
 R1.1-R1.3 passed at 10 %; R2.0 and R2.2 recorded; `docs/FINDINGS.md` read by the `piper_pick` agent; the user has decided the speed percent for pick-and-place.
+
+## R3 wrist camera: the ZED X Mini on the own bracket (added 2026-11-11, NOTHING DONE ON THE ARM YET)
+
+The simulators, the description and the wheels carry the camera by default (D14); the arm has never carried it. Same rules as every rung: the user is at the arm, approves each step, speed starts at 10 %.
+
+| Step | What | Record | Pass |
+|---|---|---|---|
+| R3.0 | offline, no arm: `python tools/camera_clearance.py` (bracket version via `--calibration zedxm_bracket_vN`) | pairs in collision, closest gaps | no contact with link3..6 or the fingers. 2026-11-11 (v3): closest gap 15 mm to the fingers, 18 mm to link5; contacts with link1/link2/base only in extreme poses |
+| R3.1 | arm powered off: fit the bracket, cable routing, turn joints 5 and 6 and open/close the gripper by hand through their ranges | gaps by eye and with a gauge, the printed bore vs the 57 mm gripper body (the design bore is 57.0 mm: no clearance) | nothing rubs or catches; clamp holds; cable has slack |
+| R3.2 | weigh the bracket and the camera with its cable; put the values into `mounts/zedxm_bracket.xacro` (0.098 kg PLA estimate) and `cameras/zedxm.xacro` (0.150 kg datasheet) | masses | replaced the estimates; `docs/description/MASSES.md` regenerated |
+| R3.3 | `piper-arm`: start (zero), `ready`, back to zero at 10 %, gripper 0 / 35 / 70 mm, the camera mounted | clearance by eye at each; state, efforts at rest | no contact; the arm holds zero (the payload grew by about 0.25 kg at the wrist: do not change firmware payload or crash-protection settings without explicit approval) |
+| R3.4 | repeat R1.3 (`arm_stream_test.py` joints 2, 3, 5 at 10 %) with the camera on | lag, rms, repeatability vs the table without the camera | within 1 deg rms as before; any sag at zero noted |
+| R3.5 | the ZED Box driver (docs/real_arm/ZED_BOX.md): topics, rate, frames, TF off | `ros2 topic hz`, `tf2_echo piper_camera_color_optical_frame piper_gripper_base` | frames equal the description (position 0.1 mm, orientation 0.1 deg); image 30 Hz |
+| R3.6 | hand-eye check: a flat target (checkerboard or ArUco) at a measured place on the table, the arm at 3 poses, the ZED's measured target pose through the forward kinematics | target position error per pose | below 5 mm and 1 deg; else fit the bracket pose into `config/camera_mounts/zedxm_bracket_v4.yaml` (`measured:` filled in) and pass `camera_calibration:=zedxm_bracket_v4` |
+| R3.7 | simulation vs real: the same pose (`ready`) in MuJoCo (`PiperSim.camera_image()`) and from the ZED | fingertips, horizon and table edge in both images | the fingers and the field of view agree; the lens (wide or narrow) is confirmed |
