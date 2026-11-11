@@ -6,9 +6,11 @@ import sys
 from pathlib import Path
 
 import pytest
+import yaml
 
 ROOT = Path(__file__).resolve().parents[3]
-SCENARIO = ROOT / "tools/real_arm/fixtures/scenario_pick_25_0_05.json"
+SCENARIO = ROOT / "tools/real_arm/fixtures/scenario_pick_25_0_05.json"                  # planned for the robot only (run on the arm 2026-11-10)
+SCENARIO_ZED = ROOT / "tools/real_arm/fixtures/scenario_pick_25_0_05_zedxm.json"         # planned with the ZED X Mini and bracket (run on the arm 2026-11-11, all steps ok)
 RUNNER = ROOT / "tools/real_arm/run_scenario.py"
 
 
@@ -32,6 +34,16 @@ def test_stored_plan_is_valid_and_retiming_caps_the_speed():
         assert qa == pytest.approx(qb, abs=1e-3), (a, b)
 
 
+def test_stored_zedxm_plan_is_valid_and_was_planned_for_the_camera_arm():
+    pa = pytest.importorskip("piper_assets")
+    from piper_core.backend import Trajectory, check_trajectory
+    doc = json.loads(SCENARIO_ZED.read_text())
+    assert doc["schema"] == "piper.scenario/1" and doc["camera"] == "zedxm"
+    lim = pa.limits()
+    for name, leg in doc["legs"].items():
+        assert check_trajectory(Trajectory.from_json(json.dumps(leg)), lim.hard, margin=lim.margin, max_step=lim.max_step, max_velocity=lim.velocity) is None, name
+
+
 def test_runner_dry_run_needs_no_backend():
     pytest.importorskip("piper_assets")
     out = subprocess.run([sys.executable, str(RUNNER), str(SCENARIO), "--dry-run"], capture_output=True, text=True, timeout=60)
@@ -39,10 +51,48 @@ def test_runner_dry_run_needs_no_backend():
     assert "offline check: OK" in out.stdout and out.stdout.count("offline check: OK") == 4 and "dry run" in out.stdout
 
 
-def test_runner_refuses_yes_for_the_real_arm():
+def _arm_config(tmp_path, camera):
+    f = tmp_path / "arm.yaml"
+    f.write_text(f"arm_id: test\ncamera: {camera}\n")
+    return f
+
+
+def _run(*args):
+    return subprocess.run([sys.executable, str(RUNNER), *map(str, args)], capture_output=True, text=True, timeout=60)
+
+
+def test_runner_refuses_yes_for_the_real_arm(tmp_path):
     pytest.importorskip("piper_assets")
-    out = subprocess.run([sys.executable, str(RUNNER), str(SCENARIO), "--backend", "real", "--yes"], capture_output=True, text=True, timeout=60)
+    out = _run(SCENARIO, "--backend", "real", "--yes", "--arm-config", _arm_config(tmp_path, "none"))
     assert out.returncode != 0 and "--yes is for the simulation only" in (out.stderr + out.stdout)
+
+
+@pytest.mark.parametrize("planned,mounted", [("zedxm", "none"), (None, "zedxm")])
+def test_runner_refuses_a_scenario_planned_for_other_hardware(tmp_path, planned, mounted):
+    """A plan for the arm with the bracket is not run on an arm without it, and the reverse: refused before anything connects, also in a dry run."""
+    pytest.importorskip("piper_assets")
+    doc = json.loads(SCENARIO.read_text())
+    doc["camera"] = planned
+    f = tmp_path / "scenario.json"
+    f.write_text(json.dumps(doc))
+    for extra in ([], ["--dry-run"]):
+        out = _run(f, "--backend", "real", "--arm-config", _arm_config(tmp_path, mounted), *extra)
+        assert out.returncode != 0 and "refused" in (out.stderr + out.stdout) and "Plan again" in (out.stderr + out.stdout)
+
+
+def test_runner_accepts_a_scenario_planned_for_the_mounted_hardware(tmp_path):
+    pytest.importorskip("piper_assets")
+    doc = json.loads(SCENARIO.read_text())
+    doc["camera"] = "zedxm"
+    f = tmp_path / "scenario.json"
+    f.write_text(json.dumps(doc))
+    out = _run(f, "--backend", "real", "--dry-run", "--arm-config", _arm_config(tmp_path, "zedxm"))
+    assert out.returncode == 0 and "dry run" in out.stdout and "arm: zedxm" in out.stdout
+
+
+def test_the_stored_arm_config_says_what_is_mounted():
+    cfg = yaml.safe_load((ROOT / "docs/real_arm/arms/piper-01.yaml").read_text())
+    assert cfg["arm_id"] == "piper-01" and cfg["camera"] in ("none", "zedxm")
 
 
 @pytest.mark.skipif("mujoco" not in sys.modules and __import__("importlib").util.find_spec("mujoco") is None, reason="MuJoCo not installed")

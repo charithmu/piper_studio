@@ -32,11 +32,13 @@ def main():
     ap.add_argument("--approach", type=float, default=0.05, help="start of the descent this far above the target, metres")
     ap.add_argument("--open", type=float, default=0.07, help="gripper width at the start and after the lift, metres")
     ap.add_argument("--close", type=float, default=0.0, help="gripper width commanded at the grasp, metres (0: closes until it stalls on an object)")
-    ap.add_argument("--camera", choices=["none", "zedxm"], default="zedxm", help="the arm to plan for: zedxm = the ZED X Mini on its bracket (the default, as everywhere: it is on the real arm; cuRobo knows the bracket and camera), none = the robot only")
+    ap.add_argument("--camera", choices=["none", "zedxm"], default=None, help="the arm to plan for: zedxm = the ZED X Mini on its bracket, none = the robot only. Default: what docs/real_arm/arms/<arm>.yaml says is mounted on the real arm")
+    ap.add_argument("--arm", default="piper-01", help="the real arm whose mounted hardware is the default (docs/real_arm/arms/<arm>.yaml)")
     ap.add_argument("--out", default=str(Path.home() / "data/ml/isaac/piper_studio/scenario"))
     args = ap.parse_args()
 
-    cam = None if args.camera == "none" else "zedxm"
+    import arm_config
+    cam = arm_config.camera(args.arm) if args.camera is None else (None if args.camera == "none" else "zedxm")
     planner = PiperPlanner.from_assets(cam, gripper_width=0.07)      # the model Piper Studio ships (piper_assets.curobo_config); refuses a stale one
     q0 = np.asarray(ZERO, dtype=float)
     legs, used_yaw = None, None

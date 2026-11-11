@@ -1,0 +1,6 @@
+# What is physically on the real arm piper-01. The scenario tools read this (tools/real_arm/arm_config.py): the default camera of curobo_plan_scenario.py, and run_scenario.py
+# refuses to run a scenario on the real arm (or the real ROS stack) that was planned for different hardware, in either direction. EDIT IT WHEN YOU CHANGE THE HARDWARE.
+arm_id: piper-01
+camera: zedxm                  # none = the robot only | zedxm = the ZED X Mini on the user's bracket
+bracket: zedxm_bracket_v3      # config/camera_mounts/<bracket>.yaml (nominal pose, not hand-eye calibrated)
+mounted: 2026-11-11            # first run with it: CHECKLIST R3.10

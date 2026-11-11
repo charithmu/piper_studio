@@ -141,7 +141,8 @@ def main():
     ap.add_argument("--max-speed", type=float, default=0.3, help="rad/s cap for every leg (0: as planned)")
     ap.add_argument("--effort", type=float, default=1.0, help="gripper force in N (cap 3 N)")
     ap.add_argument("--canbus", "-b", default="can0")
-    ap.add_argument("--camera-mounted", action="store_true", help="real arm / ROS only: confirm that the ZED X Mini and its bracket are on the arm (needed for a scenario planned with --camera zedxm)")
+    ap.add_argument("--arm", default="piper-01", help="which real arm: its docs/real_arm/arms/<arm>.yaml says what is mounted (camera); the scenario must be planned for that hardware")
+    ap.add_argument("--arm-config", type=Path, default=None, help="another arm config file (tests)")
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--yes", action="store_true", help="no Enter before each step (simulation only)")
     ap.add_argument("--sim-stack", action="store_true", help="with --backend ros: the ROS stack is a simulation (launch backend:=mock), so --yes is allowed")
@@ -163,11 +164,15 @@ def main():
         bad = bad or bool(why)
     if bad:
         raise SystemExit("a leg fails the offline check: nothing was connected")
+    if args.backend in ("real", "ros") and not args.sim_stack:       # the plan must be for the hardware that is there, in both directions (a plan without the bracket is not safe with it, and the reverse)
+        import arm_config
+        mounted = arm_config.camera(args.arm, args.arm_config)
+        if mounted != args.camera:
+            raise SystemExit(f"refused: this scenario was planned for the arm {'WITH the ZED X Mini and its bracket' if args.camera else 'WITHOUT a camera (the robot only)'}, but {args.arm} has "
+                             f"{'the ZED X Mini and its bracket' if mounted else 'no camera'} mounted (docs/real_arm/arms/{args.arm}.yaml). Plan again: curobo_plan_scenario.py --camera {mounted or 'none'}")
     if args.dry_run or args.backend is None:
         say("dry run: nothing connected." if args.dry_run else "no --backend given: nothing connected.")
         return
-    if args.camera and args.backend in ("real", "ros") and not (args.camera_mounted or args.sim_stack):
-        raise SystemExit("this scenario was planned for the arm WITH the ZED X Mini and its bracket: pass --camera-mounted to confirm they are on the arm now, or plan with --camera none for an arm without them")
     if args.yes and not (args.backend == "mujoco" or (args.backend == "ros" and args.sim_stack)):
         raise SystemExit("--yes is for the simulation only: the arm needs an Enter before every step")
 
