@@ -2,7 +2,7 @@
 <!--
   Camera mount: the user's clamp bracket for the ZED X Mini (meshes/zedxm_bracket.stl, built by tools/build_zedxm_bracket_mesh.py from the Fusion export).
   Same interface as mounts/agilex_mid_stand.xacro. The mesh origin is `${prefix}camera_mount_link` (the middle of the clamp ring); its pose in gripper_base and the
-  camera's pose on it are in config/camera_mounts/zedxm_bracket.yaml (version 1: nominal, the ring offset is a guess), replaceable with camera_calibration:=<yaml>.
+  camera's pose on it are in config/camera_mounts/zedxm_bracket.yaml (version 1: nominal, the ring offset is not yet measured), replaceable with camera_calibration:=<yaml>.
   Collision: the visual mesh clustered on a 3 mm grid (not convex: simulators that need convex shapes (MuJoCo, Isaac) need a decomposition first).
   Mass: 0.098 kg is the PLA estimate from the mesh volume (1.24 g/cm3, solid), inertia a placeholder; replace by the weighed value.
 -->
