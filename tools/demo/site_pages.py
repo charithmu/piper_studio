@@ -71,7 +71,7 @@ def status_rows(facts: dict) -> list[tuple]:
         ("Direct joint trajectory, streaming, gripper", "✓", "✓", "✓", "✓", "◐ stand-in driver only"),
         ("MoveIt: joint goal, pose goal, straight line, unreachable fails", "✓", "✓", "✓", "✓", "◐ untested on hardware"),
         ("MoveIt Servo: TCP twist / pose tracking", "✓", "✓", "✓", facts.get("isaac_servo", "✓"), "✗ not tried"),
-        ("Wrist camera (D435): colour, aligned depth, camera_info", "— n/a", "✓ fixed today", "✓", isaac_cam, "✗ driver not set up"),
+        ("Wrist camera (ZED X Mini): colour, aligned depth, camera_info", "— n/a", "✓ fixed today", "✓", isaac_cam, "✗ driver not set up"),
         ("Shared scene objects (cubes, cylinder)", "—", "✓", "✓", facts.get("isaac_scene", "✗ not yet"), "—"),
         ("Command guard (NaN / out-of-limit / jump filter)", "—", "—", "—", "—", "✓ tested with stand-in"),
         ("Automated end-to-end test", "✓ 9 + skip", "✓ 10/10", "✓ 10/10", facts.get("isaac_test", "opt-in, GPU"), "◐ plumbing test"),
@@ -92,12 +92,12 @@ exercised only against a stand-in driver. ✓ = passed in the automated test or 
 <ul>
 <li><b>Real arm:</b> never driven. Needs you present. First session is read-only (state, feedback, <code>arm_status</code>), then enable, then slow moves.</li>
 <li><b>Isaac speed with cameras:</b> every rendered view costs Isaac about 8&nbsp;ms per frame. With the wrist camera alone it runs at about 0.6 of real time at 90&nbsp;Hz frames; with the observer video as well, about 0.4. Simulated time stays correct (everything runs on <code>/clock</code>), it is just slower on the wall clock. Without cameras it runs at real time.</li>
-<li><b>Gazebo camera viewpoint</b> is 4&nbsp;cm ahead of the true D435 optical centre (the housing workaround), so Gazebo's view differs slightly from MuJoCo's and Isaac's, which agree closely. A visibility mask for the housing would remove the offset.</li>
+<li><b>Gazebo camera viewpoint</b> is 25&nbsp;mm ahead of the ZED X Mini's left lens frame (the housing workaround), so Gazebo's view differs slightly from MuJoCo's and Isaac's, which agree closely. A visibility mask for the housing would remove the offset.</li>
 <li><b>Isaac control latency:</b> joint targets travel over ROS topics to Isaac and back (one extra hop). NVIDIA recommends the in-process
 <code>isaacsim.ros2.control</code> for this; not tried yet. See the <a href="control.html">control levels</a> page and the architecture notes.</li>
 <li><b>Firmware-level modes</b> of the arm (Cartesian PTP/line/arc, per-joint MIT impedance, unsmoothed joint streaming, CPV, limits/payload/protection) are not exposed by our API. Details and the recommendation on the <a href="control.html">control levels</a> page.</li>
 <li><b>Fault reporting:</b> the driver publishes <code>feedback/arm_status</code>, <code>motor_status</code> and <code>gripper_status</code> (diagnostics, 2&nbsp;Hz); <code>Piper.status()</code> / <code>piper status</code> read them and <code>activate</code> refuses while a fault is reported.</li>
-<li><b>Recording and policy interfaces</b> (LeRobot, VLA adapters), <b>Go2 composition</b>, a real RealSense driver launch: not started. Waiting for the discussion you asked for.</li>
+<li><b>Recording and policy interfaces</b> (LeRobot, VLA adapters), <b>Go2 composition</b>, a real ZED X Mini driver launch on the ZED Box: not started. Waiting for the discussion you asked for.</li>
 <li><b>Simulator actuator parameters</b> (MuJoCo/Isaac servo gains, URDF effort limits) are provisional until identified on the real arm.</li>
 </ul>
 
@@ -114,14 +114,14 @@ exercised only against a stand-in driver. ✓ = passed in the automated test or 
 <p>Needs a display. Use any free <code>ROS_DOMAIN_ID</code> (each domain gets its own Gazebo partition, so this does not disturb other sessions).</p>
 <pre>cd ~/projects/ros/piper_studio &amp;&amp; git switch feature/servo-camera &amp;&amp; source scripts/env.sh
 export ROS_DOMAIN_ID=77
-ros2 launch piper_sim piper.launch.py backend:=gazebo camera:=d435 gui:=true rviz:=true</pre>
+ros2 launch piper_sim piper.launch.py backend:=gazebo gui:=true rviz:=true</pre>
 <p>In a second terminal (same <code>source scripts/env.sh</code> and domain):</p>
 <pre>ros2 run rqt_image_view rqt_image_view /camera/color/image_raw        # also /camera/aligned_depth_to_color/image_raw
 ros2 run piper_py piper named ready                                  # camera looks down at the three objects
 ros2 run piper_py piper joints 0 1.2 -1.0 0 0.6 0                    # move and watch the view change
 ros2 run piper_py piper demo --backend gazebo --out /tmp/demo.json   # the full scripted sequence</pre>
 <p class="muted"><code>gui:=true</code> opens the Gazebo window as a client of the headless server; I have not tried that combination myself (no display here),
-so if the window stays empty, tell me what the terminal prints. The camera topics work without it. The MuJoCo equivalent is <code>backend:=mujoco camera:=d435 gui:=true</code>.</p>
+so if the window stays empty, tell me what the terminal prints. The camera topics work without it. The MuJoCo equivalent is <code>backend:=mujoco  gui:=true</code>.</p>
 
 <h2>Open decisions for you</h2>
 <ol>
@@ -327,9 +327,9 @@ def architecture_svg() -> str:
     s.append(_box(608, 618, 376, 60, "o", "generators", "physics URDF · MJCF + scene · Gazebo world SDF · Isaac USD"))
     s.append(_arrow(246, 648, 262, 648))
     s.append(_arrow(592, 648, 608, 648))
-    s.append(_box(16, 690, 230, 52, "u", "realsense2_description", "D435 model"))
+    s.append(_box(16, 690, 230, 52, "u", "zed-ros2-description", "ZED X Mini model"))
     s.append(_box(262, 690, 330, 52, "o", "sim cameras → /camera/*", "Gazebo · MuJoCo · Isaac"))
-    s.append(_box(608, 690, 376, 52, "p", "realsense2_camera (real)", "same topics and frames · planned"))
+    s.append(_box(608, 690, 376, 52, "p", "ZED wrapper (real, ZED Box)", "frames fit · topics remapped · planned"))
     s.append(_arrow(246, 716, 262, 716))
     s.append(_arrow(592, 716, 608, 716))
     s.append("</svg>")
@@ -343,7 +343,7 @@ PROVENANCE = [
     ("Controllers, hardware abstraction", "ros2_control, <code>joint_state_topic_hardware_interface</code>, <code>mock_components</code>", "Our one <code>controllers.yaml</code> and ros2_control xacro"),
     ("Gazebo / MuJoCo plugins", "<code>gz_ros2_control</code>, <code>mujoco_ros2_control</code>", "Our model generators, world, scene objects, camera sensor"),
     ("Isaac Sim integration", "Isaac Sim 6.1 URDF importer and ROS 2 OmniGraph nodes", "Our <code>isaac/</code> runner and conversion (the vendor's <code>piper_isaac_sim</code> is only a reference: no license)"),
-    ("Camera model and mount", "<code>realsense2_description</code> D435; AgileX mount pose from <code>piper_isaac_sim</code>", "Our placeholder bracket, simulated sensors, the Gazebo lens-plane fix"),
+    ("Camera model and mount", "Stereolabs <code>zed-ros2-description</code> (ZED X Mini mesh and frames)", "The user's own bracket (Fusion), the simulated sensors, the Gazebo lens-plane fix"),
     ("Python API, CLI, demo, step-response study", "—", "Entirely ours (<code>piper_py</code>)"),
     ("Real-arm safety defaults", "—", "Ours: no auto-enable, controllers start inactive, command guard, activation checks"),
 ]
@@ -417,20 +417,20 @@ def camera_page(site: Path, meta: str) -> str:
     ])
     vids = "".join([
         fig("gazebo_overview.mp4", "Gazebo: observer camera during the demo", "Fixed camera rendered inside Gazebo (EGL, headless)."),
-        fig("gazebo_wrist.mp4", "Gazebo: wrist camera during the demo", "What the D435 sees; published on /camera/color/image_raw."),
+        fig("gazebo_wrist.mp4", "Gazebo: wrist camera during the demo", "What the ZED X Mini sees; published on /camera/color/image_raw."),
         fig("mujoco_wrist.mp4", "MuJoCo: wrist camera during the demo", "Same topics and frames."),
         fig("mujoco.mp4", "MuJoCo: observer view (replay)", "Replay of the recorded run through the generated model."),
         fig("isaac.mp4", "Isaac Sim: observer view (live render)", "Rendered by Isaac while ROS drives it."),
     ])
     body = f"""
-<p class="lead">The simulated Intel RealSense D435 sits on link 6 at AgileX's mount pose, publishes colour, aligned depth and camera_info on the topics and frames the real
-<code>realsense2_camera</code> driver uses (<code>/camera/color/image_raw</code>, <code>/camera/aligned_depth_to_color/image_raw</code>, frame <code>camera_color_optical_frame</code>), and sees the same three objects in every simulator.</p>
+<p class="lead">The simulated Stereolabs ZED X Mini sits on the user's own clamp bracket on the gripper (on by default), publishes colour, aligned depth and camera_info from its left lens (960x600, 110&deg;) on the topics the RealSense driver had
+(<code>/camera/color/image_raw</code>, <code>/camera/aligned_depth_to_color/image_raw</code>, frame <code>piper_camera_color_optical_frame</code>), and sees the same three objects in every simulator.</p>
 <h2>Same pose, each simulator</h2><div class="grid">{stills or "<p class='muted'>no stills yet</p>"}</div>
 <h2>Videos</h2><div class="grid">{vids or "<p class='muted'>no videos yet</p>"}</div>
 <h2>Notes</h2>
 <ul>
 <li>Differences in shading and floor texture are cosmetic (each renderer has its own defaults); the object positions and the view geometry agree.</li>
-<li>The bracket is a placeholder block: the real one is not designed yet and AgileX's mesh is not redistributable (no licence).</li>
-<li>Gazebo needs <code>--headless-rendering</code> without a display, and the sensor must sit in front of the D435 housing mesh; both are handled in the repo.</li>
+<li>The bracket is the user's own design (Fusion), the camera mesh and frames are Stereolabs' (<code>zed-ros2-description</code>, Apache-2.0). The pose is nominal, not calibrated.</li>
+<li>Gazebo needs <code>--headless-rendering</code> without a display, and the sensor must sit in front of the camera housing mesh (25 mm ahead of the left lens frame); both are handled in the repo.</li>
 </ul>"""
     return page("camera.html", "Cameras", body, meta)

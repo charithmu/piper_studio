@@ -16,6 +16,9 @@ reports what it measured. Time advances only inside `run`, `settle`, `command`, 
   hold                                   -> targets := measured arm pose (no time passes)
   gripper {width, max_s}                 -> move the gripper and wait until it has settled (at most max_s): width
   objects                                -> {name: {pos, quat_wxyz}} in the base frame
+  camera_info                            -> the wrist camera: width, height, hfov_deg, near, far, K (needs --camera zedxm)
+  camera_pose                            -> T (4x4): the camera's optical frame (z forward, x right, y down) in the world = base frame, now
+  camera_image                           -> width, height, rgb (base64 uint8 h*w*3), depth (base64 float32 h*w, metres along the optical axis, NaN outside near..far)
   record_start {path, fps, width, height, pos, look_at} / record_stop   (needs --render)
   quit
 """
@@ -42,13 +45,17 @@ ap.add_argument("--prefix", default="piper_", help="prefix of every joint and li
 ap.add_argument("--scene", choices=["empty", "table"], default="empty")
 ap.add_argument("--scene-json", type=Path, help="JSON {objects: [...], table: {...}} as piper_assets.scene() returns it")
 ap.add_argument("--zero", default="[0, 0.01, -0.01, 0, 0, 0]", help="JSON list: the zero pose (piper_assets.zero_pose())")
+ap.add_argument("--camera", default="zedxm", help="zedxm (default): the ZED X Mini wrist camera (the USD with the bracket and camera, plus --camera-pose) | none: the robot only")
+ap.add_argument("--camera-pose", type=Path, help="camera_pose.json of `scripts/isaac.sh build-usd` / the wheel (the optical frame in link6, size, field of view); needed unless --camera none")
 ap.add_argument("--gripper-width", type=float, default=0.07)
 ap.add_argument("--ctrl-hz", type=float, default=250.0)
 ap.add_argument("--physics-hz", type=float, default=250.0)
 ap.add_argument("--render", action="store_true", help="enable viewport updates so `record_start` works (frames are rendered only while recording, at the video fps)")
 ap.add_argument("--gui", action="store_true", help="open the full Isaac Sim editor (default: headless); also enables recording")
 args, _ = ap.parse_known_args()
-args.render = args.render or args.gui
+if args.camera != "none" and args.camera_pose is None:
+    sys.exit("--camera-pose is needed with the wrist camera; use --camera none for the robot only")
+args.render = args.render or args.gui or args.camera != "none"      # rendering is needed for the wrist camera too (viewport updates stay off; replicator renders on request)
 
 from isaacsim import SimulationApp  # noqa: E402
 
@@ -63,10 +70,47 @@ from world import World  # noqa: E402
 zero = json.loads(args.zero)
 spec = json.loads(args.scene_json.read_text()) if args.scene_json else {"objects": [], "table": None}
 table_scene = args.scene == "table"
-world = World(app, args.usd, prefix=args.prefix, ctrl_hz=args.ctrl_hz, physics_hz=args.physics_hz, ground_z=-0.5 if table_scene else 0.0, contacts=True)
+world = World(app, args.usd, prefix=args.prefix, ctrl_hz=args.ctrl_hz, physics_hz=args.physics_hz, ground_z=-0.5 if table_scene else 0.0, contacts=True,
+             camera=args.camera != "none")
 world.add_scene(spec.get("objects", []) if table_scene else [], spec.get("table") if table_scene else None, dynamic=True)   # MuJoCo's empty scene has no objects
 world.start(zero, args.gripper_width)
 world.gui = args.gui
+
+# ---- the wrist camera: a USD camera under link6 at the ZED X Mini's left (colour) optical frame, rendered on request ----------------
+wcam = {}
+if args.camera != "none":
+    import math
+
+    import omni.replicator.core as rep
+    from pxr import Gf, UsdGeom
+
+    cfg = json.loads(args.camera_pose.read_text())
+    link = next(p for p in world.stage.Traverse() if p.GetName() == cfg["link"] and p.GetPath().pathString.startswith("/World/piper"))
+    cam_path = f"{link.GetPath()}/wrist_camera"
+    cam_prim = UsdGeom.Camera.Define(world.stage, cam_path)
+    xf = UsdGeom.Xformable(cam_prim)
+    xf.AddTranslateOp().Set(Gf.Vec3d(*cfg["pos"]))
+    qx, qy, qz, qw = cfg["quat_xyzw"]
+    xf.AddOrientOp(UsdGeom.XformOp.PrecisionDouble).Set(Gf.Quatd(qw, qx, qy, qz))
+    aperture = 20.955                                               # mm (USD default); the focal length sets the field of view
+    cam_prim.GetHorizontalApertureAttr().Set(aperture)
+    cam_prim.GetVerticalApertureAttr().Set(aperture * cfg["height"] / cfg["width"])
+    cam_prim.GetFocalLengthAttr().Set(aperture / (2.0 * math.tan(math.radians(cfg["hfov_deg"]) / 2.0)))
+    cam_prim.GetClippingRangeAttr().Set(Gf.Vec2f(cfg["near"], cfg["far"]))
+    rp = rep.create.render_product(cam_path, (cfg["width"], cfg["height"]))
+    wcam.update(cfg=cfg, path=cam_path, rgb=rep.AnnotatorRegistry.get_annotator("rgb"), depth=rep.AnnotatorRegistry.get_annotator("distance_to_image_plane"))
+    wcam["rgb"].attach([rp])
+    wcam["depth"].attach([rp])
+    world.render(), world.render()                                  # the first rendered frames are empty
+    print(f"[piper_isaac] wrist camera at {cam_path}, {cfg['width']}x{cfg['height']}, hfov {cfg['hfov_deg']} deg", flush=True)
+
+
+def camera_optical_pose():
+    """4x4 pose of the optical frame in the world: the USD camera looks along -z with +y up, the optical frame along +z with +y down."""
+    m = UsdGeom.Xformable(world.stage.GetPrimAtPath(wcam["path"])).ComputeLocalToWorldTransform(0)
+    T = np.array([[m[j][i] for j in range(4)] for i in range(4)])    # pxr matrices are row-vector (transposed)
+    T[:3, :3] = T[:3, :3] @ np.diag([1.0, -1.0, -1.0])
+    return T
 
 contacts = []                                                   # (step, a, b, depth) since the last reply
 CONTACTS_OK = False
@@ -182,6 +226,26 @@ def handle(c):
         return {"width": world.gripper()[0], "contacts": take_contacts(0)}
     if cmd == "objects":
         return {n: {"pos": p.tolist(), "quat_wxyz": q.tolist()} for n, (p, q) in world.object_poses().items()}
+    if cmd == "camera_info":
+        if not wcam:
+            raise RuntimeError("the server was started with --camera none")
+        c0 = wcam["cfg"]
+        return {k: c0[k] for k in ("width", "height", "hfov_deg", "near", "far", "K") if k in c0}
+    if cmd == "camera_pose":
+        if not wcam:
+            raise RuntimeError("the server was started with --camera none")
+        return {"T": camera_optical_pose().tolist()}
+    if cmd == "camera_image":
+        if not wcam:
+            raise RuntimeError("the server was started with --camera none")
+        import base64
+        for _ in range(4):                                          # physics time stays unchanged; the render product needs a few updates to show the present state (a stale first frame otherwise)
+            world.render()
+        c0 = wcam["cfg"]
+        rgb = np.ascontiguousarray(np.asarray(wcam["rgb"].get_data())[..., :3], dtype=np.uint8)
+        z = np.array(wcam["depth"].get_data(), dtype=np.float32).reshape(c0["height"], c0["width"])
+        z[~np.isfinite(z) | (z < c0["near"]) | (z > c0["far"])] = np.nan
+        return {"width": c0["width"], "height": c0["height"], "rgb": base64.b64encode(rgb.tobytes()).decode(), "depth": base64.b64encode(z.tobytes()).decode()}
     if cmd == "record_start":
         if rec["writer"] is not None:
             raise RuntimeError("recording already active; call record_stop first")

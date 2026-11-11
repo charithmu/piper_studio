@@ -32,7 +32,7 @@ def generate_test_description(backend):
     return launch.LaunchDescription([
         IncludeLaunchDescription(PythonLaunchDescriptionSource(bringup),
                                  launch_arguments={"backend": backend, "rviz": "false",
-                                                   "camera": "none" if backend in ("mock", "real") else os.environ.get("PIPER_TEST_CAMERA", "d435")}.items()),
+                                                   "camera": os.environ.get("PIPER_TEST_CAMERA", "zedxm")}.items()),     # the wrist camera is the default; PIPER_TEST_CAMERA=none: the robot only
         launch_testing.actions.ReadyToTest(),
     ]), {"backend": backend}
 
@@ -131,7 +131,9 @@ class TestBringup(unittest.TestCase):
         self.assertTrue(self.arm.use_trajectories())
 
     def test_9_wrist_camera(self, backend):
-        """Simulated D435: colour, aligned depth and camera_info on the RealSense driver's topics and frames."""
+        """Simulated ZED X Mini (left lens): colour, aligned depth and camera_info on the contract's topics and frames, with the camera model's size and intrinsics."""
+        from piper_description import camera_model
+        cm = camera_model()
         import numpy as np
         if backend in ("mock", "real") or os.environ.get("PIPER_TEST_CAMERA") == "none":
             self.skipTest("no simulated camera in this configuration")
@@ -141,24 +143,24 @@ class TestBringup(unittest.TestCase):
         color, hc = self.arm.image("color", timeout=60.0)
         depth, hd = self.arm.image("depth", timeout=60.0)
         info = self.arm.camera_info(timeout=30.0)
-        self.assertEqual(color.shape, (480, 640, 3))
-        self.assertEqual(depth.shape, (480, 640))
-        self.assertEqual((info.width, info.height), (640, 480))
+        self.assertEqual(color.shape, (cm["height"], cm["width"], 3))
+        self.assertEqual(depth.shape, (cm["height"], cm["width"]))
+        self.assertEqual((info.width, info.height), (cm["width"], cm["height"]))
         self.assertEqual(hc.frame_id, "piper_camera_color_optical_frame")
         self.assertEqual(hd.frame_id, "piper_camera_color_optical_frame")
         self.assertGreater(float(color.std()), 5.0, "colour image is blank")
         valid = np.isfinite(depth) & (depth > 0)
         self.assertGreater(float(valid.mean()), 0.2, "depth image is mostly empty")
         self.assertTrue(0.05 < float(np.nanmedian(depth[valid])) < 5.0, "depth is not in metres")
-        # pinhole model of a 69.4 deg horizontal field of view: fx = (w/2) / tan(hfov/2)
-        self.assertAlmostEqual(info.k[0], 320.0 / math.tan(math.radians(69.4) / 2), delta=5.0)
+        # pinhole model of the lens's horizontal field of view: fx = (w/2) / tan(hfov/2)
+        self.assertAlmostEqual(info.k[0], cm["K"][0][0], delta=5.0)
 
-    def test_10_camera_stand_does_not_collide(self, backend):
-        """The camera stand's collision box must not touch the arm or the fingers (MoveIt start-state validity, DECISIONS D11)."""
+    def test_10_camera_bracket_does_not_collide(self, backend):
+        """The bracket's and the camera's collision meshes must not touch the arm or the fingers (MoveIt start-state validity)."""
         from moveit_msgs.msg import RobotState
         from moveit_msgs.srv import GetStateValidity
-        if backend in ("mock", "real") or os.environ.get("PIPER_TEST_CAMERA") == "none":
-            self.skipTest("no camera stand in this configuration")
+        if os.environ.get("PIPER_TEST_CAMERA") == "none":
+            self.skipTest("no camera bracket in this configuration")
         client = self.arm.node.create_client(GetStateValidity, "/check_state_validity")
         self.assertTrue(client.wait_for_service(timeout_sec=30.0))
         p = self.arm.name_prefix

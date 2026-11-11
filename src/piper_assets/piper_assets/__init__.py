@@ -22,7 +22,7 @@ BASE_LINK = "base_link"
 TCP_LINK = "tcp_link"
 GRIPPER_LINK = "gripper_base"          # the TCP frame is TCP_OFFSET along +z of this link (+z = approach direction)
 TCP_OFFSET = (0.0, 0.0, 0.138)         # m, in GRIPPER_LINK
-CAMERAS = (None, "d435")
+CAMERAS = (None, "zedxm")             # None = the robot only; "zedxm" = with the ZED X Mini wrist camera on its bracket (the default everywhere)
 
 
 def data_dir() -> Path:
@@ -37,14 +37,16 @@ def manifest() -> dict:
 
 
 def _camera(camera) -> str:
-    cam = "none" if camera in (None, "none") else camera
-    if cam not in ("none", "d435"):
-        raise ValueError(f"camera must be None or 'd435', got {camera!r}")
-    return cam
+    """True / "zedxm" -> "zedxm" (with the wrist camera); None / False / "none" / "no_camera" -> "none" (the robot only)."""
+    if camera is True or camera == "zedxm":
+        return "zedxm"
+    if camera in (None, False, "none", "no_camera"):
+        return "none"
+    raise ValueError(f"camera must be True/'zedxm' (with the camera) or None/False/'none' (robot only), got {camera!r}")
 
 
-def urdf_path(gripper_width: float | None = 0.07, camera: str | None = None) -> Path:
-    """Flat URDF with the gripper fixed at `gripper_width` metres (0.0 closed .. 0.07 open); None keeps the moving gripper (mimic fingers).
+def urdf_path(gripper_width: float | None = 0.07, camera: str | bool | None = True) -> Path:
+    """Flat URDF (WITH the ZED X Mini wrist camera by default; camera=None: the robot only) with the gripper fixed at `gripper_width` metres (0.0 closed .. 0.07 open); None keeps the moving gripper (mimic fingers).
     0.0 and 0.07 are shipped; other widths are made on first use in the user cache with absolute mesh paths."""
     cam, d = _camera(camera), data_dir()
     if gripper_width is None:
@@ -63,7 +65,7 @@ def urdf_path(gripper_width: float | None = 0.07, camera: str | None = None) -> 
     return out
 
 
-def srdf_path(camera: str | None = None) -> Path:
+def srdf_path(camera: str | bool | None = True) -> Path:
     return data_dir() / f"piper_{_camera(camera)}.srdf"
 
 
@@ -109,5 +111,23 @@ def scene() -> dict:
     return json.loads((data_dir() / "scene.json").read_text())
 
 
-def camera_mount_path(name: str = "agilex_mid_stand") -> Path:
-    return data_dir() / "camera_mounts" / f"{name}.yaml"
+def camera_mount_path(name: str | None = None) -> Path:
+    """The bracket's mount file (default: the newest version, the one the URDF uses)."""
+    d = data_dir() / "camera_mounts"
+    return d / f"{name or sorted(p.stem for p in d.glob('zedxm_bracket_v*.yaml'))[-1]}.yaml"
+
+
+def camera() -> dict:
+    """The simulated wrist camera: model, lens, width, height, hfov_deg, vfov_deg, depth_min, depth_max, rate, baseline, K (3x3, rectified left image),
+    `optical_frame` (the frame name in the URDFs: the left lens, z forward, x right, y down), `parent_link` and `T_parent_optical` / `T_tcp_optical`
+    (4x4, the optical frame in gripper_base and in the TCP frame). One source for every simulator and the real ZED X Mini."""
+    return json.loads((data_dir() / "camera.json").read_text())
+
+
+def camera_pose(frame: str = "tcp_link") -> np.ndarray:
+    """4x4 pose of the camera's optical frame (z forward, x right, y down) in `frame`: "tcp_link", "gripper_base" or "link6"."""
+    c = camera()
+    key = {TCP_LINK: "T_tcp_optical", GRIPPER_LINK: "T_parent_optical", "link6": "T_link6_optical"}.get(frame)
+    if key is None:
+        raise ValueError(f"frame must be one of tcp_link, gripper_base, link6, got {frame!r}")
+    return np.array(c[key])

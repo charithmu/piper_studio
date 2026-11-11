@@ -4,13 +4,14 @@
     source scripts/env.sh && python tools/release/build_assets.py [--out src/piper_assets/piper_assets/data]
 
 Writes, for downstream users that have no ROS (`pip install piper_assets`):
-  piper_{none,d435}_w{0.0,0.07}.urdf   flat URDF, no prefix (joint1 .. joint6, base_link, tcp_link), gripper fixed at that width
-  piper_{none,d435}_open.urdf          the same with the moving gripper (mimic fingers); `piper_assets.urdf_path(width)` makes other widths from it
-  piper_{none,d435}.srdf               the expanded SRDF (self-collision pairs)
+  piper_{none,zedxm}_w{0.0,0.07}.urdf   flat URDF, no prefix (joint1 .. joint6, base_link, tcp_link), gripper fixed at that width
+  piper_{none,zedxm}_open.urdf          the same with the moving gripper (mimic fingers); `piper_assets.urdf_path(width)` makes other widths from it
+  piper_{none,zedxm}.srdf               the expanded SRDF (self-collision pairs)
   meshes/<package>/...                 every mesh the URDFs use (visual .dae and collision .stl), referenced by relative paths
   limits.json                          position (hard and planning), velocity, acceleration, jerk, effort, each with its source
   scene.json                           the shared scene objects and the placeholder table
-  camera_mounts/*.yaml                 nominal and measured camera mount poses
+  camera_mounts/*.yaml                 the bracket versions (poses)
+  camera.json                          the simulated ZED X Mini: intrinsics, size, frames, pose in gripper_base and the TCP
   licenses/                            licence texts of the third-party meshes
   manifest.json                        version, source commit, file hashes
 The result is generated: it is git-ignored and built into the wheel by scripts/build_wheels.sh. A test compares it with a fresh expansion.
@@ -33,7 +34,7 @@ import yaml
 WS = Path(__file__).resolve().parents[2]
 MARGIN = 0.01
 GRIPPER_WIDTHS = (0.0, 0.07)
-CAMERAS = ("none", "d435")
+CAMERAS = ("none", "zedxm")
 JERK = 25.0   # rad/s^3: derived (5 rad/s^2 reached in 0.2 s), NOT in the firmware or any datasheet
 
 
@@ -86,7 +87,7 @@ def main():
 
     files = {}
     for cam in CAMERAS:
-        maps = {"prefix": "", "gripper": True, **({"camera": cam} if cam != "none" else {})}
+        maps = {"prefix": "", "gripper": True, "camera": cam}      # always explicit: the description's default is the camera
         urdf = _without_ros2_control(robot_description("mujoco", **maps))
         urdf = localise_meshes(urdf, out)
         variants = {f"piper_{cam}_open.urdf": urdf, **{f"piper_{cam}_w{w}.urdf": fixed_gripper(urdf, w, "") for w in GRIPPER_WIDTHS}}
@@ -125,13 +126,31 @@ def main():
     (out / "scene.json").write_text(json.dumps({"frame": "base_link", **scene}, indent=1))
 
     shutil.copytree(WS / "src/piper_description/config/camera_mounts", out / "camera_mounts")
+    from piper_description import camera_model
+    cm = camera_model()
+    zed = ET.fromstring(files["zedxm"])
+    import numpy as np
+    from scipy.spatial.transform import Rotation as Rot
+    import sys
+    from ament_index_python.packages import get_package_prefix
+    sys.path.insert(0, str(Path(get_package_prefix("piper_description")) / "lib" / "piper_description"))
+    import model_audit
+    (out / "_zed.urdf").write_text(files["zedxm"])
+    mm = model_audit.load_urdf("zed", out / "_zed.urdf")
+    (out / "_zed.urdf").unlink()
+    T_gb = np.linalg.inv(mm.fk({}, "gripper_base")) @ mm.fk({}, cm["optical_frame"])
+    T_tcp = np.linalg.inv(mm.fk({}, "tcp_link")) @ mm.fk({}, cm["optical_frame"])
+    T_l6 = np.linalg.inv(mm.fk({}, "link6")) @ mm.fk({}, cm["optical_frame"])
+    (out / "camera.json").write_text(json.dumps({**{k: v for k, v in cm.items() if k != "link"}, "parent_link": "gripper_base",
+                                                 "T_parent_optical": T_gb.tolist(), "T_tcp_optical": T_tcp.tolist(), "T_link6_optical": T_l6.tolist(),
+                                                 "calibration": "zedxm_bracket_v3 (nominal, from the user's Fusion measures; not hand-eye calibrated)"}, indent=1))
     lic = out / "licenses"
     lic.mkdir()
     shutil.copy2(WS / "external/agx_arm_ros/LICENSE", lic / "agx_arm_ros-MIT.txt")
     (lic / "NOTICE.txt").write_text(
         "Meshes in meshes/agx_arm_description and the stand/gripper meshes: AgileX Robotics, MIT (agx_arm_ros / agx_arm_sim).\n"
-        "meshes/piper_description/d435_colored.dae: generated from MuJoCo Menagerie realsense_d435i (Apache-2.0, Google DeepMind).\n"
-        "meshes/realsense2_description: Intel RealSense / ROS realsense2_description (Apache-2.0).\n"
+        "meshes/piper_description/zedxm.stl: Stereolabs ZED X Mini, from zed-ros2-description (Apache-2.0, Stereolabs).\n"
+        "meshes/piper_description/zedxm_bracket_v*.stl: the user's own clamp bracket (Piper Studio, Apache-2.0).\n"
         "Everything else: Apache-2.0, Piper Studio.\n")
 
     tcp = re.search(r'name="tcp_joint".*?<origin[^>]*xyz="([^"]+)"', files["none"], re.S)

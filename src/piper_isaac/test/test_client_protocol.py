@@ -202,9 +202,11 @@ def test_launcher_preserves_display_only_for_gui(monkeypatch, tmp_path, gui):
     sim.gui, sim.scene = gui, "table"
     sim.ctrl_hz = sim.physics_hz = 250.0
     sim.gripper_width = 0.07
+    sim.camera_enabled = False
     try:
         sim._launch(tmp_path / "model.usda", env_sh, gui, 1.0)
         cmd = launched[0]
+        assert cmd[cmd.index("--camera") + 1] == "none"
         assert ("--gui" in cmd) == gui
         assert ("--render" in cmd) == gui
         assert ("DISPLAY=:96" in cmd) == gui
@@ -212,3 +214,24 @@ def test_launcher_preserves_display_only_for_gui(monkeypatch, tmp_path, gui):
     finally:
         sim._log.close()
         shutil.rmtree(sim._dir)
+
+
+def test_launcher_passes_the_wrist_camera_by_default(monkeypatch, tmp_path):
+    """The default server is started with the ZED X Mini camera and its pose file; camera=False starts the robot only."""
+    from piper_isaac import sim as module
+
+    env_sh = tmp_path / "env.sh"
+    env_sh.touch()
+    launched = []
+    monkeypatch.setattr(module.subprocess, "Popen", lambda cmd, **kw: launched.append(cmd))
+    monkeypatch.setattr(PiperIsaacSim, "_connect", lambda *a: None)
+    monkeypatch.setattr(module, "camera_pose_path", lambda: tmp_path / "camera_pose.json")
+    sim = PiperIsaacSim.__new__(PiperIsaacSim)
+    sim.gui, sim.scene, sim.ctrl_hz, sim.physics_hz, sim.gripper_width = False, "empty", 250.0, 250.0, 0.07
+    sim.camera_enabled = True
+    try:
+        sim._launch(tmp_path / "model.usda", env_sh, False, 1.0)
+        cmd = launched[0]
+        assert cmd[cmd.index("--camera") + 1] == "zedxm" and cmd[cmd.index("--camera-pose") + 1] == str(tmp_path / "camera_pose.json")
+    finally:
+        sim._log.close()

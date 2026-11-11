@@ -67,7 +67,7 @@ FRAME_HZ = float(args.frame_hz)
 PHYSICS_HZ = FRAME_HZ * max(1, round(240.0 / FRAME_HZ))  # a whole number of physics substeps per frame (>= 240 Hz)  # app updates (and ROS publishing) per second; PHYSICS_HZ / FRAME_HZ substeps each
 PREFIX = args.prefix
 ARM = [f"{PREFIX}joint{i}" for i in range(1, 7)]
-from servo_gains import GAINS  # noqa: E402  (same directory; kept equal to MuJoCo's servos)
+from servo_gains import gains  # noqa: E402  (same directory; kept equal to MuJoCo's servos)
 INITIAL = {PREFIX + "joint2": 0.01, PREFIX + "joint3": -0.01}  # config/initial_positions.yaml
 
 stage_utils.create_new_stage()
@@ -97,6 +97,7 @@ px.CreateTimeStepsPerSecondAttr().Set(int(PHYSICS_HZ))
 
 joints = {p.GetName(): p for p in stage.Traverse()
           if p.GetTypeName() in ("PhysicsRevoluteJoint", "PhysicsPrismaticJoint")}
+GAINS = gains(args.camera != "none")
 missing = [PREFIX + n for n in GAINS if PREFIX + n not in joints]  # GAINS is keyed by the official joint names
 assert not missing, f"USD lacks joints {missing}; has {sorted(joints)}"
 for name, (kp, kd, fmax) in GAINS.items():

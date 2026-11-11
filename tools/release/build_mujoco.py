@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Build the data of the `piper_mujoco` wheel: the MuJoCo model of the arm (no camera, no prefix) and its two scenes.
+"""Build the data of the `piper_mujoco` wheel: the MuJoCo model of the arm (no prefix) with the ZED X Mini wrist camera (the default) and without it, each with its two scenes.
 
     source scripts/env.sh && python tools/release/build_mujoco.py [--out src/piper_mujoco/piper_mujoco/data]
 
 The model is the one every simulator run uses: piper_sim.mujoco_model() converts the same description with mujoco_ros2_control's converter and
 the same inputs.xml (position servos, gravity compensation, mimic fingers), so PiperSim and the ROS MuJoCo backend share one actuator model.
-  model/                 converter output (mujoco_description_formatted.xml, assets/*.obj); the scenes sit next to it (meshdir is relative)
+  model/ and model_no_camera/   converter output (mujoco_description_formatted.xml, assets/*.obj); the scenes sit next to it (meshdir is relative)
   model/scene_empty.xml  floor plane + arm
   model/scene_table.xml        placeholder table (unmeasured) + the shared scene objects as free bodies + arm
   manifest.json          source commit and file hashes
@@ -25,6 +25,7 @@ import yaml
 from ament_index_python.packages import get_package_share_directory
 
 import piper_sim
+from piper_description import camera_model
 
 WS = Path(__file__).resolve().parents[2]
 INCLUDE = '<include file="mujoco_description_formatted.xml"/>'
@@ -50,17 +51,28 @@ def main():
         shutil.rmtree(out)
     out.mkdir(parents=True)
     cfg = Path(get_package_share_directory("piper_sim")) / "config" / "mujoco"
+    base = (cfg / "scene.xml").read_text()
+    for name, camera in (("model", "zedxm"), ("model_no_camera", "none")):
+        build_variant(out / name, camera, cfg, base)
+    spec = yaml.safe_load((WS / "src/piper_sim/config/scene_objects.yaml").read_text())
+    for name in ("model", "model_no_camera"):
+        add_scenes(out / name, base, spec)
+    finish(out)
+
+
+def build_variant(model: Path, camera: str, cfg: Path, base: str):
     with tempfile.TemporaryDirectory() as tmp:
-        scene = piper_sim.mujoco_model(piper_sim.robot_description("mujoco", prefix=""), cfg / "inputs.xml", cfg / "scene.xml", cache_dir=tmp, prefix="")
-        model = out / "model"
+        scene = piper_sim.mujoco_model(piper_sim.robot_description("mujoco", prefix="", camera=camera), cfg / "inputs.xml", cfg / "scene.xml", cache_dir=tmp, prefix="",
+                                       camera=camera_model() if camera != "none" else None)
         model.mkdir()
         shutil.copytree(scene.parent / "assets", model / "assets")
         shutil.copy2(scene.parent / "mujoco_description_formatted.xml", model / "mujoco_description_formatted.xml")
-    base = (cfg / "scene.xml").read_text()
+
+
+def add_scenes(model: Path, base: str, spec: dict):
     assert INCLUDE in base and "</worldbody>" in base
     (model / "scene_empty.xml").write_text(base)
 
-    spec = yaml.safe_load((WS / "src/piper_sim/config/scene_objects.yaml").read_text())
     t = spec["table"]
     sx, sy, sz = t["size"]
     cx, cy = t["pos_xy"]
@@ -71,6 +83,8 @@ def main():
     text = text.replace("</worldbody>", table + "\n" + "\n".join(body(o) for o in spec["objects"]) + "\n  </worldbody>", 1)
     (model / "scene_table.xml").write_text(text)
 
+
+def finish(out: Path):
     def run(*a):
         return subprocess.run(["git", "-C", str(WS), *a], capture_output=True, text=True).stdout.strip()
     files = {str(p.relative_to(out)): hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(out.rglob("*")) if p.is_file()}

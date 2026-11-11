@@ -1,10 +1,10 @@
 # Masses of the Piper description
 
 Every mass in the model, with where it comes from. **None of these are measured on the real arm**: the arm's firmware does not report masses, the vendor values are
-CAD estimates (they changed for link6 on 2026-10-16), and the camera and stand values are placeholders. Do not use them as ratings. Weighing the arm and the camera
+CAD estimates (they changed for link6 on 2026-10-16), and the camera (150 g, Stereolabs datasheet) and bracket (98 g, PLA estimate from the mesh volume) values are not weighed. Do not use them as ratings. Weighing the arm and the camera
 parts would replace the entries below.
 
-Regenerate after any description change: `python src/piper_description/tools/mass_table.py` (camera `d435` on the default mount). Vendor source: `agx_arm_urdf` @ 680fa92.
+Regenerate after any description change: `python src/piper_description/tools/mass_table.py` (with the ZED X Mini on its bracket, the default). Vendor source: `agx_arm_urdf` @ 680fa92.
 
 | Link | Mass (kg) | Source | Note |
 |---|---:|---|---|
@@ -20,10 +20,10 @@ Regenerate after any description change: `python src/piper_description/tools/mas
 | `gripper_link` | 0 | vendor URDF (agx_arm_urdf, CAD estimate) | virtual width joint, no mass |
 | `gripper_link1` | 0.025 | vendor URDF (agx_arm_urdf, CAD estimate) |  |
 | `gripper_link2` | 0.025 | vendor URDF (agx_arm_urdf, CAD estimate) |  |
-| `camera_mount_link` | 0.04 | our placeholder (mounts/agilex_mid_stand.xacro), not weighed |  |
-| `camera_link` | 0.072 | cameras/d435.xacro (the file itself says the value is not reliable), not weighed |  |
+| `camera_mount_link` | 0.098 | PLA estimate from the mesh volume (mounts/zedxm_bracket.xacro), not weighed |  |
+| `camera_link` | 0.15 | cameras/zedxm.xacro: 150 g from the Stereolabs datasheet |  |
 | **arm (base to link6)** | **4.1696** | sum | |
 | **flange + gripper** | **0.5400** | sum | |
-| **camera + stand** | **0.1120** | sum | |
-| **total with gripper and camera** | **4.8216** | sum | |
+| **camera + stand** | **0.2480** | sum | |
+| **total with gripper and camera** | **4.9576** | sum | |
 | **total arm + gripper (no camera)** | **4.7096** | sum | |

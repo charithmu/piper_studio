@@ -12,12 +12,12 @@ client, simulators (mock, Gazebo, MuJoCo, Isaac Sim) and the real arm. Layout an
 cd ~/projects/ros/piper_studio && source scripts/session.sh 101     # pick a free ROS_DOMAIN_ID (Piper range 70-161)
 scripts/test_all.sh                                                  # offline tests + generated-macro check, ~5 s
 scripts/test_all.sh mock gazebo mujoco                               # + launch tests and the carrier example, ~2 min
-ros2 launch piper_sim piper.launch.py backend:=mujoco camera:=d435   # run something
+ros2 launch piper_sim piper.launch.py backend:=mujoco                 # run something (with the ZED X Mini wrist camera; camera:=none for the robot only)
 git log --oneline | head; sed -n 1,60p docs/CLEANUP.md              # what was done and what is open
 ```
 
 ## What works (verified 2026-11-10, details in CLEANUP "Verification record" and the hardware log in `docs/real_arm/arms/piper-01.md`)
-**Simulators:** mock, Gazebo (also its GUI on a virtual display), MuJoCo (viewer and camera), Isaac Sim (GPU, camera, video) with the same controllers and MoveIt; simulated D435 wrist camera on the RealSense topic names; prefix `piper_` on every name; carrier example (own controller manager, prefix `arm_`).
+**Simulators:** mock, Gazebo (also its GUI on a virtual display), MuJoCo (viewer and camera), Isaac Sim (GPU, camera, video) with the same controllers and MoveIt; simulated ZED X Mini wrist camera (left lens, 960x600, 110 deg) on the RealSense topic names, on by default (`camera:=none` for the robot only; 2026-11-11); prefix `piper_` on every name; carrier example (own controller manager, prefix `arm_`).
 **Real arm, on the arm with the user present:** `RealArm` (`piper_core`: start, stop, execute with 25 ms setpoints, abort, gripper), the `piper-arm` console, the SDK tools in `tools/real_arm/`, a cuRobo pick-like scenario in simulation; firmware kinematics equal our model (0.09 mm).
 **Real arm, ROS path: experimental, parked (user decision 2026-11-10).** `piper_real_driver` (our node on `RealArm`) starts, stops and does small moves on the arm, but large MoveIt moves failed and were jerky and the gripper action misreports a stall (hardware log in `arms/piper-01.md`). Use `RealArm`. The redesign for later is CLEANUP C14; the scenario through ROS runs on the mock backend only.
 

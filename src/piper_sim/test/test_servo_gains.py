@@ -11,15 +11,17 @@ from piper_sim import mujoco_model, robot_description
 
 ISAAC = Path(__file__).resolve().parents[3] / "isaac"
 sys.path.insert(0, str(ISAAC))
-from servo_gains import GAINS  # noqa: E402
+from servo_gains import gains  # noqa: E402
 
 
-def test_isaac_gains_equal_mujoco():
+@pytest.mark.parametrize("camera", ["zedxm", "none"])
+def test_isaac_gains_equal_mujoco(camera):
     if not ISAAC.exists():
         pytest.skip("isaac/ not next to the sources")
     cfg = Path(get_package_share_directory("piper_sim")) / "config" / "mujoco"
-    scene = mujoco_model(robot_description("mujoco"), cfg / "inputs.xml", cfg / "scene.xml")
+    scene = mujoco_model(robot_description("mujoco", camera=camera), cfg / "inputs.xml", cfg / "scene.xml")
     m = mujoco.MjModel.from_xml_path(str(scene))
+    GAINS = gains(camera != "none")
     for i in range(m.nu):
         name = m.actuator(i).name
         kp, kd, _ = GAINS[name.removeprefix("piper_")]  # gains are keyed by the official joint names; the model carries the prefix

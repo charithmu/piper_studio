@@ -39,14 +39,26 @@ def runner_dir() -> Path:
     raise FileNotFoundError("no Isaac runner: install the wheel, run from the repo, or set PIPER_ISAAC_RUNNER")
 
 
-def usd_path() -> Path:
-    """The Piper USD (no camera): inside the wheel, else $PIPER_ISAAC_USD, else the build of `scripts/isaac.sh build-usd`."""
-    cands = [os.environ.get("PIPER_ISAAC_USD"), str(resources.files("piper_isaac") / "data/usd/piper_isaac/piper_isaac.usda"),
-             str(Path(os.environ.get("PIPER_ISAAC_DATA", Path.home() / "data/ml/isaac/piper_studio")) / "usd/piper_isaac/piper_isaac.usda")]
+def _data_dirs() -> list:
+    return [Path(str(resources.files("piper_isaac") / "data")), Path(os.environ.get("PIPER_ISAAC_DATA", Path.home() / "data/ml/isaac/piper_studio"))]
+
+
+def usd_path(camera: bool = True) -> Path:
+    """The Piper USD with the ZED X Mini bracket and camera (camera=True, the default) or the robot only: $PIPER_ISAAC_USD, else inside the wheel, else the build of
+    `scripts/isaac.sh build-usd [no_camera]`."""
+    rel = "usd/piper_isaac/piper_isaac.usda" if camera else "usd_no_camera/piper_isaac_no_camera/piper_isaac_no_camera.usda"
+    cands = [os.environ.get("PIPER_ISAAC_USD")] + [str(d / rel) for d in _data_dirs()]
     for p in cands:
         if p and Path(p).exists():
             return Path(p)
-    raise FileNotFoundError("no Piper USD: install the wheel or run `scripts/isaac.sh build-usd` (needs the ROS environment once)")
+    raise FileNotFoundError("no Piper USD: install the wheel or run `scripts/isaac.sh build-usd [no_camera]` (needs the ROS environment once)")
+
+
+def camera_pose_path() -> Path:
+    for d in _data_dirs():
+        if (d / "camera_pose.json").exists():
+            return d / "camera_pose.json"
+    raise FileNotFoundError("no camera_pose.json: install the wheel or run `scripts/isaac.sh build-usd`")
 
 
 class PiperIsaacSim:
@@ -54,9 +66,10 @@ class PiperIsaacSim:
 
     def __init__(self, scene: str = "empty", gripper_width: float = 0.07, ctrl_hz: float = 250.0, physics_hz: float = 250.0, render: bool = False,
                  usd: str | Path | None = None, isaac_env: str | Path | None = None, connect: str | Path | None = None, startup_timeout: float = 240.0,
-                 gui: bool = False):
+                 gui: bool = False, camera: bool = True):
         """Starts the Isaac server (one process per instance, through gpu-run) and connects. `connect` attaches to an already running server instead
         (tests). `isaac_env` is the script that activates Isaac's environment (default $ISAAC_ENV_SH, else ~/projects/sim/robosim/env.sh).
+        `camera=True` (the default): the arm carries the ZED X Mini on its bracket and `camera_image()` renders from its left lens; `camera=False`: the robot only.
         `render=True` enables recording (`record_start`) and renders only at the video frame rate. `gui=True` opens the full editor and enables recording."""
         if scene not in ("empty", "table"):
             raise ValueError("scene must be 'empty' or 'table'")
@@ -67,13 +80,14 @@ class PiperIsaacSim:
         self.limits = dict(self.limits_info.hard)
         self.margin = self.limits_info.margin
         self.gui = gui
+        self.camera_enabled = bool(camera)
         self.render_enabled = render or gui
         self._proc = self._sock = self._file = self._dir = None
         self._external = connect is not None
         atexit.register(self.close)
         try:
             if connect is None:
-                self._launch(Path(usd) if usd else usd_path(), isaac_env, self.render_enabled, startup_timeout)
+                self._launch(Path(usd) if usd else usd_path(self.camera_enabled), isaac_env, self.render_enabled, startup_timeout)
             else:
                 self._connect(str(connect), startup_timeout)
             hello = self._rpc(cmd="hello")
@@ -98,6 +112,7 @@ class PiperIsaacSim:
                "python", str(runner_dir() / "run_server.py"), "--usd", str(usd), "--socket", sock, "--scene", self.scene, "--scene-json", os.path.join(self._dir, "scene.json"),
                "--zero", json.dumps(list(piper_assets.zero_pose())), "--gripper-width", str(self.gripper_width), "--ctrl-hz", str(self.ctrl_hz),
                "--physics-hz", str(self.physics_hz)] + (["--render"] if render else []) + (["--gui"] if self.gui else [])
+        cmd += ["--camera", "zedxm", "--camera-pose", str(camera_pose_path())] if self.camera_enabled else ["--camera", "none"]
         self._log = open(os.path.join(self._dir, "server.log"), "w")
         self._pidfile = pid
         self._proc = subprocess.Popen(cmd, cwd=self._dir, stdout=self._log, stderr=subprocess.STDOUT, start_new_session=True)
@@ -195,6 +210,33 @@ class PiperIsaacSim:
     def reset(self) -> None:
         """Back to the zero pose with the gripper at the constructor's width and every object where it started. Simulation time restarts at 0."""
         self._rpc(cmd="reset", zero=list(piper_assets.zero_pose()), width=self.gripper_width)
+
+    # ------------------------------------------------------------------ wrist camera (the ZED X Mini's left lens)
+    def camera_info(self) -> dict:
+        """piper_assets.camera(): intrinsics K, width, height, hfov_deg, depth range, optical frame name and its pose in gripper_base / the TCP."""
+        self._need_camera()
+        return piper_assets.camera()
+
+    def camera_pose(self) -> np.ndarray:
+        """4x4 pose of the camera's optical frame (z forward, x right, y down) in the base frame, now."""
+        self._need_camera()
+        return np.array(self._rpc(cmd="camera_pose")["T"])
+
+    def camera_image(self, depth: bool = False):
+        """What the wrist camera sees: RGB (height, width, 3) uint8, or (rgb, depth) with depth in metres along the optical axis (NaN outside the lens's depth
+        range). The size is the camera model's (960 x 600; K of `camera_info()`). Simulation time does not advance."""
+        import base64
+        self._need_camera()
+        r = self._rpc(cmd="camera_image")
+        h, w = r["height"], r["width"]
+        rgb = np.frombuffer(base64.b64decode(r["rgb"]), dtype=np.uint8).reshape(h, w, 3).copy()
+        if not depth:
+            return rgb
+        return rgb, np.frombuffer(base64.b64decode(r["depth"]), dtype=np.float32).reshape(h, w).copy()
+
+    def _need_camera(self) -> None:
+        if not self.camera_enabled:
+            raise RuntimeError("this PiperIsaacSim was created with camera=False (the robot only)")
 
     def object_poses(self) -> dict:
         """{name: (position (3,), quaternion wxyz (4,))} of the free objects, in the base frame (empty in the 'empty' scene)."""

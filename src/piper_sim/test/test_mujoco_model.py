@@ -82,19 +82,19 @@ def _pose(xyz, rpy):
 
 
 def test_mujoco_collision_meshes_sit_where_the_description_puts_them(tmp_path):
-    """With the wrist camera: every collision mesh of the description (arm, gripper, stand, D435) appears in the MuJoCo model at the same place.
+    """With the wrist camera: every collision mesh of the description (arm, gripper, bracket, ZED X Mini) appears in the MuJoCo model at the same place.
 
     The converter fuses fixed links into link6, so this compares the world bounding box of each collision mesh geom with the box the URDF
-    predicts, at the zero pose and at random arm poses: a wrong stand or camera pose, a missing mesh or a rotated one fails here.
+    predicts, at the zero pose and at random arm poses: a wrong bracket or camera pose, a missing mesh or a rotated one fails here.
     """
     mujoco = pytest.importorskip("mujoco")
     pytest.importorskip("trimesh")
     from piper_description import robot_description as plain
 
     urdf_file = tmp_path / "desc.urdf"
-    urdf_file.write_text(plain("mujoco", camera="d435"))
+    urdf_file.write_text(plain("mujoco"))
     cfg = Path(get_package_share_directory("piper_sim")) / "config" / "mujoco"
-    scene = piper_sim.mujoco_model(robot_description("mujoco", camera="d435"), cfg / "inputs.xml", cfg / "scene.xml", cache_dir=tmp_path)
+    scene = piper_sim.mujoco_model(robot_description("mujoco"), cfg / "inputs.xml", cfg / "scene.xml", cache_dir=tmp_path)
     m = mujoco.MjModel.from_xml_path(str(scene))
     d = mujoco.MjData(m)
     ref = model_audit.load_urdf("desc", urdf_file)

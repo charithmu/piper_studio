@@ -4,7 +4,7 @@
   <statistic center="0.2 0 0.2" extent="0.8"/>
   <visual>
     <headlight diffuse="0.6 0.6 0.6" ambient="0.1 0.1 0.1" specular="0 0 0"/>
-    <global azimuth="120" elevation="-20"/>
+    <global azimuth="120" elevation="-20" offwidth="1920" offheight="1200"/>
     <!-- Near clip: the ZED X Mini cannot see closer than ~10 cm, and its left lens frame sits 20 mm behind the front glass, inside the housing. Far: the narrow lens sees 12 m. -->
     <map znear="0.03" zfar="12"/>
   </visual>

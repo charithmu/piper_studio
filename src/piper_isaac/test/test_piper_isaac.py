@@ -93,3 +93,49 @@ def test_parity_with_pipersim(sim):
     ms.close()
     print(f"\nparity: PiperIsaacSim {track(ri, tr):.4f} rad, PiperSim {track(rm, tr):.4f} rad; end pose difference {np.abs(ri.q_meas[-1] - rm.q_meas[-1]).max():.2e}")
     assert ri.ok and rm.ok and np.abs(ri.q_meas[-1] - rm.q_meas[-1]).max() < 2e-3 and abs(track(ri, tr) - track(rm, tr)) < 0.03
+
+
+# ---- the ZED X Mini wrist camera (the default) ----------------------------------------------------------------------------------------
+def test_wrist_camera_is_on_by_default_and_matches_the_description(sim):
+    """The optical frame Isaac renders from equals the description's: gripper-chain pose at several arm poses; size and depth are the camera model's."""
+    assert sim.camera_enabled
+    c = sim.camera_info()
+    rgb, depth = sim.camera_image(depth=True)
+    assert rgb.shape == (c["height"], c["width"], 3) and depth.shape == (c["height"], c["width"])
+    assert float(rgb.std()) > 5.0, "colour image is blank"
+    assert np.isfinite(depth).mean() > 0.2 and np.nanmin(depth) >= c["depth_min"] and np.nanmax(depth) <= c["depth_max"]
+    t0 = sim.time
+    sim.camera_image()
+    assert sim.time == t0, "rendering the camera must not advance simulation time"
+
+
+def test_the_camera_pose_equals_the_description_chain(sim):
+    """camera_pose() against link6 x piper_assets.camera_pose('link6'): link6's own pose comes from the MuJoCo-free FK of the description (model_audit)."""
+    import sys
+    import xml.etree.ElementTree as ET
+
+    from ament_index_python.packages import get_package_prefix  # noqa: F401  (needs the ROS environment; skipped otherwise)
+    sys.path.insert(0, os.path.join(get_package_prefix("piper_description"), "lib", "piper_description"))
+    import model_audit
+
+    ref = model_audit.load_urdf("ref", pa.urdf_path(0.07, True))
+    assert sim.start()
+    for q in ([0, 0.01, -0.01, 0, 0, 0], [0.3, 0.6, -0.8, 0.2, 0.5, -0.4]):
+        r = sim.move_to(q)
+        assert r.ok, r.message if hasattr(r, "message") else r
+        qd = dict(zip([f"joint{i}" for i in range(1, 7)], sim.state().q))
+        want = ref.fk(qd, "camera_color_optical_frame")
+        got = sim.camera_pose()
+        assert np.abs(got[:3, 3] - want[:3, 3]).max() < 2e-3, (got[:3, 3], want[:3, 3])
+        assert np.abs(got[:3, :3] - want[:3, :3]).max() < 5e-3
+
+
+def test_robot_only_variant_has_no_camera():
+    s = PiperIsaacSim("empty", camera=False)
+    try:
+        assert not s.camera_enabled
+        with pytest.raises(RuntimeError):
+            s.camera_image()
+        assert s.start()
+    finally:
+        s.close()

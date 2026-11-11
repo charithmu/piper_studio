@@ -22,7 +22,7 @@ from pathlib import Path
 
 import numpy as np
 
-from servo_gains import GAINS  # same directory; kept equal to MuJoCo's by piper_sim/test/test_servo_gains.py
+from servo_gains import gains  # same directory; kept equal to MuJoCo's by piper_sim/test/test_servo_gains.py
 
 FINGER_RATIO = {"gripper_joint1": 0.5, "gripper_joint2": -0.5}      # URDF mimic: multiplier x gripper width (the importer's PhysX variant has no mimic)
 OBJECT_MASS = 0.05                                                  # kg and friction: the MuJoCo scene's free bodies (tools/release/build_mujoco.py)
@@ -30,7 +30,7 @@ OBJECT_FRICTION = 1.0
 
 
 class World:
-    def __init__(self, app, usd, *, prefix="piper_", ctrl_hz=250.0, physics_hz=250.0, ground_z=0.0, contacts=False):
+    def __init__(self, app, usd, *, prefix="piper_", ctrl_hz=250.0, physics_hz=250.0, ground_z=0.0, contacts=False, camera=True):
         import carb.settings
         import omni.usd
         import isaacsim.core.experimental.utils.stage as stage_utils
@@ -73,6 +73,7 @@ class World:
         PhysxSchema.PhysxSceneAPI.Apply(scene.GetPrim()).CreateTimeStepsPerSecondAttr().Set(int(self.physics_hz))
 
         joints = {p.GetName(): p for p in self.stage.Traverse() if p.GetTypeName() in ("PhysicsRevoluteJoint", "PhysicsPrismaticJoint")}
+        GAINS = gains(camera)                                  # the servo table of the model that is loaded (with or without the wrist camera)
         missing = [prefix + n for n in GAINS if prefix + n not in joints]      # GAINS is keyed by the official joint names
         assert not missing, f"USD lacks joints {missing}; has {sorted(joints)}"
         for name, (kp, kd, fmax) in GAINS.items():

@@ -19,18 +19,28 @@ You never need the simulators, scenes or demos of this repo. Take only the layer
 
 ## 0. Python packages (no ROS): the way for planners such as cuRobo
 
+**The wrist camera is on by default (0.8.0, breaking).** Every description, URDF, SRDF, simulator model and wheel carries the Stereolabs **ZED X Mini on the user's own clamp bracket**
+(`camera` = `zedxm`) unless you ask for the robot only: `camera:=none` (xacro, launch, `export_urdf.py --camera none`), `camera=None` (`piper_assets.urdf_path`, `srdf_path`), `camera=False`
+(`PiperSim`, `PiperIsaacSim`), `build-usd no_camera`. The camera's frames are `piper_camera_color_optical_frame` (the **left lens**, z forward, x right, y down; colour and depth are
+registered to it), `piper_camera_depth_optical_frame` (the same), plus Stereolabs' own names (`piper_zed_camera_link` = the camera's mounting hole, `piper_zed_left_camera_frame(_optical)`, `piper_zed_right_camera_frame(_optical)`),
+so a ZED Box driver started with `camera_name:=piper_zed` and its TF switched off fits this description. The images are rectified pinhole images; size, field of view and depth range come from
+one file, `piper_description/config/camera_models/zedxm.yaml` (default: wide 2.2 mm lens, 960x600, 110 deg horizontal, 0.1 to 8 m, 30 Hz; `camera_lens:=narrow`, `camera_width`, `camera_height` override).
+The bracket and its pose are versioned (`config/camera_mounts/zedxm_bracket_v1..v3.yaml`, default the newest; `camera_calibration:=zedxm_bracket_v2` or a yaml path with a measured pose).
+**Not calibrated:** the pose is nominal, from the user's CAD (`measured: null`); hand-eye calibration on the real arm is open. A planner that wants the robot only passes `camera=None` explicitly
+(a call that already did so, like `piper_assets.urdf_path(0.07, None)`, is unchanged).
+
 Four wheels, one version, built into `dist/` from the tagged commit by `scripts/build_wheels.sh` (needs the ROS environment once, to generate the data). A downstream project installs them into its own venv (Python 3.10 or newer) and never reads this repo's `install/`:
 
 ```bash
-uv pip install --no-deps piper_core-0.5.0-py3-none-any.whl piper_assets-0.5.0-py3-none-any.whl piper_mujoco-0.5.0-py3-none-any.whl piper_isaac-0.5.0-py3-none-any.whl
+uv pip install --no-deps piper_core-0.8.0-py3-none-any.whl piper_assets-0.8.0-py3-none-any.whl piper_mujoco-0.8.0-py3-none-any.whl piper_isaac-0.8.0-py3-none-any.whl
 ```
 
 | Package | Gives | Needs |
 |---|---|---|
 | `piper_core` | `Trajectory`, `ExecResult`, `ArmBackend` (`piper_core.backend`), `check_trajectory`, the guard, `zero_pose`, `RealArm` | numpy |
-| `piper_assets` | `urdf_path(gripper_width, camera)`, `srdf_path`, `limits()` (hard, planning, velocity, acceleration, jerk, effort, each with its source), `zero_pose()`, `scene()` (placeholder table), `manifest()` | numpy, `piper_core` |
-| `piper_mujoco` | `PiperSim(scene="empty"|"table", gripper_width=0.07)`: an `ArmBackend` on MuJoCo | `mujoco`, the two above |
-| `piper_isaac` | `PiperIsaacSim(scene="empty"|"table", gripper_width=0.07)`: an `ArmBackend` on Isaac Sim; starts `isaac/run_server.py` in Isaac's environment through `gpu-run` (`ISAAC_ENV_SH`), the runner and the no-camera USD are inside the wheel; `render=True` and `record_start(path)` record a video; `gui=True` opens the full editor, also available as `python -m piper_isaac --gui` | the two above; Isaac Sim 6.x and a GPU at run time, not to install |
+| `piper_assets` | `urdf_path(gripper_width, camera=True)`, `srdf_path(camera=True)`, `camera()` (K, size, field of view, depth range, optical frame, its pose in gripper_base / the TCP / link6), `camera_pose(frame)`, `limits()` (hard, planning, velocity, acceleration, jerk, effort, each with its source), `zero_pose()`, `scene()` (placeholder table), `manifest()` | numpy, `piper_core` |
+| `piper_mujoco` | `PiperSim(scene="empty"|"table", gripper_width=0.07, camera=True)`: an `ArmBackend` on MuJoCo; `camera_image(depth=False)` renders the wrist camera (RGB, or RGB and metric depth), `camera_pose()` its optical frame in the base frame, `camera_info()` | `mujoco`, the two above |
+| `piper_isaac` | `PiperIsaacSim(scene="empty"|"table", gripper_width=0.07)`: an `ArmBackend` on Isaac Sim; starts `isaac/run_server.py` in Isaac's environment through `gpu-run` (`ISAAC_ENV_SH`), the runner and the USDs (with the camera, and the robot only) are inside the wheel; `camera=True` by default: `camera_image(depth)`, `camera_pose()`, `camera_info()` as in `PiperSim`; `render=True` and `record_start(path)` record a video; `gui=True` opens the full editor, also available as `python -m piper_isaac --gui` | the two above; Isaac Sim 6.x and a GPU at run time, not to install |
 
 **Between releases (development path).** A release (tag, `dist/`) is for milestones. To try a change before it is released, the maintainer runs `scripts/build_wheels.sh --dev`, which builds a snapshot of the working tree into `dist-dev/` (same version numbers; the source commit inside gets `-dirty` when uncommitted), and the downstream project installs it with `uv pip install --no-deps --reinstall <repo>/dist-dev/*.whl`. No commit, push or tag is needed. For live changes of the Python code, a downstream project can instead install the source folders editable (`uv pip install --no-deps -e <repo>/src/piper_core -e .../piper_assets ...`): the generated data (URDFs, MJCF, USD) sits git-ignored inside the folders and is refreshed by the same script. `piper_core.__source_commit__` and each wheel's `manifest.json` say which commit a snapshot is.
 
@@ -58,24 +68,22 @@ meshes and the SRDF are generated from it). Pin a commit or tag; see `piper.repo
   <xacro:include filename="$(find piper_description)/urdf/piper.tool.xacro"/>
   <xacro:piper_tool_frames prefix="piper_" gripper="true" tcp_xyz="0 0 0.138" tcp_rpy="0 0 0"/>
 
-  <!-- optional wrist camera: one camera model + one mount -->
-  <xacro:include filename="$(find piper_description)/urdf/cameras/d435.xacro"/>
-  <xacro:include filename="$(find piper_description)/urdf/mounts/agilex_mid_stand.xacro"/>
+  <!-- the wrist camera: the ZED X Mini on the own bracket (leave these four lines out for the robot only) -->
+  <xacro:include filename="$(find piper_description)/urdf/cameras/zedxm.xacro"/>
+  <xacro:include filename="$(find piper_description)/urdf/mounts/zedxm_bracket.xacro"/>
   <xacro:include filename="$(find piper_description)/urdf/piper_camera.xacro"/>
-  <xacro:piper_camera prefix="piper_" parent="piper_gripper_base" hardware="mock" mount_mesh="" mount_xyz="0 0 0" mount_rpy="0 0 0"
-                      width="640" height="480" hfov_deg="69.4" update_rate="30"/>
+  <xacro:piper_camera prefix="piper_" parent="piper_gripper_base" hardware="mock" width="960" height="600" hfov_deg="110.0" update_rate="30"/>
 </robot>
 ```
 
 - Root: the macro attaches `${prefix}base_link` to `parent` with a fixed joint `${prefix}mount_joint`.
 - ros2_control: `piper_ros2_control` (`urdf/piper.ros2_control.xacro`) adds the hardware block; `hardware` is `mock | real | gazebo | mujoco | isaac`. For **your own
   simulator**, write your hardware plugin into that block (or your own `<ros2_control>`) with the same joint names and one `position` command interface per joint.
-- A complete example, tested: `src/piper_examples` (carrier robot with its own controller manager, prefix `arm_`, mounted at an offset, with the camera). Its launch shows the three steps: expand your own description, run your own controller manager with `piper_control.launch_lib.controllers_file(prefix)`, include `piper_control control.launch.py backend:=external prefix:=arm_ robot_name:=<your robot name> robot_description_file:=<your URDF> camera:=d435` (MoveIt needs the URDF of your whole robot, its name in the SRDF, and `camera:=` to know the camera links).
+- A complete example, tested: `src/piper_examples` (carrier robot with its own controller manager, prefix `arm_`, mounted at an offset, with the camera). Its launch shows the three steps: expand your own description, run your own controller manager with `piper_control.launch_lib.controllers_file(prefix)`, include `piper_control control.launch.py backend:=external prefix:=arm_ robot_name:=<your robot name> robot_description_file:=<your URDF> camera:=zedxm` (MoveIt needs the URDF of your whole robot, its name in the SRDF, and `camera:=` to know the camera links; `camera:=none` if your robot has none).
 - Standalone (the arm at the world origin): `piper_description/urdf/piper.urdf.xacro`, or `ros2 launch piper_description view.launch.py`.
-- Another camera or mount (ZED, OAK-D Pro, a CAD-exported bracket): add `urdf/cameras/<model>.xacro` defining `piper_camera_model(prefix, parent, hardware, width, height, hfov_deg, update_rate, *origin)`
-  or `urdf/mounts/<mount>.xacro` defining `piper_camera_mount(prefix, parent, mesh, xyz, rpy)` and properties `piper_mount_camera_xyz/rpy`, then select with `camera:=` / `camera_mount:=`.
-- A measured camera pose: copy `config/camera_mounts/agilex_mid_stand.yaml`, put the measured stand and camera poses in it, pass `camera_calibration:=<name or path>` (xacro, launch, `export_urdf.py --camera-calibration`). It replaces the nominal pose on every backend.
-- For planners (cuRobo): `ros2 run piper_sim export_urdf.py --camera d435 --gripper-width 0.07 --prefix "" --out X.urdf` writes a flat URDF with the gripper held at that opening; `piper_core.RealArm` (`start`, `execute(trajectory)`, `stop`) drives the real arm without ROS (tested against a fake SDK only).
+- Another camera or bracket: add `urdf/cameras/<model>.xacro` defining `piper_camera_model(prefix, parent, hardware, width, height, hfov_deg, update_rate, near, far, *origin)` and a mount file defining `piper_camera_mount(prefix, parent)` with the properties `piper_mount_camera_xyz/rpy`, then include them as in the snippet above.
+- A new bracket version or a measured camera pose: copy `config/camera_mounts/zedxm_bracket_v3.yaml` to `_v4` (a measured pose goes in the same file, `measured:` filled in), put its mesh in `meshes/` (`tools/build_zedxm_bracket_mesh.py`), and pass `camera_calibration:=<name or path>` (xacro, launch, `export_urdf.py --camera-calibration`). It replaces the default pose on every backend.
+- For planners (cuRobo): `ros2 run piper_sim export_urdf.py --gripper-width 0.07 --camera zedxm --prefix "" --out X.urdf` writes a flat URDF with the gripper held at that opening; `piper_core.RealArm` (`start`, `execute(trajectory)`, `stop`) drives the real arm without ROS (tested against a fake SDK only).
 
 ## 2. The ROS interface (what `piper_control` + `piper_py` give you)
 
@@ -94,7 +102,7 @@ Names below are for the default prefix; with another prefix, joints and frames f
 | Servo | MoveIt Servo `~/delta_twist_cmds`, `~/pose_target_cmds`, `~/delta_joint_cmds` | publishes to the streaming controller |
 | Named poses | SRDF group states `zero`, `ready` (and the internal `park`) | `zero`: start and end pose of every session. `park` is a Piper Studio internal used by `stop()` |
 | Driver health (real arm) | `/feedback/arm_status`, `/feedback/motor_status`, `/feedback/gripper_status` | `diagnostic_msgs/DiagnosticArray`, 2 Hz, published by `piper_real_driver` in the vendor layout; `Piper.status()`, `Piper.faults()`, `piper status`; `activate()` refuses (`ARM_FAULT`) while one is reported. Simulators publish none. |
-| Camera | `/camera/color/image_raw`, `/camera/color/camera_info`, `/camera/aligned_depth_to_color/image_raw` | RealSense topic names, in simulation and (planned) with the real driver |
+| Camera | `/camera/color/image_raw`, `/camera/color/camera_info`, `/camera/aligned_depth_to_color/image_raw` | the topic names the RealSense driver had, kept for downstream code: in simulation (frame `piper_camera_color_optical_frame`, the ZED X Mini's left lens) and, to be remapped from the ZED wrapper's `zed/zed_node/...` topics on the ZED Box (**not done**; the ZED topic names are an open decision) |
 
 **One command owner:** exactly one of `arm_controller` and `arm_position_controller` is active; switch explicitly (`Piper.use_streaming()` / `use_trajectories()`).
 `controllers.yaml`, the MoveIt yaml and the MuJoCo inputs are templates with a `${prefix}` token; fill them with `piper_description.render_config(path, prefix)`.
