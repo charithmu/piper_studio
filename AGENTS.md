@@ -4,7 +4,8 @@ Machine rules come first: `~/projects/RULES.md` (they win). This file adds only 
 
 **Read before changing anything:** `docs/STATE.md` (orientation and gotchas), `README.md`, `docs/ARCHITECTURE.md` (layers, interfaces), `docs/CLEANUP.md` (the current state and
 to-do list: trust it over `docs/archive/`), `docs/INTEGRATION.md` (the contract other repos rely on), `docs/description/DECISIONS.md`.
-Before touching the real arm also read `docs/real_arm/REAL_ARM.md` and the arm's file in `docs/real_arm/arms/`.
+Before touching the real arm also read `docs/real_arm/REAL_ARM.md`, `docs/real_arm/CHECKLIST.md` and the arm's files in `docs/real_arm/arms/` (`piper-01.yaml` says what is mounted; the scenario runner refuses a plan for other hardware).
+The cuRobo sphere model is owned here: `docs/CUROBO.md`. Check the tree with `scripts/smoke.sh` (30 s; `--sims` 2 min; `--all` 5 min, quiet GPU) before and after a change.
 
 ## Environment
 
