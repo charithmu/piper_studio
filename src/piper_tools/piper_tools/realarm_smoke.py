@@ -20,6 +20,7 @@ import time
 import numpy as np
 
 from piper_core import RealArm
+from piper_core.canbus import resolve_canbus
 from piper_core.backend import Trajectory
 from piper_core.real_arm import JOINTS
 from piper_core.stream_metrics import analyze, format_metrics
@@ -32,10 +33,10 @@ def ask(text):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--canbus", "-b", default="can0")
+    ap.add_argument("--canbus", "-b", help="CAN bus name (default: the USB-CAN adapter, found by USB)")
     ap.add_argument("--speed", type=int, default=10)
     args = ap.parse_args()
-    arm = RealArm.connect(args.canbus)
+    arm = RealArm.connect(resolve_canbus(args.canbus))
     arm.speed_percent = args.speed
     try:
         print("0. status:", arm.status())

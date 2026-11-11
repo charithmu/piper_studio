@@ -584,13 +584,11 @@ def run(console: Console, fd=None, period=0.1):
 
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--canbus", "-b", default=None, help="CAN bus name (default: the only CAN bus there is, else can0)")
+    ap.add_argument("--canbus", "-b", default=None, help="CAN bus name (default: the USB-CAN adapter, found by USB)")
     ap.add_argument("--speed", type=int, default=10, choices=SPEEDS, help="starting speed percent (default 10)")
     args = ap.parse_args(argv)
-    canbus = args.canbus
-    if canbus is None:
-        found = sorted(d for d in os.listdir("/sys/class/net") if open(f"/sys/class/net/{d}/type").read().strip() == "280") if os.path.isdir("/sys/class/net") else []
-        canbus = found[0] if len(found) == 1 else "can0"
+    from piper_core.canbus import resolve_canbus
+    canbus = resolve_canbus(args.canbus)
     if not sys.stdin.isatty():
         raise SystemExit("piper-arm needs a terminal (keys are read one at a time)")
     try:

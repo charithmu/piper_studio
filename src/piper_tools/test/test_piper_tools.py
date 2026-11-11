@@ -62,3 +62,43 @@ def test_repo_shims_still_run_and_import():
     r = subprocess.run([sys.executable, "-c", f"import sys; sys.path.insert(0, '{ROOT}/tools/real_arm'); import arm_config, arm_common; print(arm_config.camera())"],
                        capture_output=True, text=True, timeout=60)
     assert r.returncode == 0, r.stderr[-400:]
+
+
+def _fake_sysfs(tmp_path, monkeypatch, buses):
+    """buses: {name: (state, device path)}; fakes /sys/class/net for piper_core.canbus."""
+    import piper_core.canbus as cb
+    net = tmp_path / "net"
+    for name, (state, dev) in buses.items():
+        d = net / name
+        d.mkdir(parents=True)
+        (d / "type").write_text("280\n")
+        (d / "operstate").write_text(state + "\n")
+        target = tmp_path / dev.lstrip("/")
+        target.mkdir(parents=True, exist_ok=True)
+        (d / "device").symlink_to(target)
+    real = cb.Path
+    monkeypatch.setattr(cb, "Path", lambda p: real(net) if p == "/sys/class/net" else real(p))
+    return cb
+
+
+JETSON = {"can0": ("up", "/devices/platform/bus@0/3610000.usb/usb1/1-2/1-2:1.0"), "can1": ("down", "/devices/platform/bus@0/c310000.mttcan")}
+
+
+def test_the_usb_adapter_is_found_by_usb_not_by_name(tmp_path, monkeypatch):
+    for k, names in enumerate((JETSON, {"can1": JETSON["can0"], "can0": JETSON["can1"]})):          # the names swap between boots
+        cb = _fake_sysfs(tmp_path / f"boot{k}", monkeypatch, names)
+        name, why = cb.usb_canbus()
+        assert why is None and "usb1" in cb.can_info()[name]["path"] and not cb.can_info()[name]["path"].endswith("mttcan")
+
+
+def test_resolve_refuses_a_down_usb_adapter_and_never_picks_the_soc(tmp_path, monkeypatch):
+    buses = {"can0": ("down", JETSON["can0"][1]), "can1": ("up", JETSON["can1"][1])}        # the SoC bus is up, the adapter is not
+    cb = _fake_sysfs(tmp_path, monkeypatch, buses)
+    with pytest.raises(SystemExit, match="piper-can-up"):
+        cb.resolve_canbus()
+
+
+def test_no_usb_adapter_is_an_error(tmp_path, monkeypatch):
+    cb = _fake_sysfs(tmp_path, monkeypatch, {"can1": JETSON["can1"]})
+    with pytest.raises(SystemExit, match="no USB-CAN adapter"):
+        cb.resolve_canbus()

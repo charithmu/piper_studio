@@ -5,7 +5,7 @@
     python tools/real_arm/arm_info.py                  # summary (colour in a terminal)
     python tools/real_arm/arm_info.py -r               # the long raw form: bus table and every value
     python tools/real_arm/arm_info.py -c               # also read the CPV drive parameters (SEE WARNING)
-    python tools/real_arm/arm_info.py -b can1          # use this CAN bus (default: auto-detect)
+    python tools/real_arm/arm_info.py -b can1          # use this CAN bus (default: the USB-CAN adapter)
     python tools/real_arm/arm_info.py --arm-id piper-01   # label for the saved JSON
 
 The CAN bus is the Linux network interface of the USB-CAN adapter (can0, can1, ...), not something the arm reports. It is
@@ -434,7 +434,7 @@ def render_raw(out, S, saved):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--canbus", "-b", help="CAN bus name, e.g. can0 (default: auto-detect)")
+    ap.add_argument("--canbus", "-b", help="CAN bus name (default: the USB-CAN adapter, found by USB)")
     ap.add_argument("--raw", "-r", action="store_true", help="long raw form instead of the summary")
     ap.add_argument("--cpv-check", "-c", action="store_true", help="also read CPV parameters (switches the arm to CPV mode!)")
     ap.add_argument("--arm-id", help="your label for this physical arm (e.g. piper-01); stored in the JSON and its file name")

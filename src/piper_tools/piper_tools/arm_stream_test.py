@@ -21,6 +21,7 @@ from pathlib import Path
 import numpy as np
 
 from piper_core import RealArm
+from piper_core.canbus import resolve_canbus
 from piper_tools.paths import data_dir
 from piper_core.real_arm import JOINTS
 from piper_core.stream_metrics import analyze, format_metrics, repeatability
@@ -32,7 +33,7 @@ MARGIN = 0.01
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--canbus", "-b", default="can0")
+    ap.add_argument("--canbus", "-b", help="CAN bus name (default: the USB-CAN adapter, found by USB)")
     ap.add_argument("--joint", type=int, default=1, choices=range(1, 7), metavar="1..6")
     ap.add_argument("--amplitude", type=float, default=10.0, help="degrees (negative: the other way)")
     ap.add_argument("--period", type=float, default=4.0, help="seconds (cosine: one cycle; ramp: one way)")
@@ -55,7 +56,7 @@ def main():
     if args.offline:
         q0 = [0.0, 0.01, -0.01, 0.0, 0.0, 0.0]
     else:
-        arm = RealArm.connect(args.canbus)
+        arm = RealArm.connect(resolve_canbus(args.canbus))
         q = arm.positions()
         q0 = [min(max(q[n], arm.limits[n][0] + MARGIN), arm.limits[n][1] - MARGIN) for n in JOINTS]
     try:

@@ -5,6 +5,7 @@ The same code runs from the repo (`python tools/real_arm/arm_stop.py`, thin shim
 
 | Command | Does | Moves the arm |
 |---|---|---|
+| `piper-can-up [--dry-run]` | bring the USB-CAN adapter's interface up at 1 Mbit/s (found by USB, not by name; sudo) | no |
 | `piper-estop [--disable \| --reset]` | **emergency stop**, no prompts, works beside a running tool (skips the bus lock) | stops it |
 | `piper-info [-r] [-c] [--arm-id ID]` | read-out: role, mode, motors, faults, firmware, limits, gripper; saves JSON | no (queries) |
 | `piper-joints [--once]` | live joint table, passive (sends nothing) | no |

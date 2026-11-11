@@ -17,7 +17,7 @@ from piper_tools.arm_common import angles, open_arm, resolve_canbus
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--canbus", "-b", help="CAN bus name, e.g. can0 (default: auto-detect)")
+    ap.add_argument("--canbus", "-b", help="CAN bus name (default: the USB-CAN adapter, found by USB)")
     ap.add_argument("--hold", type=float, default=3.0, help="seconds to stay enabled")
     ap.add_argument("--yes", action="store_true", help="skip the confirmation prompt")
     args = ap.parse_args()

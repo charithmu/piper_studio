@@ -5,7 +5,7 @@
     python tools/real_arm/arm_joints.py            # live table, degrees; Enter saves the pose, q (or Ctrl-C) quits
     python tools/real_arm/arm_joints.py --rad      # radians instead of degrees
     python tools/real_arm/arm_joints.py --once     # one snapshot (also used when the output is not a terminal)
-    python tools/real_arm/arm_joints.py -b can1    # a specific CAN bus (default: auto-detect)
+    python tools/real_arm/arm_joints.py -b can1    # a specific CAN bus (default: the USB-CAN adapter)
 
 Move the arm by hand (motors disabled) and read the numbers to find poses. Press Enter to print the current pose as a copy-paste line
 (radians, ready for move_j / SRDF) and append it with a timestamp to <data dir>/arm_poses.log (piper_tools.paths).
@@ -64,7 +64,7 @@ def render(S, joints, grip_mm, changed, age, rad):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--canbus", "-b", help="CAN bus name, e.g. can0 (default: auto-detect)")
+    ap.add_argument("--canbus", "-b", help="CAN bus name (default: the USB-CAN adapter, found by USB)")
     ap.add_argument("--rad", action="store_true", help="show radians instead of degrees")
     ap.add_argument("--once", "-1", action="store_true", help="one snapshot and exit")
     ap.add_argument("--no-color", action="store_true")

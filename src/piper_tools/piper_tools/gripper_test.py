@@ -19,6 +19,7 @@ from pathlib import Path
 
 import numpy as np
 
+from piper_core.canbus import resolve_canbus
 from piper_tools.paths import data_dir
 
 OUT = data_dir("gripper")
@@ -167,11 +168,11 @@ def main():
     ap.add_argument("--repeats", type=int, default=3)
     ap.add_argument("--amplitude", type=float, default=20.0, help="deg, stage slip")
     ap.add_argument("--period", type=float, default=2.0, help="s, stage slip (joint 1 cosine)")
-    ap.add_argument("--canbus", "-b", default="can0")
+    ap.add_argument("--canbus", "-b", help="CAN bus name (default: the USB-CAN adapter, found by USB)")
     args = ap.parse_args()
 
     from piper_core import RealArm
-    arm = RealArm.connect(args.canbus)
+    arm = RealArm.connect(resolve_canbus(args.canbus))
     print("arm status:", arm.status())
 
     def ask(text):

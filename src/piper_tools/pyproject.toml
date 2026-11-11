@@ -14,6 +14,7 @@ dependencies = ["numpy>=1.24", "pyyaml", "python-can", "piper_core>=0.10.1", "py
 
 [project.scripts]
 piper-estop = "piper_tools.arm_stop:main"
+piper-can-up = "piper_tools.can_up:main"
 piper-info = "piper_tools.arm_info:main"
 piper-session = "piper_tools.arm_session:main"
 piper-pose = "piper_tools.arm_pose:main"

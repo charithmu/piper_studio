@@ -34,25 +34,23 @@ def show(tag, arm):
     print(f"{tag}: {s} · enabled {en} · joints (deg) {[round(deg(a), 1) for a in ang] if ang else None}")
 
 
-def main():
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--canbus", "-b", help="CAN bus name, e.g. can0 (default: auto-detect)")
-    g = ap.add_mutually_exclusive_group()
-    g.add_argument("--disable", action="store_true", help="plain motors off (the arm falls if raised)")
-    g.add_argument("--estop", action="store_true", help="electronic emergency stop (the default; kept for old command lines)")
-    g.add_argument("--reset", action="store_true", help="e-stop, 1 s, reset (powers the arm off)")
-    args = ap.parse_args()
+def emergency_stop(canbus=None, mode="estop"):
+    """The emergency stop, callable (the network arm server uses this, the command line calls it too). mode: "estop" (electronic, damped lowering),
+    "disable" (motors off) or "reset" (e-stop, 1 s, reset). Opens its own SDK connection WITHOUT the bus lock, so it works beside a running tool.
+    Raises SystemExit/RuntimeError if the arm cannot be reached (nothing sent but the firmware query)."""
+    if mode not in ("estop", "disable", "reset"):
+        raise ValueError(f"mode must be estop, disable or reset, not {mode!r}")
     try:
-        arm, _, fw, profile = open_arm(resolve_canbus(args.canbus), lock=False)
+        arm, _, fw, profile = open_arm(resolve_canbus(canbus), lock=False)
     except RuntimeError as e:
         raise SystemExit(f"{e}\nNothing was sent to the arm except the firmware query.")
     try:
         show("before", arm)
-        if not args.disable:
+        if mode != "disable":
             arm.electronic_emergency_stop()
             print("electronic emergency stop sent: the arm lowers slowly under damping")
             time.sleep(1.0)
-            if args.reset:
+            if mode == "reset":
                 arm.reset()
                 print("reset sent: e-stop cleared, motors off")
                 time.sleep(1.0)
@@ -65,10 +63,21 @@ def main():
             print("disable sent: motors off")
         time.sleep(0.5)
         show("after ", arm)
-        if not args.disable and not args.reset:
+        if mode == "estop":
             print("the arm is in EMERGENCY STOP: run again with --reset (or power-cycle) before using it.")
     finally:
         arm.disconnect()
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--canbus", "-b", help="CAN bus name (default: the USB-CAN adapter, found by USB)")
+    g = ap.add_mutually_exclusive_group()
+    g.add_argument("--disable", action="store_true", help="plain motors off (the arm falls if raised)")
+    g.add_argument("--estop", action="store_true", help="electronic emergency stop (the default; kept for old command lines)")
+    g.add_argument("--reset", action="store_true", help="e-stop, 1 s, reset (powers the arm off)")
+    args = ap.parse_args()
+    emergency_stop(args.canbus, "disable" if args.disable else "reset" if args.reset else "estop")
 
 
 if __name__ == "__main__":

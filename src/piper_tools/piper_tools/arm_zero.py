@@ -73,7 +73,7 @@ def hold(arm, lim):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--canbus", "-b", help="CAN bus name, e.g. can0 (default: auto-detect)")
+    ap.add_argument("--canbus", "-b", help="CAN bus name (default: the USB-CAN adapter, found by USB)")
     ap.add_argument("--speed", type=int, default=50, help="speed percent, 1..100 (default 50)")
     ap.add_argument("--timeout", type=float, default=0.0, help="seconds allowed for the move (0 = no limit)")
     ap.add_argument("--exact", action="store_true", help="send pure zeros (no margin inside the stored limits)")

@@ -33,40 +33,7 @@ def wait_for(fn, secs=3.0):
     return None
 
 
-def can_interfaces():
-    """SocketCAN buses (network interfaces) on this machine as [(name, operstate)] (network type 280 = CAN). Reads sysfs only."""
-    found = []
-    for d in sorted(Path("/sys/class/net").iterdir()):
-        try:
-            if (d / "type").read_text().strip() == "280":
-                found.append((d.name, (d / "operstate").read_text().strip()))
-        except OSError:
-            pass
-    return found
-
-
-def resolve_canbus(requested=None):
-    """Pick the CAN bus: the requested one, else the only one, else the only one that is up. Exits with a clear message otherwise.
-
-    The "CAN bus" is the name of the Linux CAN network interface the USB-CAN adapter creates (can0, can1, a renamed one...), not something the arm reports.
-    """
-    ifs = dict(can_interfaces())
-    if requested:
-        if requested not in ifs:
-            sys.exit(f"CAN bus '{requested}' does not exist. Present: {sorted(ifs) or 'none'}. (Adapter plugged in? lsusb shows 1d50:606f.)")
-        name = requested
-    elif not ifs:
-        sys.exit("No CAN bus found: the USB-CAN adapter is not seen. Check the USB plug (lsusb shows 1d50:606f when present).")
-    elif len(ifs) == 1:
-        name = next(iter(ifs))
-    else:
-        up = [n for n, st in ifs.items() if st == "up"]
-        if len(up) != 1:
-            sys.exit(f"Several CAN buses ({', '.join(f'{n} {st}' for n, st in ifs.items())}): choose one with --canbus.")
-        name = up[0]
-    if ifs[name] != "up":
-        sys.exit(f"{name} is {ifs[name]}: bring it up first (asks for your sudo password):  scripts/can_up.sh {name}")
-    return name
+from piper_core.canbus import can_info, can_interfaces, resolve_canbus, usb_canbus  # noqa: F401  (one implementation, in piper_core)
 
 
 # Note: pyAgxArm and python-can both call the CAN bus name `channel` in their own APIs; everywhere in our tools it is `canbus`.

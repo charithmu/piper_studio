@@ -51,6 +51,6 @@ except Exception as e:
     print("  pyzed NOT visible:", e)
 PY
 echo
-echo "next, by hand: can0 must be up at 1 Mbit/s (it is, if 'ip -d link show can0' says bitrate 1000000; else: sudo ip link set can0 up type can bitrate 1000000)"
+echo "next, by hand (sudo asks for your password):  piper-can-up      # finds the USB-CAN adapter by USB (can0/can1 swap between boots), 1 Mbit/s; the SoC's own CAN is never touched"
 echo "then, with nothing moving:  piper-info --arm-id piper-01   and   piper-joints --once"
 echo "emergency stop, typed in a second terminal and not run until needed:  piper-estop"
