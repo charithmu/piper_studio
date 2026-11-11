@@ -70,7 +70,9 @@ Terminal 1: `ros2 launch piper_sim piper.launch.py backend:=real canbus:=can0 sp
 
 R1.1-R1.3 passed at 10 %; R2.0 and R2.2 recorded; `docs/FINDINGS.md` read by the `piper_pick` agent; the user has decided the speed percent for pick-and-place.
 
-## R3 wrist camera: the ZED X Mini on the own bracket (added 2026-11-11, NOTHING DONE ON THE ARM YET)
+## R3 wrist camera: the ZED X Mini on the own bracket (added 2026-11-11; mounted on the arm 2026-11-11)
+
+Status 2026-11-11 (user present): the camera and bracket are on the arm. **R3.10 passed**: the cuRobo scenario planned with the camera model, run with `--camera-mounted`: every step ok, worst joint error 0.32 deg, end error at most 0.09 deg, back at zero (numbers: `arms/piper-01.md`). The user reported all tests passed (no figures for R3.0-R3.3). **Open:** R3.2 (weigh the bracket and camera), R3.4 (the stream test with the camera: tried once without starting the arm, refused, not run), R3.6 hand-eye calibration, R3.7 simulation vs real image. R3.5 (the ZED Box driver) does not apply to the arm's motion.
 
 The simulators, the description and the wheels carry the camera by default (D14); the arm has never carried it. Same rules as every rung: the user is at the arm, approves each step, speed starts at 10 %.
 

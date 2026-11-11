@@ -29,7 +29,7 @@ unless you ask for the robot only. What changes for you:
 - `piper_assets.camera()` / `camera_pose(frame)`: intrinsics K, size 960x600, 110 deg (wide lens, assumed), depth range 0.1-8 m, optical frame `zed_left_camera_frame_optical` (no prefix, since 0.9.0; the LEFT lens: z forward, x right, y down) and its pose in gripper_base, the TCP and link6.
 - ROS: `camera:=none` for the robot only; topic names and frame as in 0.8.0 (changed in 0.9.0, see above); size/field of view from `piper_description/config/camera_models/zedxm.yaml`.
 - Removed: the earlier camera, the AgileX stand and the `camera_mount*` arguments.
-- The pose of the camera is NOMINAL (the user's CAD, bracket version v3); it has not been on the real arm and is not hand-eye calibrated: do not trust it for real-arm grasping before `docs/real_arm/CHECKLIST.md` R3.
+- The pose of the camera is NOMINAL (the user's CAD, bracket version v3); it is on the real arm since 2026-11-11 (a cuRobo scenario with the camera model ran on it: CHECKLIST R3.10) but it is not hand-eye calibrated: do not trust it for real-arm grasping before `docs/real_arm/CHECKLIST.md` R3.
 
 Wheels: `dist/` holds 0.8.0 (piper_core, piper_assets, piper_mujoco, piper_isaac; 0.7.0 is gone from `dist/`). Details: `docs/CLEANUP.md` (2026-11-11), `docs/INTEGRATION.md` section 0, decision D14.
 

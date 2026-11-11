@@ -22,7 +22,7 @@ pa.curobo_provenance("zedxm")                 # description commit, fingerprint,
 pa.curobo_planner_defaults()                  # algorithm, interpolation step, collision cache, warmup: starting values
 ```
 Change what you need on the returned dict (`load_dynamics`, `position_limit_clip`, payload spheres, ...); never edit the shipped file. **Use the model of the arm that is physically there**
-(the camera has not been on the real arm yet: `camera=None` until CHECKLIST R3). The model with the camera covers the bracket only about 70 % (numbers below).
+(the camera is on the real arm since 2026-11-11, so `camera="zedxm"` is the arm that is there; run on it: CHECKLIST R3.10). The model with the camera covers the bracket only about 70 % (numbers below).
 
 ## Regenerating (only when the description or `policy.yaml` changes; optional environment)
 Normal users never need this: running, controlling and simulating the arm, the wheels and reading the model need no cuRobo.

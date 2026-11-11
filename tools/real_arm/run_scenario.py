@@ -167,7 +167,7 @@ def main():
         say("dry run: nothing connected." if args.dry_run else "no --backend given: nothing connected.")
         return
     if args.camera and args.backend in ("real", "ros") and not (args.camera_mounted or args.sim_stack):
-        raise SystemExit("this scenario was planned for the arm WITH the ZED X Mini and its bracket; the camera has not been on the real arm (CHECKLIST R3). Mount it and pass --camera-mounted, or plan with --camera none")
+        raise SystemExit("this scenario was planned for the arm WITH the ZED X Mini and its bracket: pass --camera-mounted to confirm they are on the arm now, or plan with --camera none for an arm without them")
     if args.yes and not (args.backend == "mujoco" or (args.backend == "ros" and args.sim_stack)):
         raise SystemExit("--yes is for the simulation only: the arm needs an Enter before every step")
 

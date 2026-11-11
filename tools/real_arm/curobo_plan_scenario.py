@@ -32,7 +32,7 @@ def main():
     ap.add_argument("--approach", type=float, default=0.05, help="start of the descent this far above the target, metres")
     ap.add_argument("--open", type=float, default=0.07, help="gripper width at the start and after the lift, metres")
     ap.add_argument("--close", type=float, default=0.0, help="gripper width commanded at the grasp, metres (0: closes until it stalls on an object)")
-    ap.add_argument("--camera", choices=["none", "zedxm"], default="none", help="the arm to plan for: none = the robot only (what is on the real arm until the camera is mounted, CHECKLIST R3), zedxm = the ZED X Mini on its bracket (cuRobo knows the bracket and camera)")
+    ap.add_argument("--camera", choices=["none", "zedxm"], default="zedxm", help="the arm to plan for: zedxm = the ZED X Mini on its bracket (the default, as everywhere: it is on the real arm; cuRobo knows the bracket and camera), none = the robot only")
     ap.add_argument("--out", default=str(Path.home() / "data/ml/isaac/piper_studio/scenario"))
     args = ap.parse_args()
 
