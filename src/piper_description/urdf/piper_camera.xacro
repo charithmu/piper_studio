@@ -1,9 +1,8 @@
 <?xml version="1.0"?>
 <!--
   Wrist camera = the camera model on its mount, chained: parent -> ${prefix}camera_mount_link (the bracket, mounts/zedxm_bracket.xacro) -> ${prefix}zed_camera_link (the camera's
-  mounting hole, cameras/zedxm.xacro) -> ${prefix}camera_link and the lens frames. `parent` can be any link of any robot (the carrier example uses gripper_base of another prefix).
-  Frames: camera_link, camera_color_frame, camera_color_optical_frame (the LEFT lens, z forward), camera_depth_optical_frame (the same), plus Stereolabs' own names
-  (zed_camera_link, zed_left_camera_frame, zed_left_camera_frame_optical, zed_right_camera_frame(_optical)); see cameras/zedxm.xacro.
+  mounting hole, cameras/zedxm.xacro) -> ${prefix}zed_camera_center and the lens frames. `parent` can be any link of any robot (the carrier example uses gripper_base of another prefix).
+  Frames: Stereolabs' own names (zed_camera_link, zed_camera_center, zed_left_camera_frame(_optical), zed_right_camera_frame(_optical)); see cameras/zedxm.xacro.
   Another camera or bracket: add one file with the same macro (piper_camera_model / piper_camera_mount) and include it from the caller.
 -->
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro">

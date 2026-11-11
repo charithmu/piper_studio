@@ -692,19 +692,22 @@ class Piper:
             return self._plan_and_execute(c, velocity_scaling, "pilz_industrial_motion_planner", "LIN")
         return self._plan_and_execute(c, velocity_scaling)
 
-    # ------------------------------------------------------------------ wrist camera
-    COLOR_TOPIC = "/camera/color/image_raw"
-    DEPTH_TOPIC = "/camera/aligned_depth_to_color/image_raw"
-    INFO_TOPIC = "/camera/color/camera_info"
+    # ------------------------------------------------------------------ wrist camera (the ZED X Mini: simulated, or the real one through the ZED ROS 2 wrapper)
+    def camera_topics(self) -> dict:
+        """The ZED wrapper's names (camera_name = `<prefix>zed`, node `zed_node`): color, color_info, depth topics and the `optical_frame` (the left lens).
+        The same in every simulator and from the real camera (`ros2 launch piper_control zed_camera.launch.py`); equals `piper_description.camera_topics(prefix)`."""
+        name = f"{self.name_prefix}zed"
+        root = f"{self._prefix}/{name}/zed_node"
+        return {"camera_name": name, "optical_frame": f"{name}_left_camera_frame_optical", "color": f"{root}/rgb/color/rect/image",
+                "color_info": f"{root}/rgb/color/rect/camera_info", "depth": f"{root}/depth/depth_registered"}
 
     def image(self, kind: str = "color", timeout: float = 5.0):
-        """Wait for the next camera frame. Returns (array, header): color -> HxWx3 uint8 (RGB), depth -> HxW float32
-        in metres (NaN where invalid). Same topics on every backend; the real ZED X Mini on the ZED Box is remapped to them."""
-        topic, msg_type = (self.COLOR_TOPIC, Image) if kind == "color" else (self.DEPTH_TOPIC, Image)
+        """Wait for the next camera frame. Returns (array, header): color -> HxWx3 uint8 (RGB; the ZED publishes bgra8, simulators rgb8: both come back as RGB),
+        depth -> HxW float32 in metres (NaN where invalid). The header's frame_id is the left lens' optical frame."""
+        topic = self.camera_topics()["color" if kind == "color" else "depth"]
         box: list = []
         done = threading.Event()
-        sub = self.node.create_subscription(msg_type, f"{self._prefix}{topic}",
-                                            lambda m: (box.append(m), done.set()), qos_profile_sensor_data)
+        sub = self.node.create_subscription(Image, topic, lambda m: (box.append(m), done.set()), qos_profile_sensor_data)
         try:
             if not done.wait(timeout):
                 raise TimeoutError(f"no image on {topic} within {timeout} s")
@@ -713,13 +716,13 @@ class Piper:
         return _image_to_array(box[0]), box[0].header
 
     def camera_info(self, timeout: float = 5.0) -> CameraInfo:
+        topic = self.camera_topics()["color_info"]
         box: list = []
         done = threading.Event()
-        sub = self.node.create_subscription(CameraInfo, f"{self._prefix}{self.INFO_TOPIC}",
-                                            lambda m: (box.append(m), done.set()), qos_profile_sensor_data)
+        sub = self.node.create_subscription(CameraInfo, topic, lambda m: (box.append(m), done.set()), qos_profile_sensor_data)
         try:
             if not done.wait(timeout):
-                raise TimeoutError(f"no camera_info within {timeout} s")
+                raise TimeoutError(f"no camera_info on {topic} within {timeout} s")
         finally:
             self.node.destroy_subscription(sub)
         return box[0]

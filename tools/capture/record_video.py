@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Record ROS image topics to mp4 files, paced by message stamps (so the video runs in simulation time).
 
-    python tools/capture/record_video.py /camera/color/image_raw=wrist.mp4 /overview/image_raw=overview.mp4 [--fps 20]
+    python tools/capture/record_video.py /piper_zed/zed_node/rgb/color/rect/image=wrist.mp4 /overview/image_raw=overview.mp4 [--fps 20]
 
 Runs until SIGINT/SIGTERM. Needs the workspace env.
 """

@@ -48,11 +48,11 @@ def mujoco_model(urdf: str, inputs: str | Path, scene: str | Path, cache_dir: st
     physics = collision_meshes_as_visuals(_without_ros2_control(urdf))
     inputs, scene = Path(inputs).resolve(), Path(scene).resolve()
     inputs_text = apply_prefix(inputs.read_text(), prefix)
-    if camera:  # fixed MJCF camera on the colour optical frame; fovy is the vertical field of view
+    if camera:  # fixed MJCF camera on the left lens' optical frame; fovy is the vertical field of view
         import math
         w, h, hfov = camera["width"], camera["height"], camera["hfov_deg"]
         fovy = math.degrees(2 * math.atan(math.tan(math.radians(hfov) / 2) * h / w))
-        tag = (f'<camera site="{prefix}camera_color_optical_frame" name="camera" fovy="{fovy:.3f}" mode="fixed" '
+        tag = (f'<camera site="{prefix}zed_left_camera_frame_optical" name="camera" fovy="{fovy:.3f}" mode="fixed" '
                f'resolution="{w} {h}"/>')
         inputs_text = inputs_text.replace("<processed_inputs>", "<processed_inputs>\n    " + tag, 1)
     digest = hashlib.sha256("\0".join(

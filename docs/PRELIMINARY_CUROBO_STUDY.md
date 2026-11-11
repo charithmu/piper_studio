@@ -35,7 +35,7 @@ Written 2026-11-08 by a reading-and-checking pass, **before any test was run**. 
 | Flat URDF a planner can parse | Probably via `piper_sim/scripts/export_urdf.py` *(not read; verify)*. |
 | Dense trajectory execution | `arm_controller` is a standard `joint_trajectory_controller` (FollowJointTrajectory) and takes multi-point timed trajectories; ends at rest as cuRobo trajectories do *(not tested with one)*. `piper_py.move_joints` sends a single segment only. |
 | Streaming joint targets (MPC, servo) | `arm_position_controller` at a 200 Hz manager rate. |
-| Wrist camera in simulation | D435 on RealSense topic names with `camera_info` and TF, in Gazebo, MuJoCo, Isaac. Real camera driver launch: not done (M8). |
+| Wrist camera in simulation | ZED X Mini on the ZED wrapper's topic names (since 0.9.0) with `camera_info` and TF, in Gazebo, MuJoCo, Isaac. Real camera driver launch: not done (M8). |
 | Real arm through the ROS stack | Never run (C10). Only SDK scripts have moved the arm. |
 
 ## 4. What the Piper description must give cuRobo, and what it need not
@@ -53,7 +53,7 @@ Status: **have**, **weak** (exists but placeholder or unverified), **missing**.
 | 5 | Jerk limits | cuRobo trajectories are jerk-limited | missing: no source; choose conservatively, tune against measured tracking |
 | 6 | **Torque limits per joint** | cuRoboV2 torque-limited planning | **missing / wrong**: URDF 100 N·m is a placeholder (D4). Biggest unknown. Sources: vendor spec, or motor current feedback times torque constant. If unobtainable, run with torque limits off and label every result. |
 | 7 | **Link inertials** | the RNEA torque check | weak: CAD estimates, total 4.70 kg with gripper, unmeasured (D5). Verify total mass. |
-| 8 | Mass of everything on the arm (gripper, camera, stand) | dynamics and collision | weak: D435 and stand inertials are nominal; stand 0.04 kg placeholder. Weigh them. |
+| 8 | Mass of everything on the arm (gripper, camera, stand) | dynamics and collision | weak: camera and bracket inertials are nominal; stand 0.04 kg placeholder. Weigh them. |
 | 9 | Payload of the held object | V2-Fast updates it at run time | task-time input, not a description item; check the API *(verify)* |
 | 10 | Base mounting and gravity direction in the base frame | gravity enters the torque check | have for table mounting; a carrier (Go2 trunk) tilts it, so pass the mount rotation *(verify how cuRobo takes gravity)* |
 | 11 | Collision spheres | self/world collision, swept checks, depth self-masking | missing: cuRobo fits them. Must cover the **camera stand and camera body** (Piper Studio models the stand as a box) and the **fingers at the right width**. Measure coverage and protrusion. |
@@ -79,7 +79,7 @@ An earlier suggestion to turn off effort checking was wrong for cuRoboV2. Supply
 
 Description side: a planner-neutral flat URDF with the fingers fixed at a chosen width and the TCP, stand and camera links (D1); collision geometry for the camera and stand matching what MoveIt checks (D2); one owner for velocity, acceleration, jerk and torque limits with provenance, instead of the URDF placeholder, the MoveIt yaml copy and a third cuRobo copy (D3); the gripper stroke truth (D4); handling of a measured start state outside the limits (D5); optionally a generated spheres file with a `check`, like the macro (D7).
 Control side: a client call that executes a timed dense trajectory (`piper_py.execute_trajectory`, and `RealArm.execute`, tracker B3), with no extra checks; documented state rate with valid velocity and timestamp conventions for state and images; measured tracking lag of the real arm using `stepresp` (the firmware smooths `move_j` itself and takes a speed percent, so timing fidelity is unknown; Gazebo is kinematic and MuJoCo's servo is provisional); defined stop/hold behaviour on cancel.
-Perception side: camera mount calibration and the 4.5 mm ambiguity become required; a real D435 driver launch with the same topic and frame names.
+Perception side: camera mount calibration and the 4.5 mm ambiguity become required; a real ZED driver launch with the same topic and frame names.
 
 ## 6. Documentation problems found in this repo (not yet fixed)
 
@@ -95,7 +95,7 @@ Perception side: camera mount calibration and the 4.5 mm ambiguity become requir
 2. Collision agreement: random configurations, cuRobo against an independent check (MoveIt `GetStateValidity` on a mock launch and/or mesh-mesh on the collision STLs). Spheres must be conservative.
 3. Planning: reachability, obstacles, start states `zero`, `ready`, torque and payload on/off, latency.
 4. Execution in simulation: dense trajectory to `arm_controller` on mock, then MuJoCo; executed vs planned, then a limit sweep.
-5. Perception: sim D435 with TF pose and joint state into `Mapper` and `RobotSegmenter`; verify the optical-frame convention on a known scene; sensitivity of map error to a wrong mount offset; ESDF resolution vs the small arm.
+5. Perception: sim ZED X Mini with TF pose and joint state into `Mapper` and `RobotSegmenter`; verify the optical-frame convention on a known scene; sensitivity of map error to a wrong mount offset; ESDF resolution vs the small arm.
 6. Closed loop in simulation on `scene_objects.yaml`; optionally MPC through the streaming controller.
 7. Real arm: only with the user at the arm, after measured tracking, true limits and camera calibration.
 
@@ -103,4 +103,4 @@ Perception side: camera mount calibration and the 4.5 mm ambiguity become requir
 
 - An earlier bake-off (`ml_tests/experiments/pick_pipeline_bakeoff`) already built a Piper cuRobo config and logged planning results. It was **not relied on** and not reviewed. What I saw in its config file: built from the unprefixed vendor URDF, finger joints fixed at 0 (closed), one or a few spheres on several links, no camera or stand, acceleration 10 instead of the arm's 5. Re-derive everything.
 - Open for the user: where true torque limits come from; whether the cuRobo model bundle eventually moves into this repo; whether to fix the doc problems in section 6 now; env install approval.
-- Not read: `export_urdf.py`, camera collision geometry in `d435.xacro`, what `agx_arm_ctrl` publishes for joint velocity, cuRobo's dynamics code (gravity, friction), the YAM deployment details in the papers.
+- Not read: `export_urdf.py`, camera collision geometry in the camera xacro, what `agx_arm_ctrl` publishes for joint velocity, cuRobo's dynamics code (gravity, friction), the YAM deployment details in the papers.

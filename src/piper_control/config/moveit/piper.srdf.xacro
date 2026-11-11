@@ -14,9 +14,9 @@
   <xacro:if value="${'$(arg camera)' != 'none'}">
     <!-- wrist camera and its mount are rigidly attached to gripper_base -->
     <xacro:macro name="never" params="a b"><disable_collisions link1="${prefix}${a}" link2="${prefix}${b}" reason="Adjacent" /></xacro:macro>
-    <xacro:never a="camera_link" b="link6" /> <xacro:never a="camera_link" b="link5" />
-    <xacro:never a="camera_link" b="flange_link" /> <xacro:never a="camera_link" b="gripper_base" />
-    <xacro:never a="camera_link" b="camera_mount_link" />
+    <xacro:never a="zed_camera_center" b="link6" /> <xacro:never a="zed_camera_center" b="link5" />
+    <xacro:never a="zed_camera_center" b="flange_link" /> <xacro:never a="zed_camera_center" b="gripper_base" />
+    <xacro:never a="zed_camera_center" b="camera_mount_link" />
     <xacro:never a="camera_mount_link" b="link6" /> <xacro:never a="camera_mount_link" b="link5" />
     <xacro:never a="camera_mount_link" b="flange_link" /> <xacro:never a="camera_mount_link" b="gripper_base" />
   </xacro:if>

@@ -37,7 +37,7 @@ def robot_description(hardware: str = "mock", **mappings) -> str:
 
 def camera_model(lens: str | None = None, width: int | None = None, height: int | None = None, camera: str = DEFAULT_CAMERA) -> dict:
     """The wrist camera's numbers (config/camera_models/<camera>.yaml, the one source of the simulated cameras): lens, width, height, hfov_deg, vfov_deg,
-    depth_min, depth_max, rate, baseline, `K` (3x3 pinhole intrinsics of the rectified left image) and the frame names `optical_frame` / `link` (without prefix)."""
+    depth_min, depth_max, rate, baseline, `K` (3x3 pinhole intrinsics of the rectified left image) and the names `optical_frame` / `link` / `camera_name` (without prefix)."""
     import math
     import yaml
     from ament_index_python.packages import get_package_share_directory
@@ -48,7 +48,17 @@ def camera_model(lens: str | None = None, width: int | None = None, height: int 
     f = (w / 2) / math.tan(math.radians(L["hfov_deg"]) / 2)
     return {"model": m["model"], "lens": lens, "width": w, "height": h, "hfov_deg": L["hfov_deg"], "vfov_deg": L["vfov_deg"],
             "depth_min": L["depth_min"], "depth_max": L["depth_max"], "rate": m["rate"], "baseline": m["baseline"],
-            "K": [[f, 0.0, w / 2], [0.0, f, h / 2], [0.0, 0.0, 1.0]], "optical_frame": m["color_optical_frame"], "link": "gripper_base"}
+            "K": [[f, 0.0, w / 2], [0.0, f, h / 2], [0.0, 0.0, 1.0]], "optical_frame": m["optical_frame"], "link": "gripper_base", "camera_name": m["camera_name"]}
+
+
+def camera_topics(prefix: str = DEFAULT_PREFIX) -> dict:
+    """The wrist camera's frame and topics, the ZED ROS 2 wrapper's (camera_name = `<prefix>zed`, node `zed_node`): the same names in every simulator and from the real
+    ZED X Mini (`ros2 launch piper_control zed_camera.launch.py`). Keys: camera_name, optical_frame (the left lens; colour, registered depth and camera_info are in it),
+    color (sensor_msgs/Image), color_info (CameraInfo, valid for the depth too: it is registered to the left image), depth (32FC1, metres)."""
+    name = prefix + "zed"
+    root = f"/{name}/zed_node"
+    return {"camera_name": name, "optical_frame": f"{name}_left_camera_frame_optical", "color": f"{root}/rgb/color/rect/image",
+            "color_info": f"{root}/rgb/color/rect/camera_info", "depth": f"{root}/depth/depth_registered"}
 
 
 def apply_prefix(text: str, prefix: str = DEFAULT_PREFIX) -> str:

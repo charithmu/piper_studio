@@ -19,11 +19,9 @@ You never need the simulators, scenes or demos of this repo. Take only the layer
 
 ## 0. Python packages (no ROS): the way for planners such as cuRobo
 
-**The wrist camera is on by default (0.8.0, breaking).** Every description, URDF, SRDF, simulator model and wheel carries the Stereolabs **ZED X Mini on the user's own clamp bracket**
+**The wrist camera is on by default (0.8.0, breaking; the camera names became the ZED wrapper's in 0.9.0, breaking).** Every description, URDF, SRDF, simulator model and wheel carries the Stereolabs **ZED X Mini on the user's own clamp bracket**
 (`camera` = `zedxm`) unless you ask for the robot only: `camera:=none` (xacro, launch, `export_urdf.py --camera none`), `camera=None` (`piper_assets.urdf_path`, `srdf_path`), `camera=False`
-(`PiperSim`, `PiperIsaacSim`), `build-usd no_camera`. The camera's frames are `piper_camera_color_optical_frame` (the **left lens**, z forward, x right, y down; colour and depth are
-registered to it), `piper_camera_depth_optical_frame` (the same), plus Stereolabs' own names (`piper_zed_camera_link` = the camera's mounting hole, `piper_zed_left_camera_frame(_optical)`, `piper_zed_right_camera_frame(_optical)`),
-so a ZED Box driver started with `camera_name:=piper_zed` and its TF switched off fits this description. The images are rectified pinhole images; size, field of view and depth range come from
+(`PiperSim`, `PiperIsaacSim`), `build-usd no_camera`. The camera's frames are Stereolabs' own (`piper_zed_camera_link` = the camera's mounting hole, `piper_zed_camera_center`, `piper_zed_left_camera_frame` and `piper_zed_left_camera_frame_optical` = the **left lens**, z forward, x right, y down, in which colour, depth and camera_info are published; `piper_zed_right_camera_frame(_optical)`), so the ZED ROS 2 wrapper started with `camera_name:=piper_zed` and its TF switched off (`ros2 launch piper_control zed_camera.launch.py`) fits this description. The images are rectified pinhole images; size, field of view and depth range come from
 one file, `piper_description/config/camera_models/zedxm.yaml` (default: wide 2.2 mm lens, 960x600, 110 deg horizontal, 0.1 to 8 m, 30 Hz; `camera_lens:=narrow`, `camera_width`, `camera_height` override).
 The bracket and its pose are versioned (`config/camera_mounts/zedxm_bracket_v1..v3.yaml`, default the newest; `camera_calibration:=zedxm_bracket_v2` or a yaml path with a measured pose).
 **Not calibrated:** the pose is nominal, from the user's CAD (`measured: null`); hand-eye calibration on the real arm is open. A planner that wants the robot only passes `camera=None` explicitly
@@ -32,7 +30,7 @@ The bracket and its pose are versioned (`config/camera_mounts/zedxm_bracket_v1..
 Four wheels, one version, built into `dist/` from the tagged commit by `scripts/build_wheels.sh` (needs the ROS environment once, to generate the data). A downstream project installs them into its own venv (Python 3.10 or newer) and never reads this repo's `install/`:
 
 ```bash
-uv pip install --no-deps piper_core-0.8.0-py3-none-any.whl piper_assets-0.8.0-py3-none-any.whl piper_mujoco-0.8.0-py3-none-any.whl piper_isaac-0.8.0-py3-none-any.whl
+uv pip install --no-deps piper_core-0.9.0-py3-none-any.whl piper_assets-0.9.0-py3-none-any.whl piper_mujoco-0.9.0-py3-none-any.whl piper_isaac-0.9.0-py3-none-any.whl
 ```
 
 | Package | Gives | Needs |
@@ -93,7 +91,7 @@ Names below are for the default prefix; with another prefix, joints and frames f
 |---|---|---|
 | Arm joints | `piper_joint1..6` | radians; limits come from the URDF (`piper_core.limits_from_urdf`) |
 | Gripper | `piper_gripper` | opening **width in metres**, 0 to 0.07 (the firmware-reported stroke); the fingers (`piper_gripper_joint1/2`) are mimic joints |
-| Frames | `world` (caller's), `piper_base_link`, `piper_link1..6`, `piper_tcp_link`, camera: `piper_camera_link`, `piper_camera_color_optical_frame`, `piper_camera_depth_optical_frame` | the TCP is the fingertip centre, `piper_gripper_base` + 0.138 m z |
+| Frames | `world` (caller's), `piper_base_link`, `piper_link1..6`, `piper_tcp_link`, camera: `piper_zed_camera_link`, `piper_zed_camera_center`, `piper_zed_left_camera_frame_optical` | the TCP is the fingertip centre, `piper_gripper_base` + 0.138 m z |
 | State | `/joint_states` | position, velocity and effort per joint (the real arm and Isaac fill effort: motor torque estimate, N·m); `Piper.joint_state()`, `joint_velocities()`, `joint_efforts()`, `piper state --full` |
 | Trajectories | action `/arm_controller/follow_joint_trajectory` | `joint_trajectory_controller` |
 | Streaming targets | topic `/arm_position_controller/commands` | `position_controllers/JointGroupPositionController`; teleop, policies, Servo |
@@ -102,7 +100,7 @@ Names below are for the default prefix; with another prefix, joints and frames f
 | Servo | MoveIt Servo `~/delta_twist_cmds`, `~/pose_target_cmds`, `~/delta_joint_cmds` | publishes to the streaming controller |
 | Named poses | SRDF group states `zero`, `ready` (and the internal `park`) | `zero`: start and end pose of every session. `park` is a Piper Studio internal used by `stop()` |
 | Driver health (real arm) | `/feedback/arm_status`, `/feedback/motor_status`, `/feedback/gripper_status` | `diagnostic_msgs/DiagnosticArray`, 2 Hz, published by `piper_real_driver` in the vendor layout; `Piper.status()`, `Piper.faults()`, `piper status`; `activate()` refuses (`ARM_FAULT`) while one is reported. Simulators publish none. |
-| Camera | `/camera/color/image_raw`, `/camera/color/camera_info`, `/camera/aligned_depth_to_color/image_raw` | the topic names the RealSense driver had, kept for downstream code: in simulation (frame `piper_camera_color_optical_frame`, the ZED X Mini's left lens) and, to be remapped from the ZED wrapper's `zed/zed_node/...` topics on the ZED Box (**not done**; the ZED topic names are an open decision) |
+| Camera | `/piper_zed/zed_node/rgb/color/rect/image`, `/piper_zed/zed_node/rgb/color/rect/camera_info`, `/piper_zed/zed_node/depth/depth_registered` | the ZED ROS 2 wrapper's names for `camera_name:=<prefix>zed` (`piper_description.camera_topics(prefix)`, `Piper.camera_topics()`, `piper_assets.camera_topics(prefix)`), frame `piper_zed_left_camera_frame_optical` (the left lens): published by Gazebo, MuJoCo and Isaac, and by the real ZED X Mini through the wrapper (`ros2 launch piper_control zed_camera.launch.py`, `docs/real_arm/ZED_BOX.md`; **not tried on the box yet**). Colour is `rgb8` in the simulators and `bgra8` from the ZED (`Piper.image()` returns RGB for both); depth is 32FC1 metres; camera_info is valid for the depth too. Breaking change of 0.9.0: the RealSense-style names `/camera/color/image_raw`, `/camera/aligned_depth_to_color/image_raw`, `/camera/color/camera_info` and the frames `camera_link`, `camera_color_optical_frame`, `camera_depth_optical_frame` no longer exist. |
 
 **One command owner:** exactly one of `arm_controller` and `arm_position_controller` is active; switch explicitly (`Piper.use_streaming()` / `use_trajectories()`).
 `controllers.yaml`, the MoveIt yaml and the MuJoCo inputs are templates with a `${prefix}` token; fill them with `piper_description.render_config(path, prefix)`.

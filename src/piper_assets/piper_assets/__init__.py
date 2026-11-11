@@ -124,6 +124,14 @@ def camera() -> dict:
     return json.loads((data_dir() / "camera.json").read_text())
 
 
+def camera_topics(prefix: str = "") -> dict:
+    """The wrist camera's frame and topics as the ZED ROS 2 wrapper names them (camera_name = `<prefix>zed`, node `zed_node`): `optical_frame` (the left lens), `color`,
+    `color_info` (also valid for the depth), `depth` (32FC1 metres, registered to the left image). The same from the simulators and the real ZED X Mini; the URDFs here are unprefixed, ROS uses `piper_`."""
+    name, root = prefix + "zed", f"/{prefix}zed/zed_node"
+    return {"camera_name": name, "optical_frame": f"{name}_left_camera_frame_optical", "color": f"{root}/rgb/color/rect/image",
+            "color_info": f"{root}/rgb/color/rect/camera_info", "depth": f"{root}/depth/depth_registered"}
+
+
 def camera_pose(frame: str = "tcp_link") -> np.ndarray:
     """4x4 pose of the camera's optical frame (z forward, x right, y down) in `frame`: "tcp_link", "gripper_base" or "link6"."""
     c = camera()

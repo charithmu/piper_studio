@@ -68,7 +68,7 @@ def main():
         from piper_description import camera_model
         cm = camera_model(a.camera_lens or None, a.camera_width or None, a.camera_height or None)
         m = model_audit.load_urdf("camera", a.out)
-        rel = np.linalg.inv(m.fk({}, a.prefix + "link6")) @ m.fk({}, a.prefix + "camera_color_optical_frame")
+        rel = np.linalg.inv(m.fk({}, a.prefix + "link6")) @ m.fk({}, a.prefix + "zed_left_camera_frame_optical")
         rot = Rotation.from_matrix(rel[:3, :3] @ np.diag([1.0, -1.0, -1.0]))
         a.camera_pose_out.write_text(json.dumps({"link": a.prefix + "link6", "pos": rel[:3, 3].tolist(), "quat_xyzw": rot.as_quat().tolist(),
                                                  "width": cm["width"], "height": cm["height"], "hfov_deg": cm["hfov_deg"],

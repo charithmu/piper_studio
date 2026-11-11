@@ -1,18 +1,17 @@
 <?xml version="1.0"?>
 <!--
-  Camera model: Stereolabs ZED X Mini (GMSL2, run on a ZED Box). Built after Stereolabs' own description, so the frames are the ones the ZED wrapper expects:
-  https://github.com/stereolabs/zed-ros2-description (urdf/zed_macro.urdf.xacro, model zedxm, commit 2246824, Apache-2.0, copyright Stereolabs;
-  mesh meshes/zedxm.stl used for visual and collision, like Stereolabs does). Interface: piper_camera_model(prefix, parent, hardware, width, height, hfov_deg, update_rate, near, far, *origin).
-
-  Stereolabs' frames, with name = `${prefix}zed` (what the wrapper gets as camera_name:=piper_zed):
-    ${prefix}zed_camera_link                 the threaded screw hole in the bottom of the camera = the mesh origin = `origin` (the pose from the mount yaml); x forward, y left, z up
-    ${prefix}camera_link                     Stereolabs' `<name>_camera_center`: 16 mm above the screw point, carries the mesh. Named camera_link here because that is the contract's frame (docs/INTEGRATION.md)
-    ${prefix}zed_left_camera_frame           5 mm behind the centre, 25 mm to the left (baseline 50 mm);  ..._optical: z forward, x right, y down
-    ${prefix}zed_right_camera_frame          5 mm behind the centre, 25 mm to the right;                  ..._optical
-  Contract aliases (identity): camera_color_frame = zed_left_camera_frame, camera_color_optical_frame = zed_left_camera_frame_optical, camera_depth_optical_frame = the same
-  (ZED depth is registered to the left image).
-  The ZED wrapper publishes TF of its own: run it with its TF off, or it fights this description (one description only).
-  hfov_deg / width / height / near / far: from config/camera_models/zedxm.yaml (the lens and image mode), overridable in piper.urdf.xacro.
+  Camera model: Stereolabs ZED X Mini (GMSL2, run on a ZED Box). Stereolabs' own description, with their names (https://github.com/stereolabs/zed-ros2-description,
+  urdf/zed_macro.urdf.xacro, model zedxm, commit 2246824, Apache-2.0, copyright Stereolabs; mesh meshes/zedxm.stl for visual and collision, as they do). The macro
+  is called with name = `${prefix}zed`, which is what the ZED ROS 2 wrapper gets as camera_name:=<prefix>zed (default prefix piper_: camera_name:=piper_zed), so
+  the frames below are exactly the ones the wrapper publishes images in:
+    ${prefix}zed_camera_link                 the threaded mounting hole in the bottom of the camera = the mesh origin = `origin` (the pose from the bracket yaml); x forward, y left, z up
+    ${prefix}zed_camera_center               16 mm above the screw point, carries the mesh and the collision
+    ${prefix}zed_left_camera_frame           5 mm behind the centre, 25 mm to the left (baseline 50 mm)
+    ${prefix}zed_left_camera_frame_optical   z forward, x right, y down: the frame of the colour image, the registered depth and camera_info
+    ${prefix}zed_right_camera_frame(_optical)
+  The ZED wrapper publishes TF of its own: run it with publish_urdf:=false publish_tf:=false publish_map_tf:=false (docs/real_arm/ZED_BOX.md), one description only.
+  Interface: piper_camera_model(prefix, parent, hardware, width, height, hfov_deg, update_rate, near, far, *origin); size, field of view and depth range come from
+  config/camera_models/zedxm.yaml, overridable in piper.urdf.xacro.
 -->
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro">
   <xacro:property name="zedxm_baseline" value="0.05" />
@@ -26,12 +25,12 @@
     </joint>
     <link name="${prefix}zed_camera_link" />
 
-    <joint name="${prefix}camera_center_joint" type="fixed">
+    <joint name="${prefix}zed_camera_center_joint" type="fixed">
       <parent link="${prefix}zed_camera_link" />
-      <child link="${prefix}camera_link" />
+      <child link="${prefix}zed_camera_center" />
       <origin xyz="0 0 ${zedxm_height / 2}" rpy="0 0 0" />
     </joint>
-    <link name="${prefix}camera_link">
+    <link name="${prefix}zed_camera_center">
       <visual>
         <origin xyz="0 0 ${-zedxm_height / 2}" rpy="0 0 0" />
         <geometry><mesh filename="file://$(find piper_description)/meshes/zedxm.stl" /></geometry>
@@ -49,7 +48,7 @@
     </link>
 
     <joint name="${prefix}zed_left_camera_joint" type="fixed">
-      <parent link="${prefix}camera_link" /><child link="${prefix}zed_left_camera_frame" />
+      <parent link="${prefix}zed_camera_center" /><child link="${prefix}zed_left_camera_frame" />
       <origin xyz="${zedxm_optical_offset_x} ${zedxm_baseline / 2} 0" rpy="0 0 0" />
     </joint>
     <link name="${prefix}zed_left_camera_frame" />
@@ -59,7 +58,7 @@
     </joint>
     <link name="${prefix}zed_left_camera_frame_optical" />
     <joint name="${prefix}zed_right_camera_joint" type="fixed">
-      <parent link="${prefix}camera_link" /><child link="${prefix}zed_right_camera_frame" />
+      <parent link="${prefix}zed_camera_center" /><child link="${prefix}zed_right_camera_frame" />
       <origin xyz="${zedxm_optical_offset_x} ${-zedxm_baseline / 2} 0" rpy="0 0 0" />
     </joint>
     <link name="${prefix}zed_right_camera_frame" />
@@ -69,30 +68,16 @@
     </joint>
     <link name="${prefix}zed_right_camera_frame_optical" />
 
-    <!-- contract aliases -->
-    <joint name="${prefix}camera_color_joint" type="fixed">
-      <parent link="${prefix}zed_left_camera_frame" /><child link="${prefix}camera_color_frame" /><origin xyz="0 0 0" rpy="0 0 0" />
-    </joint>
-    <link name="${prefix}camera_color_frame" />
-    <joint name="${prefix}camera_color_optical_joint" type="fixed">
-      <parent link="${prefix}zed_left_camera_frame_optical" /><child link="${prefix}camera_color_optical_frame" /><origin xyz="0 0 0" rpy="0 0 0" />
-    </joint>
-    <link name="${prefix}camera_color_optical_frame" />
-    <joint name="${prefix}camera_depth_optical_joint" type="fixed">
-      <parent link="${prefix}zed_left_camera_frame_optical" /><child link="${prefix}camera_depth_optical_frame" /><origin xyz="0 0 0" rpy="0 0 0" />
-    </joint>
-    <link name="${prefix}camera_depth_optical_frame" />
-
     <!-- Simulated sensor (Gazebo) on the left lens; the lens frame is inside the housing (front glass 20 mm ahead), so the sensor sits 25 mm in front of it -->
     <xacro:if value="${hardware == 'gazebo'}">
-      <gazebo reference="${prefix}camera_color_frame">
+      <gazebo reference="${prefix}zed_left_camera_frame">
         <sensor name="camera" type="rgbd_camera">
           <always_on>1</always_on>
           <update_rate>${update_rate}</update_rate>
           <visualize>0</visualize>
-          <topic>camera</topic>
+          <topic>${prefix}zed</topic>
           <pose>0.025 0 0 0 0 0</pose>
-          <gz_frame_id>${prefix}camera_color_optical_frame</gz_frame_id>
+          <gz_frame_id>${prefix}zed_left_camera_frame_optical</gz_frame_id>
           <camera>
             <horizontal_fov>${hfov_deg * pi / 180.0}</horizontal_fov>
             <image><width>${width}</width><height>${height}</height></image>

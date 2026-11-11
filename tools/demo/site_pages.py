@@ -103,7 +103,7 @@ exercised only against a stand-in driver. ✓ = passed in the automated test or 
 
 <h2>Bugs found and fixed in this round</h2>
 <ul>
-<li><b>Gazebo camera showed only background.</b> Two causes, both ours: (1) the sensor frame sits <i>inside</i> the D435 housing mesh, so every ray hit the housing or nothing, fixed by placing the sensor at the lens plane (4&nbsp;cm along its viewing axis); (2) headless Gazebo needs the EGL renderer, so the server now starts as <code>gz sim -s --headless-rendering</code> through <code>piper_bringup/scripts/gz_server.sh</code>. A minimal world proved the renderer itself was fine (100&nbsp;% depth, correct range) before I looked at the robot.</li>
+<li><b>Gazebo camera showed only background.</b> Two causes, both ours: (1) the sensor frame sits <i>inside</i> the camera housing mesh, so every ray hit the housing or nothing, fixed by placing the sensor at the lens plane (4&nbsp;cm along its viewing axis); (2) headless Gazebo needs the EGL renderer, so the server now starts as <code>gz sim -s --headless-rendering</code> through <code>piper_bringup/scripts/gz_server.sh</code>. A minimal world proved the renderer itself was fine (100&nbsp;% depth, correct range) before I looked at the robot.</li>
 <li><b>Isaac arm sagged under gravity</b> (bare PhysX PD drive, about 9&nbsp;mm at the TCP), so Servo pose tracking settled 9&nbsp;mm short and its test failed. The Isaac arm bodies now feel no gravity, like MuJoCo's gravity compensation and the real arm's firmware; Servo converges to 3&nbsp;mm and the Isaac end-to-end test passes 10/10. This changes Isaac's tracking numbers on the demo page.</li>
 <li><b>MuJoCo camera published at 5&nbsp;Hz</b> (the plugin default): set to 30&nbsp;Hz with <code>camera_publish_rate</code>.</li>
 <li><b>Orphaned Gazebo servers</b> after a hard kill: the wrapper now has a watchdog that stops the server if the wrapper dies.</li>
@@ -116,7 +116,7 @@ exercised only against a stand-in driver. ✓ = passed in the automated test or 
 export ROS_DOMAIN_ID=77
 ros2 launch piper_sim piper.launch.py backend:=gazebo gui:=true rviz:=true</pre>
 <p>In a second terminal (same <code>source scripts/env.sh</code> and domain):</p>
-<pre>ros2 run rqt_image_view rqt_image_view /camera/color/image_raw        # also /camera/aligned_depth_to_color/image_raw
+<pre>ros2 run rqt_image_view rqt_image_view /piper_zed/zed_node/rgb/color/rect/image        # also .../depth/depth_registered
 ros2 run piper_py piper named ready                                  # camera looks down at the three objects
 ros2 run piper_py piper joints 0 1.2 -1.0 0 0.6 0                    # move and watch the view change
 ros2 run piper_py piper demo --backend gazebo --out /tmp/demo.json   # the full scripted sequence</pre>
@@ -328,7 +328,7 @@ def architecture_svg() -> str:
     s.append(_arrow(246, 648, 262, 648))
     s.append(_arrow(592, 648, 608, 648))
     s.append(_box(16, 690, 230, 52, "u", "zed-ros2-description", "ZED X Mini model"))
-    s.append(_box(262, 690, 330, 52, "o", "sim cameras → /camera/*", "Gazebo · MuJoCo · Isaac"))
+    s.append(_box(262, 690, 330, 52, "o", "sim cameras → /piper_zed/zed_node/*", "Gazebo · MuJoCo · Isaac"))
     s.append(_box(608, 690, 376, 52, "p", "ZED wrapper (real, ZED Box)", "frames fit · topics remapped · planned"))
     s.append(_arrow(246, 716, 262, 716))
     s.append(_arrow(592, 716, 608, 716))
@@ -417,14 +417,14 @@ def camera_page(site: Path, meta: str) -> str:
     ])
     vids = "".join([
         fig("gazebo_overview.mp4", "Gazebo: observer camera during the demo", "Fixed camera rendered inside Gazebo (EGL, headless)."),
-        fig("gazebo_wrist.mp4", "Gazebo: wrist camera during the demo", "What the ZED X Mini sees; published on /camera/color/image_raw."),
+        fig("gazebo_wrist.mp4", "Gazebo: wrist camera during the demo", "What the ZED X Mini sees; published on /piper_zed/zed_node/rgb/color/rect/image."),
         fig("mujoco_wrist.mp4", "MuJoCo: wrist camera during the demo", "Same topics and frames."),
         fig("mujoco.mp4", "MuJoCo: observer view (replay)", "Replay of the recorded run through the generated model."),
         fig("isaac.mp4", "Isaac Sim: observer view (live render)", "Rendered by Isaac while ROS drives it."),
     ])
     body = f"""
-<p class="lead">The simulated Stereolabs ZED X Mini sits on the user's own clamp bracket on the gripper (on by default), publishes colour, aligned depth and camera_info from its left lens (960x600, 110&deg;) on the topics the RealSense driver had
-(<code>/camera/color/image_raw</code>, <code>/camera/aligned_depth_to_color/image_raw</code>, frame <code>piper_camera_color_optical_frame</code>), and sees the same three objects in every simulator.</p>
+<p class="lead">The simulated Stereolabs ZED X Mini sits on the user's own clamp bracket on the gripper (on by default), publishes colour, registered depth and camera_info from its left lens (960x600, 110&deg;) on the ZED ROS 2 wrapper's topics
+(<code>/piper_zed/zed_node/rgb/color/rect/image</code>, <code>.../depth/depth_registered</code>, frame <code>piper_zed_left_camera_frame_optical</code>), and sees the same three objects in every simulator.</p>
 <h2>Same pose, each simulator</h2><div class="grid">{stills or "<p class='muted'>no stills yet</p>"}</div>
 <h2>Videos</h2><div class="grid">{vids or "<p class='muted'>no videos yet</p>"}</div>
 <h2>Notes</h2>

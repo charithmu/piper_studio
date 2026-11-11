@@ -21,9 +21,9 @@ Regenerate after any description change: `python src/piper_description/tools/mas
 | `gripper_link1` | 0.025 | vendor URDF (agx_arm_urdf, CAD estimate) |  |
 | `gripper_link2` | 0.025 | vendor URDF (agx_arm_urdf, CAD estimate) |  |
 | `camera_mount_link` | 0.098 | PLA estimate from the mesh volume (mounts/zedxm_bracket.xacro), not weighed |  |
-| `camera_link` | 0.15 | cameras/zedxm.xacro: 150 g from the Stereolabs datasheet |  |
+| `zed_camera_center` | 0.15 | cameras/zedxm.xacro: 150 g from the Stereolabs datasheet |  |
 | **arm (base to link6)** | **4.1696** | sum | |
 | **flange + gripper** | **0.5400** | sum | |
-| **camera + stand** | **0.2480** | sum | |
+| **camera + bracket** | **0.2480** | sum | |
 | **total with gripper and camera** | **4.9576** | sum | |
 | **total arm + gripper (no camera)** | **4.7096** | sum | |

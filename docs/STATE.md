@@ -1,6 +1,6 @@
 # Current state: read this first when starting a new session
 
-Orientation from 2026-11-08, updated for v0.7.0 on 2026-11-10 (branch `main`, remote `origin` = github.com/charithmu/piper_studio).
+Orientation from 2026-11-08, updated for v0.9.0 on 2026-11-11 (branch `main`, remote `origin` = github.com/charithmu/piper_studio).
 Facts that change are in `CLEANUP.md` (to-do, verification log) and `VERSIONS.md` (qualified versions); this file is the orientation and the hard-won gotchas.
 
 ## What this is
@@ -17,7 +17,7 @@ git log --oneline | head; sed -n 1,60p docs/CLEANUP.md              # what was d
 ```
 
 ## What works (verified 2026-11-10, details in CLEANUP "Verification record" and the hardware log in `docs/real_arm/arms/piper-01.md`)
-**Simulators:** mock, Gazebo (also its GUI on a virtual display), MuJoCo (viewer and camera), Isaac Sim (GPU, camera, video) with the same controllers and MoveIt; simulated ZED X Mini wrist camera (left lens, 960x600, 110 deg) on the RealSense topic names, on by default (`camera:=none` for the robot only; 2026-11-11); prefix `piper_` on every name; carrier example (own controller manager, prefix `arm_`).
+**Simulators:** mock, Gazebo (also its GUI on a virtual display), MuJoCo (viewer and camera), Isaac Sim (GPU, camera, video) with the same controllers and MoveIt; simulated ZED X Mini wrist camera (left lens, 960x600, 110 deg) on the ZED ROS 2 wrapper's topic and frame names (`/piper_zed/zed_node/...`), on by default (`camera:=none` for the robot only; 2026-11-11); prefix `piper_` on every name; carrier example (own controller manager, prefix `arm_`).
 **Real arm, on the arm with the user present:** `RealArm` (`piper_core`: start, stop, execute with 25 ms setpoints, abort, gripper), the `piper-arm` console, the SDK tools in `tools/real_arm/`, a cuRobo pick-like scenario in simulation; firmware kinematics equal our model (0.09 mm).
 **Real arm, ROS path: experimental, parked (user decision 2026-11-10).** `piper_real_driver` (our node on `RealArm`) starts, stops and does small moves on the arm, but large MoveIt moves failed and were jerky and the gripper action misreports a stall (hardware log in `arms/piper-01.md`). Use `RealArm`. The redesign for later is CLEANUP C14; the scenario through ROS runs on the mock backend only.
 
@@ -37,7 +37,7 @@ git log --oneline | head; sed -n 1,60p docs/CLEANUP.md              # what was d
 - **Firmware first (2026-11-08):** the arm runs the latest supported firmware (S-V1.9-1), calibrated. Firmware-reported values (joint speed 3.0 rad/s, acceleration 5.0, gripper stroke 70 mm) win over the vendor URDF; the differences are in `docs/real_arm/arms/piper-01.md` and `piper_arm_macro.py report`. Masses: `docs/description/MASSES.md`.
 - **Processes:** `ros2 launch` children survive a killed parent, and background jobs start with SIGINT ignored. Start with a PID file via `python3 -c 'signal.signal(SIGINT, SIG_DFL); os.execvp(...)'`, stop by PID, then look for orphans of your ROS_DOMAIN_ID. `ros2 daemon stop` per domain afterwards. Never `pkill -f`.
 - **Display:** TurboVNC (`:2`) has no GLX. For RViz, the MuJoCo viewer/camera and Gazebo GUI use `Xvfb :96 -screen 0 1600x900x24 +extension GLX` and `DISPLAY=:96 import -window root x.png`. Isaac and Gazebo cameras need no display.
-- **GPU:** one RTX 4090 shared with other agents (an Isaac testbed may be running): Isaac only through `gpu-run` / `scripts/isaac.sh`, never touch another agent's process. Running Isaac in the repo directory drops `ucode.elf` there (git-ignored, delete it). The USD must be rebuilt after any description or prefix change: `scripts/isaac.sh build-usd [d435]`.
+- **GPU:** one RTX 4090 shared with other agents (an Isaac testbed may be running): Isaac only through `gpu-run` / `scripts/isaac.sh`, never touch another agent's process. Running Isaac in the repo directory drops `ucode.elf` there (git-ignored, delete it). The USD must be rebuilt after any description or prefix change: `scripts/isaac.sh build-usd [no_camera]`.
 - **Names:** every name has the prefix; the real driver keeps the official ones and only `command_guard` translates. `ros2 launch` rejects empty values and xacro CLI ignores them: `prefix:=none` means no prefix in launch files, `""` in Python/xacro mappings.
 - **Generated files:** `piper_arm.xacro` and `piper_official.srdf.xacro` are generated; never hand-edit, run `piper_arm_macro.py generate` after a submodule bump and review the diff. Config yaml/xml with a `${prefix}` token are templates (`render_config`).
 - **MoveIt:** the SRDF `<robot name>` must equal the URDF's name (`robot_name:=`), and the SRDF needs `camera:=` to know the camera links, or MoveIt silently applies no collision matrix (start state "in collision").

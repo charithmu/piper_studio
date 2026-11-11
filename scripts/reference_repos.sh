@@ -14,7 +14,6 @@ REPOS=(
 "agx_arm_urdf|agilex/agx_arm_urdf|https://github.com/agilexrobotics/agx_arm_urdf.git|680fa92|official URDF (also inside the external/agx_arm_ros submodule)"
 "agx_arm_ros|agilex/agx_arm_ros|https://github.com/agilexrobotics/agx_arm_ros.git|286633e|official ROS stack (the submodule is the pinned copy)"
 "pyAgxArm|agilex/pyAgxArm|https://github.com/agilexrobotics/pyAgxArm.git|d90e234|the SDK pinned in env/requirements.in"
-"realsense-ros|realsense-ros|https://github.com/realsenseai/realsense-ros.git|6d87b071|RealSense driver and description (real camera, M8)"
 "depthai-ros|depthai-ros|https://github.com/luxonis/depthai-ros.git|d31a196|OAK-D Pro driver and description (planned camera)"
 "OrbbecSDK_ROS2|OrbbecSDK_ROS2|https://github.com/orbbec/OrbbecSDK_ROS2.git|c780bc11|Orbbec camera driver (camera option)"
 "moveit_calibration|moveit_calibration|git@github.com:moveit/moveit_calibration.git|3f9d48e|hand-eye calibration (camera mount calibration, CLEANUP C9)"

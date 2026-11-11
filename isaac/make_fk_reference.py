@@ -19,7 +19,7 @@ from piper_sim import physics_model, robot_description  # noqa: E402
 
 args = [a for a in sys.argv[1:] if not a.startswith("--")]
 camera = "--no-camera" not in sys.argv
-FRAMES = ["gripper_base", "tcp_link", "camera_mount_link", "camera_link", "camera_color_optical_frame"]
+FRAMES = ["gripper_base", "tcp_link", "camera_mount_link", "zed_camera_link", "zed_camera_center", "zed_left_camera_frame_optical"]
 
 
 def box(urdf_file, link, q):
@@ -64,7 +64,7 @@ for q in qs:
         qd = dict(zip(model_audit.ARM_JOINTS, q))
         ref["frames"] = {name: {"pos": (F := m.fk(qd, name))[:3, 3].tolist(), "rot": F[:3, :3].tolist()}
                          for name in FRAMES}
-        ref["col_boxes"] = {name: [b.tolist() for b in box(tmp, name, qd)] for name in ("camera_mount_link", "camera_link")}
+        ref["col_boxes"] = {name: [b.tolist() for b in box(tmp, name, qd)] for name in ("camera_mount_link", "zed_camera_center")}
     refs.append(ref)
 json.dump({"configs": refs, "total_mass": sum(m.masses.values()), "masses": m.masses}, out.open("w"))
 print("wrote", out, "total mass", round(sum(m.masses.values()), 4))

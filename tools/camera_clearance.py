@@ -36,7 +36,7 @@ def main():
     model = pin.buildModelFromUrdf(str(urdf))
     gm = pin.buildGeomFromUrdf(model, str(urdf), pin.GeometryType.COLLISION, package_dirs=[str(Path(get_package_share_directory("agx_arm_description")).parent)])
     names = [g.name.removesuffix("_0").removeprefix(P) for g in gm.geometryObjects]
-    cam = {i for i, n in enumerate(names) if n in ("camera_mount_link", "camera_link")}
+    cam = {i for i, n in enumerate(names) if n in ("camera_mount_link", "zed_camera_center")}
     gm.addAllCollisionPairs()
     pairs = [(i, p) for i, p in enumerate(gm.collisionPairs) if p.first in cam or p.second in cam]
     data, gdata = pin.Data(model), pin.GeometryData(gm)

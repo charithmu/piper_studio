@@ -173,7 +173,7 @@ og.Controller.edit(
     },
 )
 
-# ---- wrist camera: a USD camera under link6 at the ZED X Mini left (colour) optical frame, published on the topics the RealSense driver had ----------
+# ---- wrist camera: a USD camera under link6 at the ZED X Mini left (colour) optical frame, published on the ZED ROS 2 wrapper's topics and frame ----------
 if args.camera != "none":
     if args.camera_pose is None:
         sys.exit("--camera-pose is needed with the wrist camera (scripts/isaac.sh passes it); use --camera none for the robot only")
@@ -196,9 +196,9 @@ if args.camera != "none":
     cam_prim.GetClippingRangeAttr().Set(Gf.Vec2f(cfg["near"], cfg["far"]))
     wrist_rp = rep.create.render_product(cam_path, (cfg["width"], cfg["height"]))
     create_ros2_camera_graph(Ros2CameraGraphConfig(
-        graph_path="/ROS_Camera", camera_prim=cam_path, frame_id=f"{PREFIX}camera_color_optical_frame",
-        camera_info_topic="/camera/color/camera_info", rgb_topic="/camera/color/image_raw",
-        publish_depth=True, depth_topic="/camera/aligned_depth_to_color/image_raw",
+        graph_path="/ROS_Camera", camera_prim=cam_path, frame_id=f"{PREFIX}zed_left_camera_frame_optical",
+        camera_info_topic=f"/{PREFIX}zed/zed_node/rgb/color/rect/camera_info", rgb_topic=f"/{PREFIX}zed/zed_node/rgb/color/rect/image",
+        publish_depth=True, depth_topic=f"/{PREFIX}zed/zed_node/depth/depth_registered",
         render_product_prim=wrist_rp.path))
     print(f"[piper_isaac] wrist camera at {cam_path}, {cfg['width']}x{cfg['height']}, hfov {cfg['hfov_deg']} deg", flush=True)
 

@@ -18,7 +18,7 @@ trap '[ -n "$rpid" ] && kill -TERM "$rpid" 2>/dev/null; kill -INT -- -"$lpid" 2>
 for _ in $(seq 1 120); do grep -q "You can start planning" "$out/$backend.launch.log" 2>/dev/null && break; sleep 2; done
 mode="${4:-demo}"
 if [ "$cam" = 1 ] && [ "$mode" = demo ]; then
-  targets=("/camera/color/image_raw=$out/${backend}_wrist.mp4"); [ "$backend" = gazebo ] && targets+=("/overview/image_raw=$out/gazebo_overview.mp4")
+  targets=("/piper_zed/zed_node/rgb/color/rect/image=$out/${backend}_wrist.mp4"); [ "$backend" = gazebo ] && targets+=("/overview/image_raw=$out/gazebo_overview.mp4")
   python "$ws/tools/capture/record_video.py" "${targets[@]}" > "$out/$backend.record.log" 2>&1 & rpid=$!
   sleep 3
 fi; file="$out/$backend.json"; [ "$mode" = stepresp ] && file="$out/$backend.step.json"

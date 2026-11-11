@@ -169,8 +169,8 @@ def test_camera_is_the_default_and_none_is_the_robot_only():
     """The ZED X Mini on its bracket is in every description unless camera:=none (the robot only: no bracket, no camera frames)."""
     with_cam, bare = ET.fromstring(expand()), ET.fromstring(expand(camera="none"))
     names = lambda r: {l.get("name") for l in r.findall("link")}  # noqa: E731
-    cam_links = {P + n for n in ("camera_mount_link", "zed_camera_link", "camera_link", "camera_color_optical_frame", "camera_depth_optical_frame",
-                                 "zed_left_camera_frame_optical", "zed_right_camera_frame_optical")}
+    cam_links = {P + n for n in ("camera_mount_link", "zed_camera_link", "zed_camera_center", "zed_left_camera_frame", "zed_left_camera_frame_optical",
+                                 "zed_right_camera_frame", "zed_right_camera_frame_optical")}
     assert cam_links <= names(with_cam) and not cam_links & names(bare)
     assert names(with_cam) - names(bare) >= cam_links
     assert names(bare) <= names(with_cam)                                   # nothing else differs
@@ -185,7 +185,7 @@ def test_wrist_camera_mount():
     assert np.allclose(_fixed_chain(root, P + "camera_mount_link", P + "gripper_base")[:3, 3], 0)
     hole = _fixed_chain(root, P + "zed_camera_link", P + "gripper_base")
     assert hole[:3, 3] == pytest.approx([-0.09171, 0.0, 0.016314], abs=1e-6)
-    optical = _fixed_chain(root, P + "camera_color_optical_frame", P + "gripper_base")
+    optical = _fixed_chain(root, P + "zed_left_camera_frame_optical", P + "gripper_base")
     z = optical[:3, 2]                                                      # viewing direction
     assert z == pytest.approx([math.sin(math.radians(20)), 0.0, math.cos(math.radians(20))], abs=1e-6)
     assert optical[1, 3] == pytest.approx(0.025, abs=1e-6)                  # the LEFT lens, 25 mm of the 50 mm baseline from the camera centre plane
@@ -201,15 +201,15 @@ def test_frames_equal_stereolabs_zed_description():
     import numpy as np
 
     root = ET.fromstring(expand())
-    centre = _fixed_chain(root, P + "camera_link", P + "zed_camera_link")
+    centre = _fixed_chain(root, P + "zed_camera_center", P + "zed_camera_link")
     assert centre[:3, 3] == pytest.approx([0, 0, 0.016])
-    left = _fixed_chain(root, P + "zed_left_camera_frame", P + "camera_link")
+    left = _fixed_chain(root, P + "zed_left_camera_frame", P + "zed_camera_center")
     assert left[:3, 3] == pytest.approx([-0.005, 0.025, 0])
     opt = _fixed_chain(root, P + "zed_left_camera_frame_optical", P + "zed_left_camera_frame")
     rot = opt[:3, :3]
     assert rot[:, 2] == pytest.approx([1, 0, 0]) and rot[:, 0] == pytest.approx([0, -1, 0]) and rot[:, 1] == pytest.approx([0, 0, -1])   # z forward, x right, y down
-    for alias in ("camera_color_optical_frame", "camera_depth_optical_frame"):
-        assert np.allclose(_fixed_chain(root, P + alias, P + "zed_left_camera_frame_optical"), np.eye(4))
+    names = {l.get("name") for l in root.findall("link")}
+    assert not {n for n in names if "realsense" in n.lower() or n.endswith(("camera_color_frame", "camera_color_optical_frame", "camera_depth_optical_frame"))}, "no RealSense-style frames"
 
 
 def test_camera_model_numbers_reach_the_simulated_sensor():
@@ -241,7 +241,7 @@ def test_integration_doc_snippet_expands(tmp_path):
     path.write_text(snippet)
     root = ET.fromstring(xacro.process_file(str(path)).toxml())
     assert root.find("joint[@name='piper_mount_joint']/parent").get("link") == "trunk"
-    assert root.find("link[@name='piper_camera_color_optical_frame']") is not None          # the snippet carries the wrist camera
+    assert root.find("link[@name='piper_zed_left_camera_frame_optical']") is not None          # the snippet carries the wrist camera
 
 
 @pytest.mark.skipif(not READOUT.exists(), reason="no saved arm read-out")
@@ -302,7 +302,7 @@ def test_bracket_versions_and_measured_calibration(tmp_path):
 def test_camera_and_bracket_collide_as_their_real_meshes():
     """The bracket and the ZED X Mini collide as their own meshes (the bracket simplified), in the frame of their visual."""
     root = ET.fromstring(expand())
-    for link, stl in (("camera_mount_link", "zedxm_bracket_v3_collision.stl"), ("camera_link", "zedxm.stl")):
+    for link, stl in (("camera_mount_link", "zedxm_bracket_v3_collision.stl"), ("zed_camera_center", "zedxm.stl")):
         col = root.find(f"link[@name='{P}{link}']/collision")
         assert col.find("geometry/mesh").get("filename").endswith(stl), link
         vis = root.find(f"link[@name='{P}{link}']/visual")

@@ -173,7 +173,7 @@ async function visualObject(s, linkName) {
   const c = await loadDae(url);
   const o = c.scene.clone(true);
   // ColladaLoader turns a Z_UP file into Y-up (-90 deg about x). URDF poses expect the vertex data as it is in the file, whatever up_axis it
-  // declares (d435_colored.dae says Y_UP but is already in the frame its URDF origin expects, and RViz / Gazebo show it that way), so undo it.
+  // declares (some .dae files say Y_UP but are already in the frame their URDF origin expects, and RViz / Gazebo show them that way), so undo it.
   o.quaternion.set(0, 0, 0, 1);
   o.traverse(m => { if (m.isMesh && m.material) m.material = Array.isArray(m.material) ? m.material.map(x => x.clone()) : m.material.clone(); });
   const g = new THREE.Group(); g.add(o); g.scale.set(...s.scale); return g;
@@ -276,7 +276,7 @@ function updateReadouts() {
   const base = model.prefix + 'base_link', lines = [];
   const t = relPose(base, model.tcp);
   if (t) lines.push(`tcp in base_link  xyz ${t.p.toArray().map(v => v.toFixed(4)).join(' ')} m`, `                  rpy ${t.rpy.map(v => v.toFixed(3)).join(' ')} rad`);
-  const cam = relPose(model.prefix + 'link6', model.prefix + 'camera_color_optical_frame');
+  const cam = relPose(model.prefix + 'link6', model.prefix + 'zed_left_camera_frame_optical');
   if (cam) lines.push(`camera in link6   xyz ${cam.p.toArray().map(v => v.toFixed(4)).join(' ')} m`);
   $('tcp').textContent = lines.join('\n'); $('tcp').style.whiteSpace = 'pre';
   const bad = motionJoints().filter(j => j.limit && (q[j.name] < j.limit.lower - 1e-6 || q[j.name] > j.limit.upper + 1e-6));
@@ -345,7 +345,7 @@ $('fsize').oninput = e => { frameSize = parseFloat(e.target.value); $('fsize-v')
 // ---------------------------------------------------------------- frames: axes and name per frame
 function initFrames() {
   const p = model.prefix;       // defaults are applied once per frame, so a frame that appears later (a camera) comes up on, and one you switched off stays off
-  for (const n of [model.tcp, p + 'gripper_base', p + 'camera_mount_link', p + 'camera_color_optical_frame']) if (S.links[n] && !framesInit.has(n)) { framesInit.add(n); frameOn.add(n); labelOn.add(n); }
+  for (const n of [model.tcp, p + 'gripper_base', p + 'camera_mount_link', p + 'zed_left_camera_frame_optical']) if (S.links[n] && !framesInit.has(n)) { framesInit.add(n); frameOn.add(n); labelOn.add(n); }
   buildFrames();
 }
 function buildFrames() {

@@ -131,7 +131,7 @@ class TestBringup(unittest.TestCase):
         self.assertTrue(self.arm.use_trajectories())
 
     def test_9_wrist_camera(self, backend):
-        """Simulated ZED X Mini (left lens): colour, aligned depth and camera_info on the contract's topics and frames, with the camera model's size and intrinsics."""
+        """Simulated ZED X Mini (left lens): colour, registered depth and camera_info on the ZED wrapper's topics and frame, with the camera model's size and intrinsics."""
         from piper_description import camera_model
         cm = camera_model()
         import numpy as np
@@ -146,8 +146,10 @@ class TestBringup(unittest.TestCase):
         self.assertEqual(color.shape, (cm["height"], cm["width"], 3))
         self.assertEqual(depth.shape, (cm["height"], cm["width"]))
         self.assertEqual((info.width, info.height), (cm["width"], cm["height"]))
-        self.assertEqual(hc.frame_id, "piper_camera_color_optical_frame")
-        self.assertEqual(hd.frame_id, "piper_camera_color_optical_frame")
+        from piper_description import camera_topics
+        self.assertEqual(self.arm.camera_topics(), camera_topics(self.arm.name_prefix))      # one set of names, in the library and in the client
+        self.assertEqual(hc.frame_id, "piper_zed_left_camera_frame_optical")
+        self.assertEqual(hd.frame_id, "piper_zed_left_camera_frame_optical")
         self.assertGreater(float(color.std()), 5.0, "colour image is blank")
         valid = np.isfinite(depth) & (depth > 0)
         self.assertGreater(float(valid.mean()), 0.2, "depth image is mostly empty")

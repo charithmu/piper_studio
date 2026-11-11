@@ -10,4 +10,5 @@ lenses:
 image: {width: 960, height: 600}   # the 16:10 sensor binned to 960x600 (the ZED's 600p mode); 1920x1200 and 1920x1080 also exist. Pass camera_width/camera_height to change.
 rate: 30                          # Hz of the simulated stream
 baseline: 0.05                    # m between the left and right lens
-color_optical_frame: camera_color_optical_frame   # the LEFT lens; colour and depth are registered to it (names without prefix)
+optical_frame: zed_left_camera_frame_optical   # the LEFT lens (name without prefix); colour, registered depth and camera_info are in it
+camera_name: zed                                # the ZED wrapper's camera_name is <prefix>zed (piper_zed); topics /<camera_name>/zed_node/...

@@ -47,7 +47,7 @@ ros2 launch piper_sim piper.launch.py rviz:=true                        # with R
 ros2 launch piper_sim piper.launch.py backend:=gazebo [gui:=true]       # Gazebo Harmonic
 ros2 launch piper_sim piper.launch.py backend:=mujoco [gui:=true]       # MuJoCo (model generated at launch)
 ros2 launch piper_sim piper.launch.py backend:=isaac [gui:=true]        # Isaac Sim on the GPU, own process (isaac/README.md)
-ros2 launch piper_sim piper.launch.py backend:=gazebo camera:=none      # the robot only: every launch has the ZED X Mini wrist camera on /camera/color/image_raw etc. unless you say none
+ros2 launch piper_sim piper.launch.py backend:=gazebo camera:=none      # the robot only: every launch has the ZED X Mini wrist camera (topics /piper_zed/zed_node/...) unless you say none
 ros2 launch piper_control control.launch.py                             # the control stack alone: mock, real, or on your own controller manager
 ros2 launch piper_description view.launch.py                              # the model only (with the camera), joint sliders; same description options as the launches
 ```
@@ -72,9 +72,9 @@ with Piper() as arm:
 ## Names, prefix and the camera
 
 Every link, joint and frame carries a prefix, `piper_` by default (`piper_link1`, `piper_joint1`, `piper_gripper`, `piper_tcp_link`,
-`piper_camera_color_optical_frame`); `prefix:=none` gives the official AgileX names (`""` in the Python API and xacro). `Piper(prefix=...)` and `piper --prefix` follow it.
+`piper_zed_left_camera_frame_optical`); `prefix:=none` gives the official AgileX names (`""` in the Python API and xacro). `Piper(prefix=...)` and `piper --prefix` follow it.
 **The wrist camera is on by default:** the Stereolabs ZED X Mini on the own clamp bracket (`urdf/cameras/zedxm.xacro`, `urdf/mounts/zedxm_bracket.xacro`, chained by `urdf/piper_camera.xacro`),
-frames as in Stereolabs' `zed-ros2-description`, optical frame `piper_camera_color_optical_frame` (the left lens). `camera:=none` is the robot only. Lens, image size and field of view:
+frames as in Stereolabs' `zed-ros2-description`, optical frame `piper_zed_left_camera_frame_optical` (the left lens), topics of the ZED ROS 2 wrapper with `camera_name` `piper_zed` (`piper_description.camera_topics()`, `Piper.camera_topics()`), the same from every simulator and from the real camera (`zed_camera.launch.py`, `docs/real_arm/ZED_BOX.md`). `camera:=none` is the robot only. Lens, image size and field of view:
 `config/camera_models/zedxm.yaml`; bracket versions and poses: `config/camera_mounts/zedxm_bracket_v*.yaml` (`camera_calibration:=zedxm_bracket_v2`). Another camera or bracket is one more file with the same macro interface.
 
 `urdf/piper_arm.xacro` and `config/moveit/piper_official.srdf.xacro` are generated from the pinned official files and committed.
@@ -123,7 +123,7 @@ Without ROS, `piper_core.RealArm` and the tools in `tools/real_arm/` talk to the
 scripts/test_all.sh                       # offline tests + generated-macro check
 scripts/test_all.sh mock gazebo mujoco    # + launch tests per backend, the real-arm plumbing and the carrier example (add isaac: GPU)
 python -m pytest src/piper_description src/piper_control src/piper_core src/piper_sim -q       # offline
-PIPER_TEST_BACKENDS=mock,gazebo,mujoco python -m pytest src/piper_py/test src/piper_examples -q   # launch tests per backend, and the carrier example (add isaac: GPU, needs scripts/isaac.sh build-usd d435)
+PIPER_TEST_BACKENDS=mock,gazebo,mujoco python -m pytest src/piper_py/test src/piper_examples -q   # launch tests per backend, and the carrier example (add isaac: GPU, needs scripts/isaac.sh build-usd)
 python src/piper_description/tools/piper_arm_macro.py check                                     # generated macros still equal the pinned official files
 ```
 

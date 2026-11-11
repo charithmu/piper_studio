@@ -30,7 +30,7 @@ with Piper() as arm:
     imageio.imwrite(sys.argv[1], np.concatenate([color, np.repeat(dv[:, :, None], 3, 2)], 0))
     print("depth valid %.0f%%, median %.2f m" % (100 * valid.mean(), float(np.median(depth[valid])) if valid.any() else float("nan")))
     n = {"c": 0}
-    arm.node.create_subscription(Image, "/camera/color/image_raw", lambda m: n.__setitem__("c", n["c"] + 1), 10)
+    arm.node.create_subscription(Image, "/piper_zed/zed_node/rgb/color/rect/image", lambda m: n.__setitem__("c", n["c"] + 1), 10)
     t0 = time.time()
     while time.time() - t0 < 4.0:
         rclpy.spin_once(arm.node, timeout_sec=0.1)

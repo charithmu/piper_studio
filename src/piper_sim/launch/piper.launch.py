@@ -32,14 +32,14 @@ from launch_ros.actions import Node
 
 from piper_control import launch_lib as lib
 from piper_control.launch_lib import share
-from piper_description import camera_model, normalize_prefix
+from piper_description import camera_model, camera_topics, normalize_prefix
 from piper_sim import SIMULATORS, mujoco_model, physics_model, robot_description
 from piper_sim.scene import gazebo_world, load_objects, mujoco_scene
 
 BACKENDS = ["mock", "real", "gazebo", "mujoco", "isaac"]
 
 
-def gazebo(gui: bool, urdf: str, objects: list, camera: bool):
+def gazebo(gui: bool, urdf: str, objects: list, camera: bool, prefix: str):
     """Gazebo Harmonic: empty world, controller manager in gz_ros2_control.
 
     The physics model (piper_sim.physics_model) has no URDF mimic constraints, since
@@ -55,15 +55,15 @@ def gazebo(gui: bool, urdf: str, objects: list, camera: bool):
     world_file = tempfile.NamedTemporaryFile("w", prefix="piper_world_", suffix=".sdf", delete=False)
     world_file.write(gazebo_world(objects, overview=bool(camera)))
     world_file.close()
-    camera_bridge = [Node(package="ros_gz_bridge", executable="parameter_bridge", output="log",
-                          arguments=["/overview/image@sensor_msgs/msg/Image[gz.msgs.Image",
-                                     "/camera/image@sensor_msgs/msg/Image[gz.msgs.Image",
-                                     "/camera/depth_image@sensor_msgs/msg/Image[gz.msgs.Image",
-                                     "/camera/camera_info@sensor_msgs/msg/CameraInfo[gz.msgs.CameraInfo"],
-                          remappings=[("/overview/image", "/overview/image_raw"),
-                                      ("/camera/image", "/camera/color/image_raw"),
-                                      ("/camera/depth_image", "/camera/aligned_depth_to_color/image_raw"),
-                                      ("/camera/camera_info", "/camera/color/camera_info")])] if camera else []
+    # The sensor of cameras/zedxm.xacro publishes on gz topics <prefix>zed/{image,depth_image,camera_info}; they go out on the ZED wrapper's ROS names.
+    t = camera_topics(prefix)
+    gz = f"/{prefix}zed"
+    bridge = lambda args, maps: Node(package="ros_gz_bridge", executable="parameter_bridge", output="log", arguments=args, remappings=maps)  # noqa: E731
+    camera_bridge = [
+        bridge(["/overview/image@sensor_msgs/msg/Image[gz.msgs.Image", f"{gz}/image@sensor_msgs/msg/Image[gz.msgs.Image",
+                f"{gz}/depth_image@sensor_msgs/msg/Image[gz.msgs.Image", f"{gz}/camera_info@sensor_msgs/msg/CameraInfo[gz.msgs.CameraInfo"],
+               [("/overview/image", "/overview/image_raw"), (f"{gz}/image", t["color"]), (f"{gz}/depth_image", t["depth"]), (f"{gz}/camera_info", t["color_info"])]),
+    ] if camera else []
     partition = os.environ.get("GZ_PARTITION") or f"piper_d{os.environ.get('ROS_DOMAIN_ID', '0')}"
     return [
         SetEnvironmentVariable("GZ_PARTITION", partition),
@@ -138,7 +138,7 @@ def launch_setup(context):
                  "--prefix", prefix, *(["--camera", camera] if camera != "none" else []), *scene_json],
             output="screen", sigterm_timeout="20", sigkill_timeout="30"))
     if backend == "gazebo":
-        actions += gazebo(arg("gui") == "true", urdf, objects, camera != "none")
+        actions += gazebo(arg("gui") == "true", urdf, objects, camera != "none", prefix)
     if backend == "mujoco":
         actions += mujoco(controllers)
     if backend == "real":

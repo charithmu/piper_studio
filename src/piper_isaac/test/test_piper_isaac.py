@@ -124,7 +124,7 @@ def test_the_camera_pose_equals_the_description_chain(sim):
         r = sim.move_to(q)
         assert r.ok, r.message if hasattr(r, "message") else r
         qd = dict(zip([f"joint{i}" for i in range(1, 7)], sim.state().q))
-        want = ref.fk(qd, "camera_color_optical_frame")
+        want = ref.fk(qd, "zed_left_camera_frame_optical")
         got = sim.camera_pose()
         assert np.abs(got[:3, 3] - want[:3, 3]).max() < 2e-3, (got[:3, 3], want[:3, 3])
         assert np.abs(got[:3, :3] - want[:3, :3]).max() < 5e-3

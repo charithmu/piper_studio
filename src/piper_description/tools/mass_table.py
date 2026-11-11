@@ -16,7 +16,7 @@ from piper_description import robot_description  # noqa: E402
 
 VENDOR = "vendor URDF (agx_arm_urdf, CAD estimate)"
 OURS = {"camera_mount_link": "PLA estimate from the mesh volume (mounts/zedxm_bracket.xacro), not weighed",
-        "camera_link": "cameras/zedxm.xacro: 150 g from the Stereolabs datasheet"}
+        "zed_camera_center": "cameras/zedxm.xacro: 150 g from the Stereolabs datasheet"}
 NOTE = {"gripper_link": "virtual width joint, no mass"}
 
 
@@ -29,7 +29,7 @@ def main() -> int:
         mass = float(m.get("value")) if m is not None else 0.0
         if mass == 0.0 and n not in NOTE:
             continue
-        group = "camera" if n.startswith("camera") else "gripper" if n.startswith("gripper") or n == "flange_link" else "arm"
+        group = "camera" if n.startswith(("camera", "zed")) else "gripper" if n.startswith("gripper") or n == "flange_link" else "arm"
         groups[group] += mass
         rows.append((n, mass, OURS.get(n, VENDOR) if group != "arm" or n in OURS else VENDOR, NOTE.get(n, "")))
     print("| Link | Mass (kg) | Source | Note |\n|---|---:|---|---|")
@@ -37,7 +37,7 @@ def main() -> int:
         print(f"| `{n}` | {mass:.5g} | {src} | {note} |")
     print(f"| **arm (base to link6)** | **{groups['arm']:.4f}** | sum | |")
     print(f"| **flange + gripper** | **{groups['gripper']:.4f}** | sum | |")
-    print(f"| **camera + stand** | **{groups['camera']:.4f}** | sum | |")
+    print(f"| **camera + bracket** | **{groups['camera']:.4f}** | sum | |")
     print(f"| **total with gripper and camera** | **{sum(groups.values()):.4f}** | sum | |")
     print(f"| **total arm + gripper (no camera)** | **{groups['arm'] + groups['gripper']:.4f}** | sum | |")
     return 0

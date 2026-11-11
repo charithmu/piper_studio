@@ -86,8 +86,8 @@ The servo gains are the provisional ones, equal to MuJoCo's: tracking numbers fr
 `scripts/isaac.sh build-usd` builds the USD with the ZED X Mini on its bracket (the default; `build-usd no_camera` builds the robot-only USD) and writes
 `camera_pose.json`: the left (colour) optical frame in `link6`, turned 180 deg about x because USD cameras look along -Z with +Y up, plus the image size,
 horizontal field of view, near/far and intrinsics of `piper_description/config/camera_models/zedxm.yaml` (960x600, 110 deg wide lens, 0.1 to 8 m). The runner
-creates a USD camera there and publishes it through Isaac's ROS 2 camera graph on the contract's topics (`/camera/color/image_raw`,
-`/camera/aligned_depth_to_color/image_raw`, `/camera/color/camera_info`, frame `piper_camera_color_optical_frame`); `camera:=none` runs the robot-only USD.
+creates a USD camera there and publishes it through Isaac's ROS 2 camera graph on the ZED ROS 2 wrapper's topics (`/piper_zed/zed_node/rgb/color/rect/image`, `.../rgb/color/rect/camera_info`,
+`.../depth/depth_registered`, frame `piper_zed_left_camera_frame_optical`); `camera:=none` runs the robot-only USD.
 The static objects of `piper_sim/config/scene_objects.yaml` are passed as JSON (`--scene`) so all
 simulators see the same scene. Cost: each rendered view is about 8 ms per frame (real-time factor ~0.6 with the wrist camera at 90 Hz frames).
 
@@ -127,4 +127,4 @@ RTX 4090. Domain/ports: ROS 2 DDS only (no listening sockets of its own).
 Every joint and link in the USD carries the description's prefix (default `piper_`: `piper_joint1`, `piper_gripper`, ...), because the USD is
 converted from the prefixed URDF. `run_piper.py --prefix` and `check_model.py ... PREFIX` must match the prefix the USD was built with (the launch
 passes it; `servo_gains.py` keeps the official names and the runner adds the prefix). After changing the description or the prefix, rebuild:
-`scripts/isaac.sh build-usd` and `scripts/isaac.sh build-usd d435`.
+`scripts/isaac.sh build-usd` and `scripts/isaac.sh build-usd no_camera`.
