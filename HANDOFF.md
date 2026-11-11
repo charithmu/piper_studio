@@ -1,3 +1,12 @@
+# Handoff (2026-11-11, evening): Studio owns the cuRobo model (0.10.0, additive)
+
+**For downstream projects (piper_pick, curobo_piper_study, the bake-off).** The cuRobo sphere model of the Piper (robot only, and with the ZED X Mini on its bracket), its hand-tuned policy and the way to regenerate it live here now
+(`docs/CUROBO.md`). Import it from the `piper_assets` wheel: `curobo_config(camera)`, `curobo_model_is_current(camera)`, `curobo_provenance(camera)`, `curobo_planner_defaults()`; keep only planning code on your side.
+Regenerating needs the optional environment (`scripts/curobo_env.sh setup`); using the model needs no cuRobo. Viewer: `https://atlas.buri-fence.ts.net:8700/piper-studio/curobo/`.
+Wheels 0.10.0 in `dist/`. `curobo_piper_study` already consumes it; for `piper_pick` see `~/projects/core/piper_pick/handoff/STUDIO_CUROBO_MODEL.md` (its `camera=` defaults changed since 0.5.0).
+
+---
+
 # Handoff (2026-11-11, later): ZED names everywhere (0.9.0, breaking)
 
 **For downstream projects.** The RealSense-style camera names are gone. Everything (Gazebo, MuJoCo, Isaac, the real ZED X Mini through the ZED ROS 2 wrapper) now uses the wrapper's own:
