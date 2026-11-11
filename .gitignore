@@ -22,3 +22,4 @@ dist-dev/
 .venv-curobo/
 third_party/
 tools/curobo_viewer/run/
+box-bundle/

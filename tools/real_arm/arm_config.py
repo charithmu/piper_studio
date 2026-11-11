@@ -1,25 +1,13 @@
-"""What is physically on a real arm: docs/real_arm/arms/<arm_id>.yaml (the one place the scenario tools read it from). No ROS, no arm, no SDK."""
-from pathlib import Path
+#!/usr/bin/env python3
+"""Shim: the code lives in src/piper_tools/piper_tools/arm_config.py (installed as a command on a box, see src/piper_tools/README.md).
+Running or importing this file works as before, from the repo with or without piper_tools installed."""
+import pathlib
+import sys
 
-import yaml
+try:
+    import piper_tools  # noqa: F401
+except ImportError:     # not installed in this environment: use the checkout
+    sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2] / "src/piper_tools"))
+import piper_tools.arm_config as _impl
 
-ARMS = Path(__file__).resolve().parents[2] / "docs/real_arm/arms"
-DEFAULT_ARM = "piper-01"
-
-
-def load(arm_id: str = DEFAULT_ARM, path=None) -> dict:
-    p = Path(path) if path else ARMS / f"{arm_id}.yaml"
-    if not p.exists():
-        raise SystemExit(f"no arm config {p}: it says what is mounted on the arm (camera: none | zedxm); copy docs/real_arm/arms/piper-01.yaml")
-    cfg = yaml.safe_load(p.read_text())
-    cam = cfg.get("camera")
-    if cam in (None, "none", False):
-        cfg["camera"] = None
-    elif cam != "zedxm":
-        raise SystemExit(f"{p}: camera must be none or zedxm, got {cam!r}")
-    return cfg
-
-
-def camera(arm_id: str = DEFAULT_ARM, path=None):
-    """None (the robot only) or "zedxm" (the ZED X Mini on its bracket) as mounted on the arm."""
-    return load(arm_id, path)["camera"]
+sys.modules[__name__] = _impl    # `import arm_config` gives the real module

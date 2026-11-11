@@ -1,6 +1,5 @@
 """The named poses 'zero' and 'park' must agree everywhere they are written down: SRDF, startup positions, guard margin and the real-arm tool."""
 
-import importlib.util
 import re
 import sys
 from pathlib import Path
@@ -12,7 +11,6 @@ ROOT = Path(__file__).resolve().parents[3]
 SRDF = ROOT / "src/piper_control/config/moveit/piper.srdf.xacro"
 INITIAL = ROOT / "src/piper_description/config/initial_positions.yaml"
 GUARD = ROOT / "src/piper_control/scripts/command_guard.py"
-TOOL = ROOT / "tools/real_arm/arm_zero.py"
 JOINTS = [f"joint{i}" for i in range(1, 7)]
 
 
@@ -51,21 +49,16 @@ def test_guard_margin_equals_the_zero_pose_margin():
 
 def test_real_arm_tool_uses_the_same_numbers():
     pytest.importorskip("pyAgxArm")
-    sys.path.insert(0, str(TOOL.parent))
-    spec = importlib.util.spec_from_file_location("arm_zero", TOOL)
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
+    sys.path.insert(0, str(ROOT / "src/piper_tools"))
+    import piper_tools.arm_zero as mod
     assert mod.ZERO_MARGIN == pytest.approx(srdf_pose("zero")[1])
     assert mod.PARK_J5 == pytest.approx(srdf_pose("park")[4])
 
 
 def test_pose_table_of_arm_pose_tool_equals_the_srdf():
     pytest.importorskip("pyAgxArm")
-    path = TOOL.parent / "arm_pose.py"
-    sys.path.insert(0, str(TOOL.parent))
-    spec = importlib.util.spec_from_file_location("arm_pose", path)
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
+    sys.path.insert(0, str(ROOT / "src/piper_tools"))
+    import piper_tools.arm_pose as mod
     for name, q in mod.POSES.items():
         assert q == pytest.approx(srdf_pose(name)), name
     assert set(mod.POSES) == {"zero", "park", "ready"}
