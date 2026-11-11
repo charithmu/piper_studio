@@ -26,7 +26,7 @@ artifacts:
   - id: piper-model-viewer
     type: web
     title: Piper Studio model viewer
-    desc: "3D view of the Piper description as the stack builds it (live from the xacro): visual and collision shapes (mesh / box), joint sliders with limits, named poses, link masses and collision pairs, camera and calibration options. Independent of any other viewer."
+    desc: "3D view of the Piper description as the stack builds it (live from the xacro): visual (with opacity slider) and collision shapes, every frame with its own axes and name toggle, pose of any frame in any other (for measuring against CAD), joint sliders with limits, named poses, link masses and collision pairs, cameras (D435 on the AgileX stand, ZED X Mini on the own bracket) with their versioned calibrations and a compare-with overlay. Independent of any other viewer."
     group: Experiments
     runtime: python-server
     workdir: .
