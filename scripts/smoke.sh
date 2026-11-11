@@ -41,6 +41,15 @@ if [ -x "$S/.venv/bin/pytest" ]; then
   want=$(grep -m1 'version = ' src/piper_assets/pyproject.toml | cut -d'"' -f2); have=$(cd /tmp && clean "$S/.venv/bin/python" -c "import piper_assets as p; print(p.__version__)")
   [ "$want" = "$have" ] && ok "study venv has piper_assets $have" || bad "study venv has piper_assets $have, this tree is $want (reinstall the wheels: its docs/07_SETUP.md)"
   (cd "$S" && clean .venv/bin/pytest -q 2>&1 | tail -1 | grep -q passed) && ok "study CPU tests" || bad "study CPU tests"
+  # the real-arm scenario planner imports the study's planner: an API change there breaks it (it did, 2026-11-11); --help imports everything without the GPU
+  clean "$S/.venv/bin/python" tools/real_arm/curobo_plan_scenario.py --help >/dev/null 2>&1 && ok "scenario planner imports (cuRobo -> real-arm tools)" || bad "scenario planner does not import: tools/real_arm/curobo_plan_scenario.py"
+  if [ "$mode" = --all ]; then
+    out=$(gpu-run env -i HOME="$HOME" PATH="$PATH" "$S/.venv/bin/python" tools/real_arm/curobo_plan_scenario.py --camera zedxm --out "$(mktemp -d)" 2>&1); f=$(echo "$out" | sed -n 's/^saved //p')
+    if [ -n "$f" ]; then
+      run=$(ROS_DOMAIN_ID=119 MUJOCO_GL=egl python tools/real_arm/run_scenario.py "$f" --backend mujoco --yes 2>&1)      # captured first: grep -q would SIGPIPE the run under pipefail
+      if echo "$run" | grep -q "back at zero: True" && ! echo "$run" | grep -q "ok=False"; then ok "cuRobo scenario (camera model): planned and run on MuJoCo, all legs ok"; else bad "cuRobo scenario ran but a leg failed"; fi
+    else bad "cuRobo scenario did not plan"; echo "$out" | tail -3; fi
+  fi
   if [ "$mode" = --all ]; then (cd "$S" && clean gpu-run .venv/bin/pytest -m gpu -q 2>&1 | tail -1 | grep -q passed) && ok "study GPU tests (cuRobo plans executed on MuJoCo, both arms)" || bad "study GPU tests"; rm -f "$S/ucode.elf"; fi
 fi
 rm -f ucode.elf

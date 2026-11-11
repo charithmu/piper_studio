@@ -22,7 +22,7 @@ import numpy as np
 STUDY = Path.home() / "projects/ml_tests/experiments/curobo_piper_study"
 sys.path.insert(0, str(STUDY / "src"))
 from curobo_piper.motion import ZERO, tool_quat  # noqa: E402
-from curobo_piper.planner import MODELS, PiperPlanner  # noqa: E402
+from curobo_piper.planner import PiperPlanner  # noqa: E402
 
 
 def main():
@@ -37,7 +37,7 @@ def main():
     args = ap.parse_args()
 
     cam = None if args.camera == "none" else "zedxm"
-    planner = PiperPlanner(MODELS[cam], gripper_width=0.07, camera=cam)
+    planner = PiperPlanner.from_assets(cam, gripper_width=0.07)      # the model Piper Studio ships (piper_assets.curobo_config); refuses a stale one
     q0 = np.asarray(ZERO, dtype=float)
     legs, used_yaw = None, None
     for yaw in (args.yaw, args.yaw + 180 if args.yaw <= 0 else args.yaw - 180):
