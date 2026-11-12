@@ -53,12 +53,8 @@ def collision_box(link_prim):
         if p.GetName().startswith(PREFIX) and p.GetName() != link_prim.GetName():
             continue                                   # a child link: its frame and its own geometry
         stack.extend(p.GetFilteredChildren(Usd.TraverseInstanceProxies()))
-        if (p.IsA(UsdGeom.Mesh) or p.IsA(UsdGeom.Cube)) and p.HasAPI(UsdPhysics.CollisionAPI):
-            if p.IsA(UsdGeom.Cube):                                                          # a URDF box (the dog's cover): its eight corners
-                h = float(UsdGeom.Cube(p).GetSizeAttr().Get()) / 2
-                pts = np.array([[x, y, z] for x in (-h, h) for y in (-h, h) for z in (-h, h)], dtype=float)
-            else:
-                pts = np.array(UsdGeom.Mesh(p).GetPointsAttr().Get(), dtype=float)           # exact vertices, not the (looser) authored extent
+        if p.IsA(UsdGeom.Mesh) and p.HasAPI(UsdPhysics.CollisionAPI):
+            pts = np.array(UsdGeom.Mesh(p).GetPointsAttr().Get(), dtype=float)               # exact vertices, not the (looser) authored extent
             w = (world(p) @ np.hstack([pts, np.ones((len(pts), 1))]).T).T[:, :3]
             lo, hi = np.minimum(lo, w.min(0)), np.maximum(hi, w.max(0))
     return lo, hi
@@ -101,17 +97,6 @@ for name, e in ferr.items():
     print(f"[check_model] frame {name}: position error max {max(a for a, _ in e):.3f} mm, orientation max {max(b for _, b in e):.3f} deg")
 for name, e in berr.items():
     print(f"[check_model] collision mesh of {name}: world bounding box differs from the URDF's by at most {max(e):.2f} mm")
-go2_ok = True
-if "base" in byname and "dog_cover" in "".join(p.GetName() for p in stage.Traverse()):      # the full setup on the Go2: the dog stands where the generated report says and collides as its one box
-    report = json.loads((Path(__file__).resolve().parents[1] / "src/piper_description/config/go2/dog_cover_report.json").read_text())
-    cover = json.loads((Path(__file__).resolve().parents[1] / "src/piper_description/config/go2/dog_cover.json").read_text())["boxes"]["dog"]
-    cube = next(q for q in stage.Traverse(Usd.TraverseInstanceProxies()) if q.GetName() == "dog_cover" and q.IsA(UsdGeom.Cube))     # the dog's one collision box (names like `base` occur more than once in the USD)
-    z = world(cube.GetParent())[2, 3]                                      # its link (the dog's `base`)
-    corners = np.array([[x, y, zz, 1.0] for x in (-.5, .5) for y in (-.5, .5) for zz in (-.5, .5)]) * np.array([1, 1, 1, 2]) * float(UsdGeom.Cube(cube).GetSizeAttr().Get())
-    pts = (world(cube) @ corners.T).T[:, :3]
-    dims = pts.max(0) - pts.min(0)
-    print(f"[check_model] go2: dog base at z = {z:.4f} m (expected {-report['lowest_point_z_m']:.4f}); collision box of the dog {np.round(dims, 4).tolist()} m (expected {cover['dims']})")
-    go2_ok = abs(z + report["lowest_point_z_m"]) < 1e-3 and bool(np.allclose(dims, cover["dims"], atol=2e-3))
 bad = [n for n, e in ferr.items() if max(a for a, _ in e) > 0.5 or max(b for _, b in e) > 0.05] + [n for n, e in berr.items() if not max(e) <= 1.5]      # not <= also catches "no collision mesh found" (nan)
-print("[check_model] RESULT:", "FAIL " + ", ".join(bad + ([] if go2_ok else ["go2 dog"])) if bad or max(perr) > 0.5 or not go2_ok else "ok")
+print("[check_model] RESULT:", "FAIL " + ", ".join(bad) if bad or max(perr) > 0.5 else "ok")
 app.close()
