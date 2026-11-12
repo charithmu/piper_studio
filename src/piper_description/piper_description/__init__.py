@@ -94,15 +94,4 @@ def go2_piper_description(go2_urdf: str | Path = GO2_URDF, **mappings) -> str:
     return xacro.process_file(str(path), mappings=args).toxml()
 
 
-def go2_dock_world(plate_xyz=(-0.05, 0.0, 0.062), plate_size=(0.14, 0.09, 0.010), margin: float = 0.0) -> dict:
-    """Obstacles near the arm base as cuRobo-style cuboids in the Go2 `base` frame: {name: {"dims": [x, y, z], "pose": [x, y, z, qw, qx, qy, qz]}}.
-    NOMINAL (2026-11-12): trunk box from the Go2 URDF collision, plate from the arguments, head and radar are rough boxes. Replace with measured values.
-    `margin` grows every box on all sides. Subtract the plate you mount the arm on from the checks of the arm's base link only."""
-    def box(dims, xyz):
-        return {"dims": [d + 2 * margin for d in dims], "pose": [*xyz, 1.0, 0.0, 0.0, 0.0]}
-    return {
-        "go2_trunk": box((0.3762, 0.0935, 0.114), (0.0, 0.0, 0.0)),
-        "dock_plate": box(tuple(plate_size), tuple(plate_xyz)),
-        "go2_head": box((0.12, 0.10, 0.09), (0.34, 0.0, 0.0)),       # rough: Head_upper at x = 0.285
-        "go2_radar": box((0.08, 0.09, 0.06), (0.28945, 0.0, -0.046825)),  # rough: at the radar link origin
-    }
+from .go2 import arm_base_pose, go2_dock_world, go2_piper_curobo  # noqa: E402,F401

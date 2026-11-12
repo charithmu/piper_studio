@@ -81,7 +81,7 @@ cuRobo viewer `/piper-studio/curobo/` (`scripts/curobo_viewer.sh start`). To add
   simulation vs real image (R3.7); speeds above 44 % (R1.4); the ZED Box driver on the box (R3.5).
 - **Needs a decision from the user:** crash protection and payload settings in the arm (0 today; writes to the arm); when `piper_pick` adopts the model; whether to unpark the ROS path on the real arm (C14); pruning `for_reference/` (F1, 5.3 GB); whether the home page should render the documents.
 - **Can be done alone:** small cosmetic issues C4 (Gazebo stand/camera colour, MuJoCo drops mesh colours), C6, C7, C11; the cuRobo bracket coverage (a refit with a tighter overhang and more spheres is a trade-off against the 15 mm gap to the fingers: `policy.yaml`, measure with `quality_*.json`);
-  help `piper_pick` adopt the model if its agent asks; the next development (ML endpoints: pick and place, Go2 mount (nominal `go2_piper` description on branch `go2-mount`, plate not yet measured), CLEANUP M-items in `ROADMAP.md`).
+  help `piper_pick` adopt the model if its agent asks; the next development (ML endpoints: pick and place, Go2 mount (nominal `go2_piper` description on branch `go2-mount`, plate not yet measured; camera, cuRobo world and a simulator export included: `tools/release/export_go2_piper.py`), CLEANUP M-items in `ROADMAP.md`).
 
 ## Gotchas that cost time
 - **Firmware first:** the arm runs the latest supported firmware (S-V1.9-1), calibrated. Firmware-reported values (joint speed 3.0 rad/s, acceleration 5.0, gripper stroke 70 mm, j6 +-170 deg) win over the vendor URDF; differences: `arms/piper-01.md`, `piper_arm_macro.py report`. Masses: `docs/description/MASSES.md`.

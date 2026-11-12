@@ -12,7 +12,14 @@
   <xacro:arg name="go2_urdf" default="/home/atlasdev/projects/ros/go2_studio/third_party/unitree_ros/robots/go2_description/urdf/go2_description.urdf" />
   <xacro:arg name="prefix" default="piper_" />
   <xacro:arg name="gripper" default="true" />
-  <xacro:arg name="camera" default="none" />
+  <!-- the wrist camera exactly as in piper.urdf.xacro (same args, same bracket, same frames); camera:=none for the robot only -->
+  <xacro:arg name="camera" default="zedxm" />
+  <xacro:arg name="camera_calibration" default="" />
+  <xacro:arg name="camera_lens" default="" />
+  <xacro:arg name="camera_width" default="" />
+  <xacro:arg name="camera_height" default="" />
+  <xacro:arg name="camera_hfov_deg" default="" />
+  <xacro:arg name="camera_rate" default="" />
   <xacro:arg name="hardware" default="mock" />
   <xacro:arg name="initial_positions_file" default="$(find piper_description)/config/initial_positions.yaml" />
   <!-- NOMINAL plate pose in Go2 `base` (trunk box top is z = 0.057); the arm base sits on the plate's top face -->
@@ -52,4 +59,21 @@
 
   <xacro:include filename="$(find piper_description)/urdf/piper.tool.xacro" />
   <xacro:piper_tool_frames prefix="${prefix}" gripper="${use_gripper}" tcp_xyz="0 0 0.138" tcp_rpy="0 0 0" />
+
+  <xacro:if value="${'$(arg camera)' != 'none'}">
+    <xacro:include filename="$(find piper_description)/urdf/cameras/$(arg camera).xacro" />
+    <xacro:include filename="$(find piper_description)/urdf/mounts/zedxm_bracket.xacro" />
+    <xacro:include filename="$(find piper_description)/urdf/piper_camera.xacro" />
+    <xacro:if value="${'$(arg camera_calibration)' != ''}">
+      <xacro:property name="piper_mount_calibration"
+                      value="${xacro.load_yaml('$(arg camera_calibration)' if '/' in '$(arg camera_calibration)' else '$(find piper_description)/config/camera_mounts/$(arg camera_calibration).yaml')}" />
+    </xacro:if>
+    <xacro:property name="cam_model" value="${xacro.load_yaml('$(find piper_description)/config/camera_models/$(arg camera).yaml')}" />
+    <xacro:property name="cam_lens" value="${'$(arg camera_lens)' or cam_model['lens']}" />
+    <xacro:piper_camera prefix="${prefix}" parent="${prefix}gripper_base" hardware="$(arg hardware)"
+                        width="${'$(arg camera_width)' or cam_model['image']['width']}" height="${'$(arg camera_height)' or cam_model['image']['height']}"
+                        hfov_deg="${'$(arg camera_hfov_deg)' or cam_model['lenses'][cam_lens]['hfov_deg']}"
+                        update_rate="${'$(arg camera_rate)' or cam_model['rate']}"
+                        near="${cam_model['lenses'][cam_lens]['depth_min']}" far="${cam_model['lenses'][cam_lens]['depth_max']}" />
+  </xacro:if>
 </robot>
