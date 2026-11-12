@@ -22,9 +22,9 @@
   <xacro:arg name="camera_rate" default="" />
   <xacro:arg name="hardware" default="mock" />
   <xacro:arg name="initial_positions_file" default="$(find piper_description)/config/initial_positions.yaml" />
-  <!-- NOMINAL plate pose in Go2 `base` (trunk box top is z = 0.057); the arm base sits on the plate's top face -->
-  <xacro:arg name="plate_xyz" default="-0.05 0 0.062" />
-  <xacro:arg name="plate_size" default="0.14 0.09 0.010" />
+  <!-- NOMINAL plate pose in Go2 `base` (trunk box top is z = 0.057; plate bottom sits on it); the arm base sits on the plate's top face -->
+  <xacro:arg name="plate_xyz" default="-0.02 0 0.072" />
+  <xacro:arg name="plate_size" default="0.14 0.09 0.030" />
   <xacro:arg name="mount_rpy" default="0 0 0" />
 
   <xacro:property name="prefix" value="$(arg prefix)" />

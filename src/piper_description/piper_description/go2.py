@@ -8,8 +8,8 @@ from __future__ import annotations
 
 import numpy as np
 
-PLATE_XYZ = (-0.05, 0.0, 0.062)      # plate centre in the Go2 `base` frame (trunk box top is z = 0.057)
-PLATE_SIZE = (0.14, 0.09, 0.010)
+PLATE_XYZ = (-0.02, 0.0, 0.072)      # plate centre in the Go2 `base` frame (trunk box top is z = 0.057; the plate bottom sits on it)
+PLATE_SIZE = (0.14, 0.09, 0.030)
 MOUNT_RPY = (0.0, 0.0, 0.0)
 STAND_HEIGHT = 0.30                  # Go2 base height above the floor, standing (nominal; the app's stand pose is about 0.27-0.32)
 

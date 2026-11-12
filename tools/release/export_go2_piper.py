@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Export the Go2 + Piper assembly for simulators and planners that have no ROS (optional; not part of the wheels: the Go2 meshes are Unitree's, ~25 MB).
 
-    source scripts/env.sh && python tools/release/export_go2_piper.py --out DIR [--plate-xyz "-0.05 0 0.062"] [--mount-rpy "0 0 0"] [--camera zedxm|none]
+    source scripts/env.sh && python tools/release/export_go2_piper.py --out DIR [--plate-xyz "-0.02 0 0.072"] [--mount-rpy "0 0 0"] [--camera zedxm|none]
 
 Writes, in DIR (put it under ~/data/ml/..., not in the repo; a SOURCE.md naming this tool is written next to the files):
   go2_piper.urdf          the whole robot, meshes referenced by relative paths (Go2 `base` is the root; the arm and the camera keep the `piper_` prefix)
@@ -29,8 +29,8 @@ GO2_PKG = Path.home() / "projects/ros/go2_studio/third_party/unitree_ros/robots/
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--out", required=True)
-    ap.add_argument("--plate-xyz", default="-0.05 0 0.062")
-    ap.add_argument("--plate-size", default="0.14 0.09 0.010")
+    ap.add_argument("--plate-xyz", default="-0.02 0 0.072")
+    ap.add_argument("--plate-size", default="0.14 0.09 0.030")
     ap.add_argument("--mount-rpy", default="0 0 0")
     ap.add_argument("--camera", default="zedxm")
     ap.add_argument("--go2-pkg", default=str(GO2_PKG), help="the go2_description package dir (urdf/, dae/)")

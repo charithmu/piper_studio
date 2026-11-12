@@ -49,7 +49,7 @@ def test_plate_pose_is_a_parameter_and_moves_the_arm_chain_only():
 def test_dock_world_matches_the_default_plate_and_margin_grows_the_boxes():
     w, g = go2_dock_world(), go2_dock_world(margin=0.02)
     assert set(w) == {"go2_trunk", "dock_plate", "go2_head", "go2_radar"}
-    assert w["dock_plate"]["pose"][:3] == [-0.05, 0.0, 0.062]
+    assert w["dock_plate"]["pose"][:3] == [-0.02, 0.0, 0.072]
     assert g["go2_trunk"]["dims"] == pytest.approx([d + 0.04 for d in w["go2_trunk"]["dims"]])
 
 
@@ -81,7 +81,7 @@ def test_defaults_of_the_python_helpers_equal_the_xacro_defaults():
     j = next(j for j in root.iter("joint") if j.get("name") == "piper_dock_plate_joint")
     assert [float(x) for x in j.find("origin").get("xyz").split()] == list(go2.PLATE_XYZ)
     pose = arm_base_pose()
-    assert pose[:3, 3].tolist() == pytest.approx([-0.05, 0.0, 0.067])
+    assert pose[:3, 3].tolist() == pytest.approx([-0.02, 0.0, 0.087])
 
 
 def test_world_in_the_arm_frame_is_the_inverse_of_the_mount():
