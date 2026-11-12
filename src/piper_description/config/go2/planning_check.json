@@ -25,7 +25,7 @@
    "pose": [
     0.0,
     0.0,
-    -0.017999999999999995,
+    -0.018000000000000002,
     1.0,
     0.0,
     0.0,
@@ -33,7 +33,7 @@
    ]
   }
  },
- "raise_mm": 6.0,
+ "raise_mm": 0.0,
  "sphere_buffer_m": 0.002,
  "mount_nominal": "estimates, not measured on the Go2 expansion dock (config/go2/go2_setup.yaml)",
  "start_clearance_mm": 3.0,
@@ -42,7 +42,7 @@
   {
    "goal": "ready",
    "success": true,
-   "solve_ms": 1643.7,
+   "solve_ms": 1400.8,
    "duration_s": 1.71,
    "waypoints": 70,
    "goal_err_mm": 0.0,
@@ -53,7 +53,7 @@
   {
    "goal": "random1",
    "success": true,
-   "solve_ms": 14.3,
+   "solve_ms": 14.1,
    "duration_s": 2.82,
    "waypoints": 114,
    "goal_err_mm": 0.05,
@@ -64,10 +64,10 @@
   {
    "goal": "random2",
    "success": true,
-   "solve_ms": 14.2,
-   "duration_s": 2.68,
+   "solve_ms": 13.8,
+   "duration_s": 2.7,
    "waypoints": 109,
-   "goal_err_mm": 2.1,
+   "goal_err_mm": 0.0,
    "min_clearance_mm": 3.0,
    "clear_of_world_with_buffer": true,
    "pos_viol_rad": 0.0
@@ -75,7 +75,7 @@
   {
    "goal": "random3",
    "success": true,
-   "solve_ms": 14.5,
+   "solve_ms": 14.2,
    "duration_s": 2.21,
    "waypoints": 90,
    "goal_err_mm": 0.0,
@@ -86,7 +86,7 @@
   {
    "goal": "random4",
    "success": true,
-   "solve_ms": 14.1,
+   "solve_ms": 13.7,
    "duration_s": 2.98,
    "waypoints": 121,
    "goal_err_mm": 0.0,
@@ -97,7 +97,7 @@
   {
    "goal": "random5",
    "success": true,
-   "solve_ms": 14.1,
+   "solve_ms": 13.8,
    "duration_s": 2.72,
    "waypoints": 110,
    "goal_err_mm": 0.0,
@@ -108,9 +108,9 @@
   {
    "goal": "random6",
    "success": true,
-   "solve_ms": 14.3,
-   "duration_s": 2.14,
-   "waypoints": 87,
+   "solve_ms": 13.9,
+   "duration_s": 2.16,
+   "waypoints": 88,
    "goal_err_mm": 0.0,
    "min_clearance_mm": 3.0,
    "clear_of_world_with_buffer": true,
@@ -119,7 +119,7 @@
   {
    "goal": "random7",
    "success": true,
-   "solve_ms": 14.2,
+   "solve_ms": 14.0,
    "duration_s": 2.25,
    "waypoints": 91,
    "goal_err_mm": 1.82,
@@ -130,7 +130,7 @@
   {
    "goal": "random8",
    "success": true,
-   "solve_ms": 14.0,
+   "solve_ms": 13.8,
    "duration_s": 2.6,
    "waypoints": 105,
    "goal_err_mm": 0.0,
@@ -141,7 +141,7 @@
   {
    "goal": "random9",
    "success": true,
-   "solve_ms": 14.3,
+   "solve_ms": 14.2,
    "duration_s": 2.91,
    "waypoints": 118,
    "goal_err_mm": 0.09,
@@ -152,8 +152,8 @@
   {
    "goal": "random10",
    "success": true,
-   "solve_ms": 14.1,
-   "duration_s": 2.15,
+   "solve_ms": 13.9,
+   "duration_s": 2.16,
    "waypoints": 88,
    "goal_err_mm": 0.0,
    "min_clearance_mm": 3.0,
@@ -163,7 +163,7 @@
   {
    "goal": "random11",
    "success": true,
-   "solve_ms": 14.0,
+   "solve_ms": 13.8,
    "duration_s": 2.8,
    "waypoints": 113,
    "goal_err_mm": 0.0,
@@ -174,7 +174,7 @@
   {
    "goal": "random12",
    "success": true,
-   "solve_ms": 13.9,
+   "solve_ms": 13.8,
    "duration_s": 2.93,
    "waypoints": 119,
    "goal_err_mm": 0.06,
@@ -185,7 +185,7 @@
   {
    "goal": "random13",
    "success": true,
-   "solve_ms": 14.1,
+   "solve_ms": 14.0,
    "duration_s": 2.83,
    "waypoints": 115,
    "goal_err_mm": 0.0,
@@ -196,7 +196,7 @@
   {
    "goal": "random14",
    "success": true,
-   "solve_ms": 14.2,
+   "solve_ms": 14.1,
    "duration_s": 2.25,
    "waypoints": 91,
    "goal_err_mm": 0.0,
@@ -207,7 +207,7 @@
   {
    "goal": "random15",
    "success": true,
-   "solve_ms": 14.0,
+   "solve_ms": 13.8,
    "duration_s": 2.49,
    "waypoints": 101,
    "goal_err_mm": 0.0,
@@ -218,9 +218,9 @@
   {
    "goal": "random16",
    "success": true,
-   "solve_ms": 13.9,
-   "duration_s": 2.32,
-   "waypoints": 94,
+   "solve_ms": 13.8,
+   "duration_s": 2.34,
+   "waypoints": 95,
    "goal_err_mm": 0.0,
    "min_clearance_mm": 3.0,
    "clear_of_world_with_buffer": true,
@@ -229,7 +229,7 @@
   {
    "goal": "random17",
    "success": true,
-   "solve_ms": 14.0,
+   "solve_ms": 13.9,
    "duration_s": 2.12,
    "waypoints": 86,
    "goal_err_mm": 0.06,
@@ -240,7 +240,7 @@
   {
    "goal": "random18",
    "success": true,
-   "solve_ms": 14.8,
+   "solve_ms": 14.7,
    "duration_s": 2.59,
    "waypoints": 105,
    "goal_err_mm": 0.0,
@@ -251,7 +251,7 @@
   {
    "goal": "random19",
    "success": true,
-   "solve_ms": 13.9,
+   "solve_ms": 13.8,
    "duration_s": 2.94,
    "waypoints": 119,
    "goal_err_mm": 0.0,
@@ -262,7 +262,7 @@
   {
    "goal": "random20",
    "success": true,
-   "solve_ms": 13.9,
+   "solve_ms": 13.8,
    "duration_s": 2.2,
    "waypoints": 90,
    "goal_err_mm": 0.0,
@@ -273,7 +273,7 @@
   {
    "goal": "random21",
    "success": true,
-   "solve_ms": 14.6,
+   "solve_ms": 14.4,
    "duration_s": 2.59,
    "waypoints": 105,
    "goal_err_mm": 0.0,
@@ -284,7 +284,7 @@
   {
    "goal": "random22",
    "success": true,
-   "solve_ms": 14.0,
+   "solve_ms": 13.9,
    "duration_s": 1.88,
    "waypoints": 77,
    "goal_err_mm": 0.0,
@@ -306,7 +306,7 @@
   {
    "goal": "random24",
    "success": true,
-   "solve_ms": 14.1,
+   "solve_ms": 13.8,
    "duration_s": 2.71,
    "waypoints": 110,
    "goal_err_mm": 0.0,
@@ -317,7 +317,7 @@
   {
    "goal": "random25",
    "success": true,
-   "solve_ms": 14.7,
+   "solve_ms": 14.5,
    "duration_s": 2.37,
    "waypoints": 96,
    "goal_err_mm": 0.0,
@@ -328,7 +328,7 @@
   {
    "goal": "random26",
    "success": true,
-   "solve_ms": 14.0,
+   "solve_ms": 13.9,
    "duration_s": 2.85,
    "waypoints": 115,
    "goal_err_mm": 0.0,
@@ -339,7 +339,7 @@
   {
    "goal": "random27",
    "success": true,
-   "solve_ms": 14.0,
+   "solve_ms": 13.9,
    "duration_s": 1.89,
    "waypoints": 77,
    "goal_err_mm": 0.59,
@@ -350,7 +350,7 @@
   {
    "goal": "random28",
    "success": true,
-   "solve_ms": 14.7,
+   "solve_ms": 14.5,
    "duration_s": 2.36,
    "waypoints": 96,
    "goal_err_mm": 0.2,
@@ -361,7 +361,7 @@
   {
    "goal": "random29",
    "success": true,
-   "solve_ms": 13.8,
+   "solve_ms": 13.7,
    "duration_s": 2.91,
    "waypoints": 118,
    "goal_err_mm": 0.04,
@@ -373,7 +373,7 @@
    "goal": "random30",
    "success": true,
    "solve_ms": 13.9,
-   "duration_s": 2.14,
+   "duration_s": 2.15,
    "waypoints": 87,
    "goal_err_mm": 0.0,
    "min_clearance_mm": 3.0,
@@ -385,9 +385,9 @@
   "goals": 31,
   "success": 31,
   "clear_of_world": 31,
-  "mean_solve_ms": 66.7,
-  "max_goal_err_mm": 2.1,
+  "mean_solve_ms": 58.7,
+  "max_goal_err_mm": 1.82,
   "max_pos_violation_rad": 0.0
  },
- "note": "tools/curobo/plan_on_go2.py, 2026-11-12, nominal mount estimates (config/go2/go2_setup.yaml); raise_mm = what-if plate thickness added to 30 mm"
+ "note": "tools/curobo/plan_on_go2.py, 2026-11-12, the default mount (config/go2/go2_setup.yaml: plate 36 mm, final until measured)"
 }

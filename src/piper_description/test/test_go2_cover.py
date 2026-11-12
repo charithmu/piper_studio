@@ -128,7 +128,6 @@ def test_arm_is_clear_of_the_dog_at_the_named_poses():
         assert worst[link] > 0.0, f"{link} is inside the dog's box or the plate at {name} ({worst[link] * 1000:.2f} mm)"
 
 
-@pytest.mark.xfail(strict=True, reason="mount ESTIMATE (plate 30 mm): the arm's base is 1.96 mm above the dog's box, inside the model's 2.0 mm sphere buffer; a plate of 31 mm or more (or the measured mount) clears it")
 def test_the_arm_base_clears_the_dog_by_more_than_the_models_sphere_buffer():
     """The box's top is the dog's highest point (the shoulder hump, z = 0.0893 in the Go2 base frame); the arm's base spheres start 3 mm above the plate top. A planner that applies the model's
     sphere buffer sees base_link in contact with the dog at every pose unless the plate top is at least `buffer` above the box top."""

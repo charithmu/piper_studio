@@ -239,11 +239,11 @@ def test_go2_setup_has_the_same_arm_and_the_dog_is_one_fused_posed_body(go2_sim)
     mujoco.mj_forward(m, go2_sim.data)
     assert go2_sim.data.xpos[m.body("link1").id][2] == pytest.approx(0.123, abs=0.01)
     floor = next(g for g in range(m.ngeom) if m.geom_type[g] == mujoco.mjtGeom.mjGEOM_PLANE)
-    assert m.geom_pos[floor][2] == pytest.approx(-0.4222, abs=1e-3)
+    assert m.geom_pos[floor][2] == pytest.approx(-0.4282, abs=1e-3)
     import piper_assets
     dog = piper_assets.world("go2")["dog"]
     assert m.geom_pos[next(g for g in boxes if abs(m.geom_size[g][0] - 0.35313) < 1e-3)] == pytest.approx(dog["pose"][:3], abs=1e-4)
-    assert sizes == [(0.14, 0.09, 0.03), (0.7063, 0.328, 0.4232)]
+    assert sizes == [(0.14, 0.09, 0.036), (0.7063, 0.328, 0.4232)]
 
 
 def test_go2_named_poses_are_clear_of_the_dog_and_a_pose_through_the_dog_is_not(go2_sim):

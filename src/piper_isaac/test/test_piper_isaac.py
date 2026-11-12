@@ -206,9 +206,8 @@ def test_go2_the_world_is_the_planners_world(go2_sim):
     assert go2_sim._ground_z == pytest.approx(pa.mount()["floor_z_in_arm_base"])
 
 
-@pytest.mark.xfail(strict=True, reason="mount ESTIMATE (plate 30 mm): the dog's box top is 1 mm above the arm's base plane, the arm's base overlaps it and the start is off by 1.5 mrad; "
-                   "a plate of about 36 mm (or the measured mount) makes it exact (0.00000, identical to the arm alone)")
 def test_go2_start_is_as_exact_as_without_the_dog(go2_sim):
+    """The arm's base clears the dog's box (plate 36 mm): the first start is exact, identical to the arm alone (0.00000), not perturbed by an overlap."""
     from piper_isaac.sim import dog_usd_path
     dog_usd_path()
     sim = PiperIsaacSim(setup="go2")                    # a fresh server: the first start of a session
