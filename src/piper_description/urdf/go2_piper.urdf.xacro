@@ -9,7 +9,7 @@
   Chain: base (Go2) -> piper_dock_plate -> piper_mount -> piper_mount_joint -> piper_base_link (the arm).
 -->
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="go2_piper">
-  <xacro:arg name="go2_urdf" default="/home/atlasdev/projects/ros/go2_studio/third_party/unitree_ros/robots/go2_description/urdf/go2_description.urdf" />
+  <xacro:arg name="go2_urdf" default="$(env HOME)/projects/ros/go2_studio/third_party/unitree_ros/robots/go2_description/urdf/go2_description.urdf" />
   <xacro:arg name="prefix" default="piper_" />
   <xacro:arg name="gripper" default="true" />
   <!-- the wrist camera exactly as in piper.urdf.xacro (same args, same bracket, same frames); camera:=none for the robot only -->
