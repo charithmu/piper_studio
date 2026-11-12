@@ -1,0 +1,55 @@
+<?xml version="1.0"?>
+<!--
+  Go2 carrying the Piper (optional assembly; the standalone arm is piper.urdf.xacro). The Go2 description is an EXTERNAL input
+  (go2_urdf, default: go2_studio's checkout of unitree_ros, commit 725b59b); this package does not ship it. Its mesh URIs are
+  package://go2_description/..., so a consumer needs that package on its path to see meshes (TF and collision boxes do not).
+
+  NOMINAL MOUNT (2026-11-12): mount_xyz / mount_rpy / plate_* are a placeholder on top of the trunk, NOT measured on the user's
+  Go2 EDU dock. Replace them with the measured plate pose in the Go2 `base` frame before trusting reach, collision or balance.
+  Chain: base (Go2) -> piper_dock_plate -> piper_mount -> piper_mount_joint -> piper_base_link (the arm).
+-->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="go2_piper">
+  <xacro:arg name="go2_urdf" default="/home/atlasdev/projects/ros/go2_studio/third_party/unitree_ros/robots/go2_description/urdf/go2_description.urdf" />
+  <xacro:arg name="prefix" default="piper_" />
+  <xacro:arg name="gripper" default="true" />
+  <xacro:arg name="camera" default="none" />
+  <xacro:arg name="hardware" default="mock" />
+  <xacro:arg name="initial_positions_file" default="$(find piper_description)/config/initial_positions.yaml" />
+  <!-- NOMINAL plate pose in Go2 `base` (trunk box top is z = 0.057); the arm base sits on the plate's top face -->
+  <xacro:arg name="plate_xyz" default="-0.05 0 0.062" />
+  <xacro:arg name="plate_size" default="0.14 0.09 0.010" />
+  <xacro:arg name="mount_rpy" default="0 0 0" />
+
+  <xacro:property name="prefix" value="$(arg prefix)" />
+  <xacro:property name="use_gripper" value="$(arg gripper)" />
+  <xacro:property name="plate_size" value="$(arg plate_size)" />
+
+  <xacro:include filename="$(arg go2_urdf)" />
+
+  <link name="${prefix}dock_plate">
+    <visual>
+      <geometry><box size="${plate_size}" /></geometry>
+      <material name="${prefix}dock_plate_grey"><color rgba="0.4 0.4 0.4 1" /></material>
+    </visual>
+    <collision><geometry><box size="${plate_size}" /></geometry></collision>
+  </link>
+  <joint name="${prefix}dock_plate_joint" type="fixed">
+    <parent link="base" />
+    <child link="${prefix}dock_plate" />
+    <origin xyz="$(arg plate_xyz)" rpy="0 0 0" />
+  </joint>
+
+  <!-- the arm's mount frame: the top face of the plate -->
+  <link name="${prefix}mount" />
+  <joint name="${prefix}mount_frame_joint" type="fixed">
+    <parent link="${prefix}dock_plate" />
+    <child link="${prefix}mount" />
+    <origin xyz="0 0 ${float(plate_size.split()[2]) / 2}" rpy="$(arg mount_rpy)" />
+  </joint>
+
+  <xacro:include filename="$(find piper_description)/urdf/piper_arm.xacro" />
+  <xacro:piper_arm parent="${prefix}mount" prefix="${prefix}" gripper="${use_gripper}" />
+
+  <xacro:include filename="$(find piper_description)/urdf/piper.tool.xacro" />
+  <xacro:piper_tool_frames prefix="${prefix}" gripper="${use_gripper}" tcp_xyz="0 0 0.138" tcp_rpy="0 0 0" />
+</robot>

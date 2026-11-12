@@ -80,3 +80,29 @@ def fixed_gripper(urdf: str, width: float, prefix: str = DEFAULT_PREFIX) -> str:
     (planners use it without this package). Imported on use, because piper_core's tests depend on this package (no dependency cycle)."""
     from piper_core.urdf_tools import fixed_gripper as impl
     return impl(urdf, width, prefix)
+
+
+GO2_URDF = Path.home() / "projects/ros/go2_studio/third_party/unitree_ros/robots/go2_description/urdf/go2_description.urdf"
+
+
+def go2_piper_description(go2_urdf: str | Path = GO2_URDF, **mappings) -> str:
+    """The Go2 carrying the Piper (urdf/go2_piper.urdf.xacro). NOMINAL mount until the dock plate is measured: `plate_xyz`, `plate_size`,
+    `mount_rpy` are xacro arguments in the Go2 `base` frame. The Go2 URDF is an external input (default: go2_studio's unitree_ros checkout)."""
+    import xacro
+    args = {"go2_urdf": str(go2_urdf), **{k: str(v).lower() if isinstance(v, bool) else str(v) for k, v in mappings.items()}}
+    path = xacro_file().with_name("go2_piper.urdf.xacro")
+    return xacro.process_file(str(path), mappings=args).toxml()
+
+
+def go2_dock_world(plate_xyz=(-0.05, 0.0, 0.062), plate_size=(0.14, 0.09, 0.010), margin: float = 0.0) -> dict:
+    """Obstacles near the arm base as cuRobo-style cuboids in the Go2 `base` frame: {name: {"dims": [x, y, z], "pose": [x, y, z, qw, qx, qy, qz]}}.
+    NOMINAL (2026-11-12): trunk box from the Go2 URDF collision, plate from the arguments, head and radar are rough boxes. Replace with measured values.
+    `margin` grows every box on all sides. Subtract the plate you mount the arm on from the checks of the arm's base link only."""
+    def box(dims, xyz):
+        return {"dims": [d + 2 * margin for d in dims], "pose": [*xyz, 1.0, 0.0, 0.0, 0.0]}
+    return {
+        "go2_trunk": box((0.3762, 0.0935, 0.114), (0.0, 0.0, 0.0)),
+        "dock_plate": box(tuple(plate_size), tuple(plate_xyz)),
+        "go2_head": box((0.12, 0.10, 0.09), (0.34, 0.0, 0.0)),       # rough: Head_upper at x = 0.285
+        "go2_radar": box((0.08, 0.09, 0.06), (0.28945, 0.0, -0.046825)),  # rough: at the radar link origin
+    }
