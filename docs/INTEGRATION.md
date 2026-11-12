@@ -56,7 +56,7 @@ meshes and the SRDF are generated from it). Pin a commit or tag; see `piper.repo
 
 ### The three setups (0.11)
 `piper_assets` and the viewers know three setups: `arm` (robot only), `arm_cam` (with the ZED X Mini) and `go2` (the full setup on the Go2, **the default of the viewers and tools**). Functions that take `setup=` use it; without it they behave as before (the arm on a table, `camera=` decides),
-so a client on a table is not moved onto a dog by an upgrade. For the dog: `pa.urdf_path(setup="go2")`, `pa.world("go2")` / `pa.curobo_world("go2")` (the dog as one generated box in the arm's base frame), `pa.mount()`. The mount is an estimate until the dock plate is measured.
+so a client on a table is not moved onto a dog by an upgrade. For the dog: `pa.urdf_path(setup="go2")`, `pa.world("go2")` / `pa.curobo_world("go2")` (the dog as one generated box in the arm's base frame), `pa.mount()`. The mount is an estimate until the dock plate is measured. Simulators: `PiperSim(setup="go2")` (piper_mujoco) and `PiperIsaacSim(setup="go2")` (piper_isaac): the dog fixed and standing, its collision the same one box as the planner's world.
 Names do not change: the arm keeps `joint1..6`, `base_link`, `tcp_link`; the Go2 adds its own (`base`, `FL_hip`, ...). In the ROS description (`piper_` prefix) the assembly is `piper_description.go2_piper_description()`.
 
 ## 1. The model, mounted on your robot

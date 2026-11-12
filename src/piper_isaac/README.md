@@ -29,3 +29,9 @@ Full editor for testing: `python -m piper_isaac --gui --scene table` opens an in
 From Python, pass `gui=True` to `PiperIsaacSim` (headless remains the default). GUI mode also enables `record_start(path)`.
 The editor renders while idle without advancing physics. The launcher forwards `DISPLAY` and `XAUTHORITY`; use a display with NVIDIA graphics support.
 Headless recording uses `render=True`: frames render only at the requested video fps and encoding runs on a bounded worker queue.
+
+## The full setup on the Go2 (0.11, nominal mount)
+`PiperIsaacSim(setup="go2")` (scene "empty" only) loads `usd_go2/piper_isaac_go2/piper_isaac_go2.usda`: the Go2 with the arm and the ZED X Mini, the dog fixed and standing (legs frozen at the stand pose, base held at the height that puts the feet on the ground),
+its collision the planner's ONE generated box (tools/go2_cover), the arm's names and joints unchanged (`piper_` prefix). Build it with `scripts/isaac.sh build-usd go2`, check it with `scripts/isaac.sh check-go2` (arm poses equal the URDF to 0.000 mm; the dog's height and collision box
+match the generated report), then `tools/release/build_isaac.py` puts it in the wheel. `scripts/isaac.sh run` does not take it yet. No walking dog: that is go2_studio's part.
+

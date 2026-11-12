@@ -139,3 +139,35 @@ def test_robot_only_variant_has_no_camera():
         assert s.start()
     finally:
         s.close()
+
+
+# ---- the full setup on the Go2 (nominal mount) -----------------------------------------------------------------------------------------------------------
+
+def test_go2_setup_arguments():
+    with pytest.raises(ValueError):
+        PiperIsaacSim(setup="dog")
+    with pytest.raises(ValueError):
+        PiperIsaacSim(setup="go2", scene="table")
+
+
+@pytest.fixture(scope="module")
+def go2_sim():
+    from piper_isaac.sim import usd_path
+    try:
+        usd_path(True, "go2")
+    except FileNotFoundError:
+        pytest.skip("no go2 USD: scripts/isaac.sh build-usd go2")
+    s = PiperIsaacSim(setup="go2")
+    yield s
+    s.close()
+
+
+def test_go2_arm_reaches_ready_without_guard_events_or_contacts_and_the_camera_sees(go2_sim):
+    ready = np.array([0.0, 1.0, -1.0, 0.0, 1.0, 0.0])
+    assert go2_sim.setup == "go2" and go2_sim.camera_enabled and go2_sim.start()
+    t = np.linspace(0, 3, 121)
+    sm = (10 * (t / 3) ** 3 - 15 * (t / 3) ** 4 + 6 * (t / 3) ** 5)[:, None]
+    res = go2_sim.execute(Trajectory(pa.JOINT_NAMES, t, Z + sm * (ready - Z), np.zeros((121, 6))))
+    assert go2_sim.state().q == pytest.approx(ready, abs=2e-3) and not res.guard_events and not res.contacts
+    img = go2_sim.camera_image()
+    assert img.shape == (600, 960, 3)

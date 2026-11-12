@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Isaac Sim helpers for Piper Studio. Isaac runs in its own environment (never installed into .venv).
-#   scripts/isaac.sh build-usd [no_camera]  export the description (ROS side) and convert it to USD (Isaac side): with the ZED X Mini wrist camera (default) or the robot only
+#   scripts/isaac.sh build-usd [no_camera|go2]  export the description (ROS side) and convert it to USD (Isaac side): with the ZED X Mini wrist camera (default), the robot only, or the full setup on the Go2 (nominal mount)
 #   scripts/isaac.sh run [args]    run the Isaac runner (isaac/run_piper.py); args: --seconds N --video f.mp4 --gui
+#   scripts/isaac.sh check-go2     the same check for the Go2 USD (arm in its base_link frame; the dog's height and collision box)
 #   scripts/isaac.sh check         compare Isaac's USDs with the URDF (fingertip pose over random configs, mass; the camera USD also the bracket/camera frames and collision meshes)
 #   scripts/isaac.sh stop          stop this workspace's runner (by PID file; never touches other Isaac processes)
 # Configuration (environment variables):
@@ -17,6 +18,7 @@ DATA="${PIPER_ISAAC_DATA:-$HOME/data/ml/isaac/piper_studio}"
 PIDFILE="$DATA/run.pid"
 USD="$DATA/usd/piper_isaac/piper_isaac.usda"                                          # with the wrist camera (the default)
 USD_NOCAM="$DATA/usd_no_camera/piper_isaac_no_camera/piper_isaac_no_camera.usda"       # the robot only
+USD_GO2="$DATA/usd_go2/piper_isaac_go2/piper_isaac_go2.usda"                           # the full setup on the Go2 (used by tools/release/build_isaac.py and the piper_isaac client; `run` does not take it yet)
 cmd="${1:-}"; shift || true
 
 # Run a command in a clean environment (no system ROS, no ~/.local) inside Isaac's env, on the GPU.
@@ -38,6 +40,12 @@ case "$cmd" in
         ros2 run piper_sim export_urdf.py --hardware isaac --physics --camera none --out "$DATA/piper_isaac_no_camera.urdf" )
       in_isaac python "$ws/isaac/convert_urdf.py" "$DATA/piper_isaac_no_camera.urdf" "$DATA/usd_no_camera" > "$DATA/convert_no_camera.log" 2>&1
       grep "USD:" "$DATA/convert_no_camera.log"
+    elif [ "${1:-}" = go2 ]; then
+      rm -rf "${DATA:?}/usd_go2"
+      ( set +u; source "$ws/scripts/env.sh"
+        ros2 run piper_sim export_urdf.py --hardware isaac --physics --go2 --camera zedxm --out "$DATA/piper_isaac_go2.urdf" )
+      in_isaac python "$ws/isaac/convert_urdf.py" "$DATA/piper_isaac_go2.urdf" "$DATA/usd_go2" > "$DATA/convert_go2.log" 2>&1
+      grep "USD:" "$DATA/convert_go2.log"
     else
       rm -rf "${DATA:?}/usd"
       ( set +u; source "$ws/scripts/env.sh"
@@ -67,6 +75,11 @@ case "$cmd" in
       echo "[check_model] --- robot only ---"
       in_isaac python "$ws/isaac/check_model.py" "$USD_NOCAM" "$DATA/fk_reference.json" 2>&1 | grep "check_model"
     fi ;;
+  check-go2)
+    [ -f "$USD_GO2" ] || { echo "no USD at $USD_GO2; run: scripts/isaac.sh build-usd go2" >&2; exit 1; }
+    ( set +u; source "$ws/scripts/env.sh"; python "$ws/isaac/make_fk_reference.py" "$DATA/fk_reference_cam.json" 10 )
+    echo "[check_model] --- the full setup on the Go2 (arm checked in its base_link frame, the dog's stance and collision box) ---"
+    in_isaac python "$ws/isaac/check_model.py" "$USD_GO2" "$DATA/fk_reference_cam.json" 2>&1 | grep "check_model" ;;
   stop)
     [ -f "$PIDFILE" ] || { echo "not running"; exit 0; }
     pid="$(cat "$PIDFILE")"

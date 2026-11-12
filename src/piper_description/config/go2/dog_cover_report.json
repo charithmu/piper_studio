@@ -44,6 +44,7 @@
  ],
  "points": 386427,
  "all_points_inside": true,
+ "lowest_point_z_m": -0.3344,
  "dims_m": [
   0.7063,
   0.328,

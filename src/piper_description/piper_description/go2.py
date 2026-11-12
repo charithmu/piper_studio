@@ -139,3 +139,53 @@ def go2_piper_curobo(camera: str | bool | None = "zedxm", gripper_width: float =
     import piper_assets as pa
     return {"robot": pa.curobo_config(camera=camera, gripper_width=gripper_width), "world": {"cuboid": go2_world("arm_base", **mount)},
             "base_in_go2": arm_base_pose(**mount).tolist()}
+
+
+def freeze_legs(urdf: str, stand: dict | None = None, hold_height: bool = True, collision_as_cover: bool = False) -> str:
+    """The Go2 + Piper URDF with the dog's leg joints made fixed at the stand pose, and (hold_height) a `world` link over `base` at the height that puts the lowest point of the standing dog on the floor:
+    the dog as a rigid, posed body, for simulators that hold it (MuJoCo, Isaac with a fixed base). The arm's joints are untouched. The stand pose and the floor height come from config/go2 (generated report).
+    collision_as_cover: the Go2's own collision shapes are dropped and `base` gets ONE collision box, the dog's generated cover, so a simulator's contacts are the planner's world (the visual meshes stay as they are)."""
+    import xml.etree.ElementTree as ET
+    stand = go2_stand_pose() if stand is None else stand
+    root = ET.fromstring(urdf)
+    for j in root.findall("joint"):
+        q = stand.get(j.get("name"))
+        if q is None:
+            continue
+        o = j.find("origin")
+        xyz = np.array([float(v) for v in (o.get("xyz") if o is not None else "0 0 0").split()])
+        rpy = [float(v) for v in (o.get("rpy") if o is not None else "0 0 0").split()]
+        a = np.array([float(v) for v in j.find("axis").get("xyz").split()])
+        a = a / np.linalg.norm(a)
+        K = np.array([[0, -a[2], a[1]], [a[2], 0, -a[0]], [-a[1], a[0], 0]])
+        R = _rot(rpy) @ (np.eye(3) + np.sin(q) * K + (1 - np.cos(q)) * K @ K)           # the joint origin rotated by the stand angle about its axis
+        pitch = -np.arcsin(np.clip(R[2, 0], -1, 1))
+        roll, yaw = (np.arctan2(R[2, 1], R[2, 2]), np.arctan2(R[1, 0], R[0, 0])) if abs(np.cos(pitch)) > 1e-9 else (np.arctan2(-R[1, 2], R[1, 1]), 0.0)
+        j.set("type", "fixed")
+        for tag in ("axis", "limit", "dynamics", "mimic"):
+            for el in j.findall(tag):
+                j.remove(el)
+        if o is None:
+            o = ET.SubElement(j, "origin")
+        o.set("xyz", " ".join(f"{v:.9g}" for v in xyz))
+        o.set("rpy", f"{roll:.9g} {pitch:.9g} {yaw:.9g}")
+    if collision_as_cover:
+        go2_links = set(cover_report()["links_used"])
+        for link in root.findall("link"):
+            if link.get("name") in go2_links:
+                for c in link.findall("collision"):
+                    link.remove(c)
+        dog = dog_cover("base")["dog"]
+        col = ET.SubElement(next(l for l in root.findall("link") if l.get("name") == "base"), "collision", name="dog_cover")
+        ET.SubElement(col, "origin", xyz=" ".join(f"{v:.6f}" for v in dog["pose"][:3]), rpy="0 0 0")
+        ET.SubElement(ET.SubElement(col, "geometry"), "box", size=" ".join(f"{v:.6f}" for v in dog["dims"]))
+    if hold_height:
+        h = -cover_report()["lowest_point_z_m"]
+        world = ET.Element("link", name="world")
+        joint = ET.Element("joint", name="dog_height_joint", type="fixed")
+        ET.SubElement(joint, "parent", link="world")
+        ET.SubElement(joint, "child", link="base")
+        ET.SubElement(joint, "origin", xyz=f"0 0 {h:.6f}", rpy="0 0 0")
+        root.insert(0, world)
+        root.insert(1, joint)
+    return ET.tostring(root, encoding="unicode")

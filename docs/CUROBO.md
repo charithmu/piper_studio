@@ -31,7 +31,9 @@ The world is otherwise empty (no floor). Today the plate lies inside the dog's b
 A box fitted to the legs and body was tried and dropped (2026-11-12): boxes cannot hug round legs, the gap stayed 17-47 mm with 80 boxes per link. Needs the Go2 only standing: the legs are not modelled as moving.
 **Known, from the nominal mount:** the box top is the dog's highest point (the shoulder hump, z = 0.0893 in the Go2 `base` frame), the arm's base spheres start 1.96 mm above it and the model's sphere buffer is 2.0 mm, so a planner applying the buffer sees `base_link` in contact with the dog.
 A plate of 31 mm or more (the estimate is 30 mm) clears it; `test_go2_cover.py` keeps this as a strict xfail until the mount is measured. CPU checks (no cuRobo): the arm is clear of the box at `zero` and `ready`; 33 of 150 random poses inside the limits would hit it.
-The viewer (`/piper-studio/curobo/`) shows it as the model `piper_go2` (default). The GPU planning validation with the box is not run yet.
+The viewer (`/piper-studio/curobo/`) shows it as the model `piper_go2` (default). **One cuRobo planning in this world (GPU, 2026-11-12, `tools/curobo/plan_on_go2.py`):** with the nominal 30 mm plate it FAILS: the start is 1.96 mm from the dog's box, inside the model's 2.0 mm sphere buffer, and `ready` is not planned
+(`config/go2/planning_check_nominal_plate30.json`). With the plate 6 mm thicker (36 mm, the dog and plate boxes lowered in the arm frame) it plans 31 of 31 goals (`ready` + 30 random joint poses no closer to the dog than the arm's own base):
+goal error at most 2.1 mm, no limit violated, every trajectory clear of the world with the buffer (minimum 3.0 mm, the base), mean solve 67 ms after the first call (`planning_check_plate36.json`). The 100-pose validation of the arm model itself (`validation_zedxm.json`) was made on a table and is unchanged.
 
 ## Regenerating (only when the description or `policy.yaml` changes; optional environment)
 Normal users never need this: running, controlling and simulating the arm, the wheels and reading the model need no cuRobo.

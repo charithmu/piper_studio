@@ -43,10 +43,11 @@ def _data_dirs() -> list:
     return [Path(str(resources.files("piper_isaac") / "data")), Path(os.environ.get("PIPER_ISAAC_DATA", Path.home() / "data/ml/isaac/piper_studio"))]
 
 
-def usd_path(camera: bool = True) -> Path:
-    """The Piper USD with the ZED X Mini bracket and camera (camera=True, the default) or the robot only: $PIPER_ISAAC_USD, else inside the wheel, else the build of
-    `scripts/isaac.sh build-usd [no_camera]`."""
-    rel = "usd/piper_isaac/piper_isaac.usda" if camera else "usd_no_camera/piper_isaac_no_camera/piper_isaac_no_camera.usda"
+def usd_path(camera: bool = True, setup: str | None = None) -> Path:
+    """The Piper USD with the ZED X Mini bracket and camera (camera=True, the default), the robot only, or (setup="go2") the full setup on the Go2 (nominal mount; the dog fixed and standing, its collision
+    the planner's one generated box): $PIPER_ISAAC_USD, else inside the wheel, else the build of `scripts/isaac.sh build-usd [no_camera|go2]`."""
+    rel = ("usd_go2/piper_isaac_go2/piper_isaac_go2.usda" if setup == "go2" else
+           "usd/piper_isaac/piper_isaac.usda" if camera else "usd_no_camera/piper_isaac_no_camera/piper_isaac_no_camera.usda")
     cands = [os.environ.get("PIPER_ISAAC_USD")] + [str(d / rel) for d in _data_dirs()]
     for p in cands:
         if p and Path(p).exists():
@@ -66,13 +67,21 @@ class PiperIsaacSim:
 
     def __init__(self, scene: str = "empty", gripper_width: float = 0.07, ctrl_hz: float = 250.0, physics_hz: float = 250.0, render: bool = False,
                  usd: str | Path | None = None, isaac_env: str | Path | None = None, connect: str | Path | None = None, startup_timeout: float = 240.0,
-                 gui: bool = False, camera: bool = True):
+                 gui: bool = False, camera: bool = True, setup: str | None = None):
         """Starts the Isaac server (one process per instance, through gpu-run) and connects. `connect` attaches to an already running server instead
         (tests). `isaac_env` is the script that activates Isaac's environment (default $ISAAC_ENV_SH, else ~/projects/sim/robosim/env.sh).
         `camera=True` (the default): the arm carries the ZED X Mini on its bracket and `camera_image()` renders from its left lens; `camera=False`: the robot only.
+        `setup` (arm | arm_cam | go2) replaces `camera` when given: arm = robot only, arm_cam = with the camera, go2 = the full setup on the Go2 (nominal mount, scene "empty" only: the dog stands on the ground).
         `render=True` enables recording (`record_start`) and renders only at the video frame rate. `gui=True` opens the full editor and enables recording."""
+        if setup is not None:
+            if setup not in ("arm", "arm_cam", "go2"):
+                raise ValueError("setup must be 'arm', 'arm_cam' or 'go2'")
+            if setup == "go2" and scene != "empty":
+                raise ValueError("the go2 setup has the scene 'empty' only (the dog stands on the ground)")
+            camera = setup != "arm"
         if scene not in ("empty", "table"):
             raise ValueError("scene must be 'empty' or 'table'")
+        self.setup = setup
         self.limits_info = piper_assets.limits()
         if not 0.0 <= gripper_width <= self.limits_info.gripper_stroke:
             raise ValueError(f"gripper_width must be in [0, {self.limits_info.gripper_stroke}]")
@@ -87,7 +96,7 @@ class PiperIsaacSim:
         atexit.register(self.close)
         try:
             if connect is None:
-                self._launch(Path(usd) if usd else usd_path(self.camera_enabled), isaac_env, self.render_enabled, startup_timeout)
+                self._launch(Path(usd) if usd else usd_path(self.camera_enabled, self.setup), isaac_env, self.render_enabled, startup_timeout)
             else:
                 self._connect(str(connect), startup_timeout)
             hello = self._rpc(cmd="hello")

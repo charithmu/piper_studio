@@ -1,10 +1,13 @@
 """PiperSim against the backend contract (no ROS, no hardware)."""
 
+import json
+
 import numpy as np
 import pytest
 
 import piper_assets as pa
 from piper_core import ArmBackend, Trajectory
+from piper_core.backend import ARM_JOINTS
 from piper_mujoco import PiperSim
 
 Z = np.array(pa.zero_pose())
@@ -200,3 +203,58 @@ def test_robot_only_variant_has_no_camera_and_no_bracket():
     with_cam = PiperSim(scene="empty")
     assert with_cam.model.ngeom > sim.model.ngeom                      # bracket and camera collision shapes are in the default model
     assert with_cam.start().ok and sim.start().ok
+
+
+# ---- the full setup on the Go2 (nominal mount) -----------------------------------------------------------------------------------------------------------
+
+def _arm_vs_dog_contacts(sim):
+    import mujoco
+    mujoco.mj_forward(sim.model, sim.data)
+    m = sim.model
+    return sum(1 for c in sim.data.contact[:sim.data.ncon] if sim._arm_body[m.geom_bodyid[c.geom1]] != sim._arm_body[m.geom_bodyid[c.geom2]])
+
+
+@pytest.fixture(scope="module")
+def go2_sim():
+    from piper_mujoco.sim import data_dir
+    if "go2" not in json.loads((data_dir() / "manifest.json").read_text()).get("setups", []):
+        pytest.skip("this build has no go2 setup")
+    return PiperSim(setup="go2")
+
+
+def test_go2_setup_has_the_same_arm_and_the_dog_is_one_fused_posed_body(go2_sim):
+    import mujoco
+    m = go2_sim.model
+    assert go2_sim.setup == "go2" and go2_sim.camera_enabled and m.nu == 7 and [m.joint(j).name for j in ARM_JOINTS]
+    names = [mujoco.mj_id2name(m, mujoco.mjtObj.mjOBJ_BODY, i) for i in range(m.nbody)]
+    assert names[:2] == ["world", "link1"] and "camera" in [mujoco.mj_id2name(m, mujoco.mjtObj.mjOBJ_CAMERA, i) for i in range(m.ncam)]
+    # the legs are frozen: the only joints are the arm's and the gripper's; what collides with the arm is the planner's world: the dog's ONE generated box and the plate, no mesh of the dog
+    assert m.njnt == 9
+    colliding = [g for g in range(m.ngeom) if m.geom_bodyid[g] == 0 and m.geom_contype[g] and m.geom_type[g] != mujoco.mjtGeom.mjGEOM_PLANE]
+    meshes = [mujoco.mj_id2name(m, mujoco.mjtObj.mjOBJ_MESH, m.geom_dataid[g]) for g in colliding if m.geom_type[g] == mujoco.mjtGeom.mjGEOM_MESH]
+    assert meshes == ["base_link"]                                                  # the only colliding mesh in the fused body is the arm's own base, none of the dog's
+    boxes = [g for g in colliding if m.geom_type[g] == mujoco.mjtGeom.mjGEOM_BOX]
+    sizes = sorted(tuple(np.round(m.geom_size[g] * 2, 4)) for g in boxes)
+    assert sizes == [(0.14, 0.09, 0.03), (0.7063, 0.328, 0.4232)]
+
+
+def test_go2_named_poses_are_clear_of_the_dog_and_a_pose_through_the_dog_is_not(go2_sim):
+    go2_sim.reset()
+    assert _arm_vs_dog_contacts(go2_sim) == 0                                    # zero
+    for a, v in zip(go2_sim._qadr, [0.0, 1.0, -1.0, 0.0, 1.0, 0.0]):             # ready
+        go2_sim.data.qpos[a] = v
+    assert _arm_vs_dog_contacts(go2_sim) == 0
+    for a, v in zip(go2_sim._qadr, [0.602, 1.208, -0.018, 1.669, 0.45, 0.89]):    # found by a random sweep: the forearm goes into the dog's box
+        go2_sim.data.qpos[a] = v
+    assert _arm_vs_dog_contacts(go2_sim) > 0
+    go2_sim.reset()
+
+
+def test_go2_setup_arguments():
+    from piper_mujoco.sim import data_dir
+    with pytest.raises(ValueError):
+        PiperSim(setup="dog")
+    if "go2" in json.loads((data_dir() / "manifest.json").read_text()).get("setups", []):
+        with pytest.raises(ValueError):
+            PiperSim(setup="go2", scene="table")
+    assert PiperSim(setup="arm").camera_enabled is False and PiperSim(setup="arm_cam").camera_enabled is True

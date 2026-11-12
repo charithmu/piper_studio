@@ -137,6 +137,7 @@ def main():
                             "meshes_sha256": hashlib.sha256(b"".join((pkg / "dae" / f).read_bytes() for f in sorted(p.name for p in (pkg / "dae").glob("*.dae")))).hexdigest()[:16]},
         "stand_pose": setup["stand_pose"], "stand_source": setup["stand_source"], "policy": policy,
         "links_used": sorted(meshes), "points": int(len(pts)), "all_points_inside": bool(np.all((pts >= lo - 1e-9) & (pts <= hi + 1e-9))),
+        "lowest_point_z_m": round(float(pts[:, 2].min()), 4),      # the lowest point of the standing dog in the `base` frame: the floor is this far below `base` (the height a fixed-base simulator holds the dog at)
         "dims_m": [round(float(x), 4) for x in dims], "box_volume_m3": round(float(np.prod(dims)), 5), "convex_hull_of_the_dog_m3": round(hull_volume, 5),
         "frame": "Go2 `base`; the dog at the stand pose; the plate and the arm are not part of the cover",
     }

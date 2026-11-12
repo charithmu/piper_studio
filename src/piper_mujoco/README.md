@@ -21,3 +21,10 @@ and torque from this simulation say nothing about the real arm. The geometry, jo
 `margin_percent` is accepted and ignored (it only sets the real arm's speed headroom). The ROS MuJoCo backend has static scene objects, PiperSim's
 `table` scene has them as free bodies (pick and place).
 The table is a PLACEHOLDER (unmeasured).
+
+## The full setup on the Go2 (0.11, nominal mount)
+`PiperSim(setup="go2")` (scene "empty" only): the Go2 with the arm and the ZED X Mini, the dog **fixed and standing** (leg joints frozen at `config/go2/go2_setup.yaml`'s stand pose, held at the height that puts its feet on the floor).
+The arm, servos, joints and camera are the same as in the other models. What collides with the arm is the planner's world: the dog's ONE generated box (tools/go2_cover) and the plate (the converter's mesh collisions of the dog are removed);
+the dog's visual is the Go2's meshes in one grey. `setup="arm"` / `"arm_cam"` choose the robot only / with the camera instead of `camera=`; without `setup` nothing changes. Built by `tools/release/build_mujoco.py` (needs go2_studio's unitree_ros checkout); `manifest.json` lists `setups`.
+Not a walking dog: no leg actuators, no floating base (that is go2_studio's part).
+
