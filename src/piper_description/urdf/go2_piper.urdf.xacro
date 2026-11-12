@@ -4,7 +4,7 @@
   (go2_urdf, default: go2_studio's checkout of unitree_ros, commit 725b59b); this package does not ship it. Its mesh URIs are
   package://go2_description/..., so a consumer needs that package on its path to see meshes (TF and collision boxes do not).
 
-  NOMINAL MOUNT (2026-11-12): mount_xyz / mount_rpy / plate_* are a placeholder on top of the trunk, NOT measured on the user's
+  NOMINAL MOUNT (2026-11-12): the plate and the arm's mount (config/go2/go2_setup.yaml, read below) are the user's estimates, NOT measured on the user's
   Go2 EDU dock. Replace them with the measured plate pose in the Go2 `base` frame before trusting reach, collision or balance.
   Chain: base (Go2) -> piper_dock_plate -> piper_mount -> piper_mount_joint -> piper_base_link (the arm).
 -->
@@ -22,14 +22,18 @@
   <xacro:arg name="camera_rate" default="" />
   <xacro:arg name="hardware" default="mock" />
   <xacro:arg name="initial_positions_file" default="$(find piper_description)/config/initial_positions.yaml" />
-  <!-- NOMINAL plate pose in Go2 `base` (trunk box top is z = 0.057; plate bottom sits on it); the arm base sits on the plate's top face -->
-  <xacro:arg name="plate_xyz" default="-0.02 0 0.072" />
-  <xacro:arg name="plate_size" default="0.14 0.09 0.030" />
-  <xacro:arg name="mount_rpy" default="0 0 0" />
+  <!-- the mount (plate pose in the Go2 `base` frame, plate size, arm orientation) comes from config/go2/go2_setup.yaml, the one place the numbers live; the args override it -->
+  <xacro:arg name="plate_xyz" default="" />
+  <xacro:arg name="plate_size" default="" />
+  <xacro:arg name="mount_rpy" default="" />
+  <xacro:property name="go2_setup" value="${xacro.load_yaml('$(find piper_description)/config/go2/go2_setup.yaml')}" />
+  <xacro:property name="plate_xyz" value="${'$(arg plate_xyz)' or ' '.join(str(v) for v in go2_setup['mount']['plate_xyz'])}" />
+  <xacro:property name="plate_size_s" value="${'$(arg plate_size)' or ' '.join(str(v) for v in go2_setup['mount']['plate_size'])}" />
+  <xacro:property name="mount_rpy" value="${'$(arg mount_rpy)' or ' '.join(str(v) for v in go2_setup['mount']['mount_rpy'])}" />
 
   <xacro:property name="prefix" value="$(arg prefix)" />
   <xacro:property name="use_gripper" value="$(arg gripper)" />
-  <xacro:property name="plate_size" value="$(arg plate_size)" />
+  <xacro:property name="plate_size" value="${plate_size_s}" />
 
   <xacro:include filename="$(arg go2_urdf)" />
 
@@ -43,7 +47,7 @@
   <joint name="${prefix}dock_plate_joint" type="fixed">
     <parent link="base" />
     <child link="${prefix}dock_plate" />
-    <origin xyz="$(arg plate_xyz)" rpy="0 0 0" />
+    <origin xyz="${plate_xyz}" rpy="0 0 0" />
   </joint>
 
   <!-- the arm's mount frame: the top face of the plate -->
@@ -51,7 +55,7 @@
   <joint name="${prefix}mount_frame_joint" type="fixed">
     <parent link="${prefix}dock_plate" />
     <child link="${prefix}mount" />
-    <origin xyz="0 0 ${float(plate_size.split()[2]) / 2}" rpy="$(arg mount_rpy)" />
+    <origin xyz="0 0 ${float(plate_size.split()[2]) / 2}" rpy="${mount_rpy}" />
   </joint>
 
   <xacro:include filename="$(find piper_description)/urdf/piper_arm.xacro" />

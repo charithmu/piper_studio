@@ -84,12 +84,19 @@ def srdf_path(camera: str | bool | None = True, setup: str | None = None) -> Pat
 
 
 def world(setup: str | None = DEFAULT_SETUP, frame: str = "arm_base") -> dict:
-    """The dog's obstacles of the `go2` setup as {name: {"dims": [x, y, z], "pose": [x, y, z, qw, qx, qy, qz]}}, in the arm's base_link frame (frame="arm_base", what cuRobo plans in,
-    without the plate the arm stands on) or in the Go2 `base` frame (frame="base", with the plate). Other setups have none: {}. NOMINAL until the dock plate is measured (mount())."""
+    """What a planner must avoid in the `go2` setup besides the arm: {name: {"dims": [x, y, z], "pose": [x, y, z, qw, qx, qy, qz]}} = "dog" (ONE box, GENERATED from the Go2's meshes at its stand pose by tools/go2_cover:
+    the bounding box of every point of the dog, so from the arm it looks like standing on a block), "plate" (the mount plate, from config/go2/go2_setup.yaml, the numbers the URDF uses) and any payload boxes listed there. frame="arm_base": in the arm's base_link frame, what cuRobo plans in;
+    frame="base": in the Go2 `base` frame. The world is otherwise empty (no floor). Other setups have none: {}. The mount is an estimate (mount())."""
     if setup != "go2":
         _setup(setup, True)
         return {}
     return json.loads((data_dir() / "go2" / f"world_{frame}.json").read_text())
+
+
+def cover_report() -> dict:
+    """Provenance of the dog's cover: Go2 description hashes, stand pose, policy, the box's size and volume."""
+    _setup("go2", True)
+    return json.loads((data_dir() / "go2" / "cover_report.json").read_text())
 
 
 def mount() -> dict:
@@ -133,7 +140,7 @@ def curobo_model(camera: str | bool | None = True) -> Path:
 
 
 def curobo_world(setup: str | None = DEFAULT_SETUP) -> dict:
-    """cuRobo world_model dict ({"cuboid": {...}}, planning frame = the arm's base_link) for a setup: the dog's boxes for go2, {} for the others."""
+    """cuRobo world_model dict ({"cuboid": {...}}, planning frame = the arm's base_link) for a setup: the dog's cover for go2, {} for the others."""
     w = world(setup)
     return {"cuboid": w} if w else {}
 

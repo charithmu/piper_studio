@@ -1,0 +1,5 @@
+# The dog's collision cover for a planner (tools/go2_cover/build_dog_cover.py): ONE axis-aligned box in the Go2 `base` frame that contains every point of the dog (its visual meshes and the
+# URDF's own collision shapes) at the stand pose in config/go2/go2_setup.yaml. From the arm it looks like standing on a block.
+# A tighter cover (boxes fitted to the legs and the body) was tried on 2026-11-12 and dropped: boxes cannot hug round legs (cross-section corners stay 17-47 mm off with 80 boxes per link),
+# the generator needed minutes and hundreds of boxes. If a planner ever needs it, fit capsules or a mesh instead of boxes.
+margin: 0.0               # m: grow the box by this on every side (0 = the exact bounding box of the dog)

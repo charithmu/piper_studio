@@ -27,8 +27,9 @@ import piper_assets as pa
 pa.manifest()["setups"]                    # which this build has ("go2" needs go2_studio's unitree_ros checkout when the wheel is built)
 pa.urdf_path(setup="go2")                  # the whole robot: the arm with its usual names (joint1..6, base_link, tcp_link) + the Go2's links (base, FL_hip, ...), meshes beside it
 pa.srdf_path(setup="go2")                  # the arm's SRDF + the plate/base pairs that touch by construction
-pa.world("go2")                            # the dog's boxes in the arm's base frame (what cuRobo plans in): trunk, head, radar, floor. frame="base": in the Go2 `base` frame, with the plate
+pa.world("go2")                            # the dog as ONE generated box (tools/go2_cover: the bounding box of the dog at its stand pose) + the plate (+ payload boxes) in the arm's base frame, what cuRobo plans in. frame="base": in the Go2 `base` frame
 pa.curobo_config(setup="go2"), pa.curobo_world("go2")   # the arm model (unchanged) + the dog as cuRobo's world_model {"cuboid": {...}}
+pa.cover_report()                          # provenance of the box: Go2 description hashes, stand pose, size, that every point of the dog is inside
 pa.mount()                                 # plate pose and size, base_in_go2 (4x4), the Go2 stand pose; NOMINAL (estimates, not measured on the dock)
 ```
 The arm is planned alone in every setup; the dog is the world. The mount is an estimate until the plate is measured: re-run `tools/release/build_assets.py` after changing `piper_description/go2.py`.

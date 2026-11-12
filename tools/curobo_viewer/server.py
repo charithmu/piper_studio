@@ -1,6 +1,6 @@
 """Piper cuRobo model viewer: the models shipped in piper_assets (spheres, self-collision ignore list, URDF meshes), in the browser.
 Serves index.html and /api/models, /api/model?name=..., /mesh?p=... (.stl/.dae under the piper_assets data directory only; nothing is copied). Binds to loopback; the :8700 gateway route
-(artifacts.yaml, docs/CUROBO.md) exposes it on the tailnet. Models: piper_go2 (the arm with the ZED X Mini on the Go2, the dog as world boxes; the default), piper_zedxm (the arm with the ZED X Mini on its bracket) and piper_none (the robot only); extra yml files of
+(artifacts.yaml, docs/CUROBO.md) exposes it on the tailnet. Models: piper_go2 (the arm with the ZED X Mini on the Go2, the dog as one generated box around it; the default), piper_zedxm (the arm with the ZED X Mini on its bracket) and piper_none (the robot only); extra yml files of
 experiments can be viewed with --extra DIR (they need `urdf_path` or <name>.urdf beside them).
     source scripts/env.sh && python tools/curobo_viewer/server.py 8782 [--extra DIR]        (scripts/curobo_viewer.sh start|stop|status)
 """
@@ -37,9 +37,9 @@ def model(name):
         prov = pa.curobo_provenance(cam)
         info = f"built for description {prov['description_commit']}, {'current' if pa.curobo_model_is_current(cam) else 'STALE: regenerate'}"
         poses = {n: _pose(cam, n) for n in ("zero", "ready")}
-        if name == "piper_go2":              # the arm is planned alone; the dog is the world (boxes in the arm's base_link frame)
+        if name == "piper_go2":              # the arm is planned alone; the dog's generated cover is the world (one box, in the arm's base_link frame)
             world = pa.world("go2")
-            info += " · the Go2 as world boxes, NOMINAL mount (not measured)"
+            info += f" · the Go2 as one generated box {[round(x, 2) for x in world['dog']['dims']]} m + {', '.join(n for n in world if n != 'dog')}, NOMINAL mount (not measured)"
     else:                                                   # an experiment's yml
         raw = yaml.safe_load((EXTRA / (Path(name).name + ".yml")).read_text())
         top = raw.get("robot_cfg", raw)

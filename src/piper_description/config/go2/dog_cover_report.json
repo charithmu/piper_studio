@@ -1,0 +1,55 @@
+{
+ "go2_description": {
+  "urdf_sha256": "7d19fe48e2e689ee",
+  "unitree_ros_commit": "44b93729e7a9027e34fb2858facab9b5ebe55e96",
+  "meshes_sha256": "ec063fc239f6a55c"
+ },
+ "stand_pose": {
+  "hip": 0.0,
+  "thigh": 0.8,
+  "calf": -1.5
+ },
+ "stand_source": "go2_studio src/go2_studio/robot.py STAND (= unitree_rl_mjlab FixStand); the Go2 stands on the floor in it",
+ "policy": {
+  "margin": 0.0
+ },
+ "links_used": [
+  "FL_calf",
+  "FL_calflower",
+  "FL_calflower1",
+  "FL_foot",
+  "FL_hip",
+  "FL_thigh",
+  "FR_calf",
+  "FR_calflower",
+  "FR_calflower1",
+  "FR_foot",
+  "FR_hip",
+  "FR_thigh",
+  "Head_lower",
+  "Head_upper",
+  "RL_calf",
+  "RL_calflower",
+  "RL_calflower1",
+  "RL_foot",
+  "RL_hip",
+  "RL_thigh",
+  "RR_calf",
+  "RR_calflower",
+  "RR_calflower1",
+  "RR_foot",
+  "RR_hip",
+  "RR_thigh",
+  "base"
+ ],
+ "points": 386427,
+ "all_points_inside": true,
+ "dims_m": [
+  0.7063,
+  0.328,
+  0.4232
+ ],
+ "box_volume_m3": 0.09804,
+ "convex_hull_of_the_dog_m3": 0.07067,
+ "frame": "Go2 `base`; the dog at the stand pose; the plate and the arm are not part of the cover"
+}

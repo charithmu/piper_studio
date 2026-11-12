@@ -28,7 +28,7 @@ button{cursor:pointer;margin:2px 2px 2px 0}button:hover{border-color:var(--ac)}
 <label><input type="checkbox" id="tsph" checked> cuRobo spheres</label>
 <div class="row"><span>sphere α</span><input type="range" id="sop" min="0.05" max="1" step="0.05" value="0.35"><span id="sopv">0.35</span></div>
 <label><input type="checkbox" id="tfr" checked> frames (tcp, camera, links)</label>
-<label title="the Go2 as cuRobo sees it: trunk, head, radar and floor boxes in the arm base frame (nominal)"><input type="checkbox" id="tworld" checked> world boxes (the dog)</label>
+<label title="what cuRobo avoids besides the arm: one box around the whole dog (generated, orange) and the plate / payload boxes (blue), in the arm base frame, nominal mount"><input type="checkbox" id="tworld" checked> world boxes (the dog)</label>
 <label><input type="checkbox" id="tpair" checked> highlight overlapping sphere pairs</label>
 <label><input type="checkbox" id="tbuf"> inflate by collision_sphere_buffer</label>
 <h3>Links (spheres / mesh)</h3><div id="links"></div>
@@ -105,8 +105,8 @@ async function load(name){
 let visLoaded=false,visObjs=[];
 let worldObjs=[];
 function drawWorld(){worldObjs.forEach(o=>rootObj.remove(o));worldObjs=[];
-  for(const [n,b] of Object.entries(M.world||{})){const g=new THREE.BoxGeometry(...b.dims);const m=new THREE.Mesh(g,new THREE.MeshBasicMaterial({color:n==='floor'?0x556677:0xe0a030,transparent:true,opacity:0.18,depthWrite:false}));
-    m.add(new THREE.LineSegments(new THREE.EdgesGeometry(g),new THREE.LineBasicMaterial({color:0xe0a030})));m.position.set(b.pose[0],b.pose[1],b.pose[2]);m.quaternion.set(b.pose[4],b.pose[5],b.pose[6],b.pose[3]);m.userData.world=n;m.visible=$('tworld').checked;rootObj.add(m);worldObjs.push(m);}}
+  for(const [n,b] of Object.entries(M.world||{})){const g=new THREE.BoxGeometry(...b.dims);const m=new THREE.Mesh(g,new THREE.MeshBasicMaterial({color:n==='dog'?0xe0a030:0x4cc9f0,transparent:true,opacity:0.18,depthWrite:false}));
+    m.add(new THREE.LineSegments(new THREE.EdgesGeometry(g),new THREE.LineBasicMaterial({color:n==='dog'?0xe0a030:0x4cc9f0})));m.position.set(b.pose[0],b.pose[1],b.pose[2]);m.quaternion.set(b.pose[4],b.pose[5],b.pose[6],b.pose[3]);m.userData.world=n;m.visible=$('tworld').checked;rootObj.add(m);worldObjs.push(m);}}
 function loadVisuals(){visLoaded=true;const cl=new ColladaLoader();
   for(const n of Object.keys(links))for(const v of links[n].visuals||[]){cl.load('mesh?p='+encodeURIComponent(v.file),c=>{
     const yUp=Math.abs(c.scene.quaternion.w-1)<1e-6;                       // loader leaves Y_UP assets alone, rotates Z_UP ones to Y-up

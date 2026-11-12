@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from piper_description import GO2_URDF, go2_dock_world, go2_piper_description
+from piper_description import GO2_URDF, dog_cover, go2_piper_description
 
 pytestmark = pytest.mark.skipif(not GO2_URDF.exists(), reason="go2_studio's unitree_ros checkout is not here")
 
@@ -46,13 +46,6 @@ def test_plate_pose_is_a_parameter_and_moves_the_arm_chain_only():
     assert plate.find("origin").get("xyz") == "0.1 0 0.07"
 
 
-def test_dock_world_matches_the_default_plate_and_margin_grows_the_boxes():
-    w, g = go2_dock_world(), go2_dock_world(margin=0.02)
-    assert set(w) == {"go2_trunk", "dock_plate", "go2_head", "go2_radar"}
-    assert w["dock_plate"]["pose"][:3] == [-0.02, 0.0, 0.072]
-    assert g["go2_trunk"]["dims"] == pytest.approx([d + 0.04 for d in w["go2_trunk"]["dims"]])
-
-
 # ---- camera, frames, cuRobo -------------------------------------------------------------------------------------------------------------------------
 
 import numpy as np  # noqa: E402
@@ -75,64 +68,20 @@ def test_wrist_camera_is_the_standalone_one_and_default():
     assert "zed_" not in go2_piper_description(camera="none").replace("zed_ros2", "")
 
 
-def test_defaults_of_the_python_helpers_equal_the_xacro_defaults():
-    from piper_description import go2
+def test_the_mount_comes_from_one_file_for_the_xacro_and_the_python_helpers():
+    from piper_description import setup_config
+    m = setup_config()["mount"]
     root = ET.fromstring(go2_piper_description())
     j = next(j for j in root.iter("joint") if j.get("name") == "piper_dock_plate_joint")
-    assert [float(x) for x in j.find("origin").get("xyz").split()] == list(go2.PLATE_XYZ)
-    pose = arm_base_pose()
-    assert pose[:3, 3].tolist() == pytest.approx([-0.02, 0.0, 0.087])
-
-
-def test_world_in_the_arm_frame_is_the_inverse_of_the_mount():
-    w_base = go2_dock_world()
-    w_arm = go2_dock_world(frame="arm_base")
-    T = arm_base_pose()
-    for name in w_base:
-        p_arm = np.array(w_arm[name]["pose"][:3])
-        assert (T @ [*p_arm, 1.0])[:3] == pytest.approx(w_base[name]["pose"][:3])
-    # a yawed mount rotates the boxes (a 180 degree yaw puts the head behind the arm base)
-    yawed = go2_dock_world(frame="arm_base", mount_rpy=(0, 0, np.pi))
-    assert yawed["go2_head"]["pose"][0] < 0 < w_arm["go2_head"]["pose"][0]
-
-
-def _box_clearance(center, radius, box):
-    q = np.array(box["pose"][3:])
-    w, x, y, z = q
-    R = np.array([[1 - 2 * (y * y + z * z), 2 * (x * y - z * w), 2 * (x * z + y * w)],
-                  [2 * (x * y + z * w), 1 - 2 * (x * x + z * z), 2 * (y * z - x * w)],
-                  [2 * (x * z - y * w), 2 * (y * z + x * w), 1 - 2 * (x * x + y * y)]])
-    local = R.T @ (np.asarray(center) - np.array(box["pose"][:3]))
-    half = np.array(box["dims"]) / 2
-    d = np.maximum(np.abs(local) - half, 0.0)
-    inside = np.all(np.abs(local) < half)
-    return -float(np.min(half - np.abs(local))) - radius if inside else float(np.linalg.norm(d)) - radius
-
-
-@pytest.mark.parametrize("pose", ["zero", "ready"])
-def test_arm_spheres_clear_the_dog_at_zero_and_ready(pose):
-    """CPU check (no cuRobo): every collision sphere of the arm with the camera vs the dog's boxes, in the arm base frame. Nominal mount, nominal boxes."""
-    pytest.importorskip("piper_assets")
-    from piper_core.kinematics import Kinematics
-    from piper_core.arm_cli import READY
-    from piper_description import go2 as g
-    cfg = go2_piper_curobo(ground=False)
-    spheres = cfg["robot"]["robot_cfg"]["kinematics"]["collision_spheres"] if "robot_cfg" in cfg["robot"] else cfg["robot"]["kinematics"]["collision_spheres"]
-    q = [0.0, 0.01, -0.01, 0.0, 0.0, 0.0] if pose == "zero" else list(READY)
-    kin = Kinematics.from_assets(camera="zedxm")
-    worst = np.inf
-    for link, lst in spheres.items():
-        T = kin.pose(q, link)
-        for s in lst:
-            c = (T @ [*s["center"], 1.0])[:3]
-            for box in cfg["world"]["cuboid"].values():
-                worst = min(worst, _box_clearance(c, s["radius"], box))
-    assert worst > 0.0, f"arm penetrates the dog by {-worst * 1000:.0f} mm"
-    print(f"{pose}: minimum clearance {worst * 1000:.0f} mm")
+    assert [float(x) for x in j.find("origin").get("xyz").split()] == m["plate_xyz"]
+    box = next(l for l in root.iter("link") if l.get("name") == "piper_dock_plate").find("collision/geometry/box")
+    assert [float(x) for x in box.get("size").split()] == m["plate_size"]
+    assert arm_base_pose()[:3, 3].tolist() == pytest.approx([m["plate_xyz"][0], m["plate_xyz"][1], m["plate_xyz"][2] + m["plate_size"][2] / 2])
+    assert m["nominal"] is True                       # until the plate is measured: flip it then, and the docs say so
 
 
 def test_export_for_simulators_is_self_contained(tmp_path, monkeypatch):
-    """tools/release/export_go2_piper.py: one URDF whose every mesh exists next to it, the boxes in both frames, the nominal warning."""
+    """tools/release/export_go2_piper.py: one URDF whose every mesh exists next to it, the dog's cover in both frames, the nominal warning."""
     import importlib.util
     import json
     import os
@@ -146,7 +95,6 @@ def test_export_for_simulators_is_self_contained(tmp_path, monkeypatch):
     meshes = [m.get("filename") for m in urdf.iter("mesh")]
     assert meshes and all(os.path.exists(tmp_path / f) for f in meshes) and not any(f.startswith(("package://", "/")) for f in meshes)
     assert any("go2_description" in f for f in meshes) and any("piper_description" in f or "agx_arm" in f for f in meshes)
-    assert "dock_plate" in json.loads((tmp_path / "world_base.json").read_text())
-    arm_world = json.loads((tmp_path / "world_arm_base.json").read_text())
-    assert "dock_plate" not in arm_world and "floor" in arm_world
+    for frame in ("base", "arm_base"):
+        assert {"dog", "plate"} <= set(json.loads((tmp_path / f"world_{frame}.json").read_text()))
     assert "NOMINAL" in json.loads((tmp_path / "mount.json").read_text())

@@ -1,0 +1,14 @@
+# The Go2 carrying the Piper: the numbers that are NOT in the Go2's own description. One file, read by the xacro (urdf/go2_piper.urdf.xacro),
+# piper_description.go2 and tools/go2_cover; nothing else in the repo restates them.
+stand_pose:                     # the standing posture the dog's cover is generated for (all four legs; static)
+  hip: 0.0
+  thigh: 0.8
+  calf: -1.5
+stand_source: "go2_studio src/go2_studio/robot.py STAND (= unitree_rl_mjlab FixStand); the Go2 stands on the floor in it"
+mount:
+  nominal: true                 # ESTIMATES of the user (2026-11-12), not measured on the Go2 expansion dock
+  plate_xyz: [-0.02, 0.0, 0.0728]   # plate centre in the Go2 `base` frame; z = the top of the body shell under the plate footprint (0.0578, from base.dae) + half the thickness
+  plate_size: [0.14, 0.09, 0.030]
+  mount_rpy: [0.0, 0.0, 0.0]    # arm base orientation on the plate: yaw 0 = the arm's x axis points forward
+  payload_boxes: []             # other things fixed on the dog (the ZED Box Mini, a battery, a cable guide...), each {name, size: [x, y, z], xyz: [x, y, z], rpy: [r, p, y]} in the Go2 `base` frame (axis-aligned unless rpy);
+                                # user estimates, none given yet. They become boxes of the planner's world next to the dog and the plate (piper_description.go2_world)

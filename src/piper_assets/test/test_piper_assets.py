@@ -101,12 +101,14 @@ def test_go2_urdf_has_the_same_arm_names_the_dog_beside_them_and_every_mesh():
 @needs_go2
 def test_go2_world_mount_and_cuRobo_pieces_agree():
     base, arm = pa.world("go2", "base"), pa.world("go2", "arm_base")
-    assert "dock_plate" in base and "dock_plate" not in arm and {"go2_trunk", "go2_head", "go2_radar", "floor"} <= set(arm)
+    assert set(base) == set(arm) >= {"dog", "plate"} and not any("floor" in n for n in base)      # the dog as one generated box, the plate (and payload); no floor
     m = pa.mount()
     assert "NOMINAL" in m and m["plate_size"][2] == pytest.approx(0.030) and np.array(m["base_in_go2"]).shape == (4, 4)
     T = np.array(m["base_in_go2"])
-    for name, b in arm.items():
-        assert (T @ [*b["pose"][:3], 1.0])[:3] == pytest.approx(base[name]["pose"][:3])
+    assert (T @ [*arm["dog"]["pose"][:3], 1.0])[:3] == pytest.approx(base["dog"]["pose"][:3])
+    assert arm["plate"]["pose"][:3] == pytest.approx([0, 0, -m["plate_size"][2] / 2], abs=1e-9)   # the arm base frame is the plate's top face
+    rep = pa.cover_report()
+    assert rep["all_points_inside"] and rep["dims_m"] == pytest.approx(base["dog"]["dims"], abs=1e-4)
     cfg = pa.curobo_config(setup="go2")                                         # the arm alone: the dog is the world
     assert cfg["kinematics"]["urdf_path"].endswith("piper_zedxm_w0.07.urdf")
     assert pa.curobo_world()["cuboid"] == arm
