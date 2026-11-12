@@ -103,7 +103,7 @@ def test_go2_world_mount_and_cuRobo_pieces_agree():
     base, arm = pa.world("go2", "base"), pa.world("go2", "arm_base")
     assert set(base) == set(arm) >= {"dog", "plate"} and not any("floor" in n for n in base)      # the dog as one generated box, the plate (and payload); no floor
     m = pa.mount()
-    assert "NOMINAL" in m and m["plate_size"][2] == pytest.approx(0.036) and np.array(m["base_in_go2"]).shape == (4, 4)
+    assert "NOMINAL" in m and m["plate_size"][2] == pytest.approx(0.045)  # measured by touch and np.array(m["base_in_go2"]).shape == (4, 4)
     T = np.array(m["base_in_go2"])
     assert (T @ [*arm["dog"]["pose"][:3], 1.0])[:3] == pytest.approx(base["dog"]["pose"][:3])
     assert arm["plate"]["pose"][:3] == pytest.approx([0, 0, -m["plate_size"][2] / 2], abs=1e-9)   # the arm base frame is the plate's top face

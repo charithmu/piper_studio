@@ -6,9 +6,9 @@ stand_pose:                     # the standing posture the dog's cover is genera
   calf: -1.5
 stand_source: "go2_studio src/go2_studio/robot.py STAND (= unitree_rl_mjlab FixStand); the Go2 stands on the floor in it"
 mount:
-  nominal: true                 # ESTIMATES, FINAL until the user gives measured values (decision 2026-11-12); not measured on the Go2 expansion dock
-  plate_xyz: [-0.02, 0.0, 0.0758]   # plate centre in the Go2 `base` frame; z = the top of the body shell under the plate footprint (0.0578, from base.dae) + half the thickness
-  plate_size: [0.14, 0.09, 0.036]   # 36 mm: the arm's base must sit above the dog's box (its top is the shoulder hump, z = 0.0893) by more than the model's 2 mm sphere buffer; an earlier 30 mm estimate overlapped it by 1 mm (cuRobo could not plan, Isaac's start was 1.5 mrad off)
+  nominal: true                 # plate thickness and arm-base position were measured by touch by the user (2026-11-12); plate length/width, yaw and payload are still estimates
+  plate_xyz: [-0.04, 0.0, 0.0799]   # plate centre in the Go2 `base` frame; x = 4 cm behind the body centre (user, by touch); z = the top of the body shell under the plate footprint (0.0574, from base.dae) + half the thickness
+  plate_size: [0.14, 0.09, 0.045]   # thickness 45 mm (user, by touch); length and width are estimates. The arm base then stands 13.5 mm above the dog's box top (the shoulder hump, z = 0.0888)
   mount_rpy: [0.0, 0.0, 0.0]    # arm base orientation on the plate: yaw 0 = the arm's x axis points forward
   payload_boxes: []             # other things fixed on the dog (the ZED Box Mini, a battery, a cable guide...), each {name, size: [x, y, z], xyz: [x, y, z], rpy: [r, p, y]} in the Go2 `base` frame (axis-aligned unless rpy);
                                 # user estimates, none given yet. They become boxes of the planner's world next to the dog and the plate (piper_description.go2_world)
