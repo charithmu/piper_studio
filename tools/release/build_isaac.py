@@ -8,7 +8,8 @@ Writes into the package (git-ignored, built into the wheel by scripts/build_whee
   runner/        isaac/world.py, run_server.py, servo_gains.py (the Isaac-side files the client starts in Isaac's own environment)
   data/usd/            the Piper USD with the ZED X Mini bracket and camera (the default; piper_isaac/piper_isaac.usda with its payloads and textures), prefix piper_
   data/usd_no_camera/  the robot only (piper_isaac_no_camera/piper_isaac_no_camera.usda)
-  data/usd_go2/        the full setup on the Go2 (nominal mount; piper_isaac_go2/piper_isaac_go2.usda), only if `scripts/isaac.sh build-usd go2` was run
+  data/usd_go2_dog/    the DOG's visual for the Go2 setup (legs frozen at the stand pose, no physics; piper_isaac_go2_dog/piper_isaac_go2_dog.usda), only if `scripts/isaac.sh build-usd go2` was run.
+                       The Go2 setup is the default arm USD + this + the planner's boxes as static colliders (piper_assets.world("go2")): the arm alone is the robot
   data/camera_pose.json  the wrist camera in link6 (USD convention), size, field of view, near/far, K
   data/manifest.json  source commit, USD build time, hashes of every file
 """
@@ -48,10 +49,10 @@ def main():
         shutil.copy2(WS / "isaac" / f, out / "runner" / f)
     shutil.copytree(usd, out / "data" / "usd" / "piper_isaac")                                    # with the ZED X Mini bracket and camera (the default)
     shutil.copytree(usd_nocam, out / "data" / "usd_no_camera" / "piper_isaac_no_camera")        # the robot only
-    go2 = base / "usd_go2" / "piper_isaac_go2"
-    has_go2 = (go2 / "piper_isaac_go2.usda").exists()
+    dog = base / "usd_go2_dog" / "piper_isaac_go2_dog"
+    has_go2 = (dog / "piper_isaac_go2_dog.usda").exists()
     if has_go2:
-        shutil.copytree(go2, out / "data" / "usd_go2" / "piper_isaac_go2")
+        shutil.copytree(dog, out / "data" / "usd_go2_dog" / "piper_isaac_go2_dog")
     shutil.copy2(base / "camera_pose.json", out / "data" / "camera_pose.json")
 
     def run(*args):

@@ -43,16 +43,24 @@ def _data_dirs() -> list:
     return [Path(str(resources.files("piper_isaac") / "data")), Path(os.environ.get("PIPER_ISAAC_DATA", Path.home() / "data/ml/isaac/piper_studio"))]
 
 
-def usd_path(camera: bool = True, setup: str | None = None) -> Path:
-    """The Piper USD with the ZED X Mini bracket and camera (camera=True, the default), the robot only, or (setup="go2") the full setup on the Go2 (nominal mount; the dog fixed and standing, its collision
-    the planner's one generated box): $PIPER_ISAAC_USD, else inside the wheel, else the build of `scripts/isaac.sh build-usd [no_camera|go2]`."""
-    rel = ("usd_go2/piper_isaac_go2/piper_isaac_go2.usda" if setup == "go2" else
-           "usd/piper_isaac/piper_isaac.usda" if camera else "usd_no_camera/piper_isaac_no_camera/piper_isaac_no_camera.usda")
+def usd_path(camera: bool = True) -> Path:
+    """The Piper USD with the ZED X Mini bracket and camera (camera=True, the default) or the robot only: $PIPER_ISAAC_USD, else inside the wheel, else the build of
+    `scripts/isaac.sh build-usd [no_camera]`. (The Go2 setup uses the default one too: the arm alone is the robot; see dog_usd_path.)"""
+    rel = "usd/piper_isaac/piper_isaac.usda" if camera else "usd_no_camera/piper_isaac_no_camera/piper_isaac_no_camera.usda"
     cands = [os.environ.get("PIPER_ISAAC_USD")] + [str(d / rel) for d in _data_dirs()]
     for p in cands:
         if p and Path(p).exists():
             return Path(p)
     raise FileNotFoundError("no Piper USD: install the wheel or run `scripts/isaac.sh build-usd [no_camera]` (needs the ROS environment once)")
+
+
+def dog_usd_path() -> Path:
+    """The dog's visual for the Go2 setup (no physics): $PIPER_ISAAC_DOG_USD, else inside the wheel, else the build of `scripts/isaac.sh build-usd go2`."""
+    rel = "usd_go2_dog/piper_isaac_go2_dog/piper_isaac_go2_dog.usda"
+    for p in [os.environ.get("PIPER_ISAAC_DOG_USD")] + [str(d / rel) for d in _data_dirs()]:
+        if p and Path(p).exists():
+            return Path(p)
+    raise FileNotFoundError("no dog USD: install the wheel or run `scripts/isaac.sh build-usd go2` (needs the ROS environment once)")
 
 
 def camera_pose_path() -> Path:
@@ -71,7 +79,8 @@ class PiperIsaacSim:
         """Starts the Isaac server (one process per instance, through gpu-run) and connects. `connect` attaches to an already running server instead
         (tests). `isaac_env` is the script that activates Isaac's environment (default $ISAAC_ENV_SH, else ~/projects/sim/robosim/env.sh).
         `camera=True` (the default): the arm carries the ZED X Mini on its bracket and `camera_image()` renders from its left lens; `camera=False`: the robot only.
-        `setup` (arm | arm_cam | go2) replaces `camera` when given: arm = robot only, arm_cam = with the camera, go2 = the full setup on the Go2 (nominal mount, scene "empty" only: the dog stands on the ground).
+        `setup` (arm | arm_cam | go2) replaces `camera` when given: arm = robot only, arm_cam = with the camera, go2 = the full setup on the Go2 (nominal mount, scene "empty" only). In the go2 setup the arm alone is the
+        robot, at the origin as always; the dog and the plate are STATIC objects around it: the planner's boxes (piper_assets.world("go2")) are the colliders, the Go2's meshes the visual, the ground is where its feet are.
         `render=True` enables recording (`record_start`) and renders only at the video frame rate. `gui=True` opens the full editor and enables recording."""
         if setup is not None:
             if setup not in ("arm", "arm_cam", "go2"):
@@ -96,7 +105,7 @@ class PiperIsaacSim:
         atexit.register(self.close)
         try:
             if connect is None:
-                self._launch(Path(usd) if usd else usd_path(self.camera_enabled, self.setup), isaac_env, self.render_enabled, startup_timeout)
+                self._launch(Path(usd) if usd else usd_path(self.camera_enabled), isaac_env, self.render_enabled, startup_timeout)
             else:
                 self._connect(str(connect), startup_timeout)
             hello = self._rpc(cmd="hello")
@@ -122,6 +131,14 @@ class PiperIsaacSim:
                "--zero", json.dumps(list(piper_assets.zero_pose())), "--gripper-width", str(self.gripper_width), "--ctrl-hz", str(self.ctrl_hz),
                "--physics-hz", str(self.physics_hz)] + (["--render"] if render else []) + (["--gui"] if self.gui else [])
         cmd += ["--camera", "zedxm", "--camera-pose", str(camera_pose_path())] if self.camera_enabled else ["--camera", "none"]
+        if getattr(self, "setup", None) == "go2":
+            mount = piper_assets.mount()
+            boxes = [{"name": n, "size": b["dims"], "pos": b["pose"][:3], "quat": b["pose"][3:], "visible": n != "dog",             # the dog is drawn by its own USD; the plate and any payload box are drawn
+                      "rgba": [0.55, 0.55, 0.55, 1.0] if n == "plate" else [0.9, 0.7, 0.2, 1.0]} for n, b in piper_assets.world("go2").items()]
+            self._world_json_text, self._ground_z = json.dumps(boxes), float(mount["floor_z_in_arm_base"])      # (kept for the tests: what this server was told)
+            (Path(self._dir) / "world.json").write_text(self._world_json_text)
+            cmd += ["--world-json", os.path.join(self._dir, "world.json"), "--dog-usd", str(dog_usd_path()), "--dog-pose", json.dumps(mount["dog_in_arm_base"]),
+                    "--ground-z", str(mount["floor_z_in_arm_base"])]
         self._log = open(os.path.join(self._dir, "server.log"), "w")
         self._pidfile = pid
         self._proc = subprocess.Popen(cmd, cwd=self._dir, stdout=self._log, stderr=subprocess.STDOUT, start_new_session=True)

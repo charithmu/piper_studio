@@ -158,6 +158,53 @@ class World:
             self._enable_report([self.stage.GetPrimAtPath(p) for p, _, _ in self.objects.values()] + ([self.stage.GetPrimAtPath(self.table_path)] if getattr(self, 'table_path', None) else []))
         self.app.update()
 
+    # ------------------------------------------------------------------ static world (the dog and the plate of the Go2 setup)
+    def add_static_boxes(self, boxes):
+        """Static colliders from the planner's world: [{name, size [x, y, z], pos [x, y, z], quat [w, x, y, z], rgba, visible}] in the base frame (= world), the SAME boxes cuRobo plans against
+        (piper_assets.world). They are not part of the arm's articulation (so the arm collides with them, unlike links of its own articulation), friction like the other scene objects, contact reporting on.
+        `visible: false` keeps the collider and hides its drawing (the dog is drawn by its own USD)."""
+        from pxr import Gf, UsdGeom, UsdPhysics, UsdShade, PhysxSchema
+
+        mat = UsdShade.Material.Define(self.stage, "/World/scene_material")
+        UsdPhysics.MaterialAPI.Apply(mat.GetPrim())
+        m = UsdPhysics.MaterialAPI(mat.GetPrim())
+        m.CreateStaticFrictionAttr().Set(OBJECT_FRICTION)
+        m.CreateDynamicFrictionAttr().Set(OBJECT_FRICTION)
+        m.CreateRestitutionAttr().Set(0.0)
+        PhysxSchema.PhysxMaterialAPI.Apply(mat.GetPrim()).CreateFrictionCombineModeAttr().Set("max")
+        self.static_boxes = {}
+        for b in boxes:
+            path = f"/World/world/{b['name']}"
+            g = UsdGeom.Cube.Define(self.stage, path)
+            g.GetSizeAttr().Set(1.0)
+            g.AddTranslateOp().Set(Gf.Vec3d(*b["pos"]))
+            g.AddOrientOp(UsdGeom.XformOp.PrecisionDouble).Set(Gf.Quatd(*b.get("quat", [1.0, 0.0, 0.0, 0.0])))
+            g.AddScaleOp().Set(Gf.Vec3f(*b["size"]))
+            g.GetDisplayColorAttr().Set([Gf.Vec3f(*b.get("rgba", [0.5, 0.5, 0.5, 1.0])[:3])])
+            UsdPhysics.CollisionAPI.Apply(g.GetPrim())
+            UsdShade.MaterialBindingAPI.Apply(g.GetPrim()).Bind(mat, UsdShade.Tokens.weakerThanDescendants, "physics")
+            if not b.get("visible", True):
+                UsdGeom.Imageable(g).CreateVisibilityAttr().Set(UsdGeom.Tokens.invisible)
+            self.static_boxes[b["name"]] = path
+        if self.contacts:
+            self._enable_report([self.stage.GetPrimAtPath(p) for p in self.static_boxes.values()])
+        self.app.update()
+
+    def add_visual_usd(self, usd, T, path="/World/dog"):
+        """A USD asset as scenery only (no physics: its `Physics` variant is `none`), placed by the 4x4 pose T (column-vector convention) in the base frame (= world)."""
+        import isaacsim.core.experimental.utils.stage as stage_utils
+        from pxr import Gf, UsdGeom
+
+        stage_utils.add_reference_to_stage(usd_path=str(usd), path=path)
+        prim = self.stage.GetPrimAtPath(path)
+        variants = prim.GetVariantSets()
+        if variants.HasVariantSet("Physics"):
+            variants.GetVariantSet("Physics").SetVariantSelection("none")
+        x = UsdGeom.Xformable(prim)
+        x.ClearXformOpOrder()
+        x.AddTransformOp().Set(Gf.Matrix4d(np.asarray(T, float).T.tolist()))            # pxr matrices are row-vector (transposed)
+        self.app.update()
+
     # ------------------------------------------------------------------ run
     def start(self, zero, gripper_width):
         """Play, create the articulation, put the arm at `zero` (6 values) with the gripper at `gripper_width`."""

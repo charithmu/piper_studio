@@ -6,7 +6,7 @@
 The model is the one every simulator run uses: piper_sim.mujoco_model() converts the same description with mujoco_ros2_control's converter and
 the same inputs.xml (position servos, gravity compensation, mimic fingers), so PiperSim and the ROS MuJoCo backend share one actuator model.
   model/ and model_no_camera/   converter output (mujoco_description_formatted.xml, assets/*.obj); the scenes sit next to it (meshdir is relative)
-  model_go2/             the full setup on the Go2 (nominal mount): the dog fixed, posed standing (leg joints frozen at config/go2 stand pose), held at the height that puts its feet on the floor; its collision is the ONE
+  model_go2/             the full setup on the Go2 (nominal mount): the dog fixed, posed standing (leg joints frozen at the config/go2 stand pose), placed around the arm (the arm base is the world origin, as in every other model) with the floor at the height of its feet; its collision is the ONE
                          generated box of the planner's world (tools/go2_cover) + the plate (the converter's mesh collisions of the dog are removed), its visual the Go2's meshes (STL, one grey); the arm has the same joints, servos and camera as the other models. Scene: empty only.
   model/scene_empty.xml  floor plane + arm
   model/scene_table.xml        placeholder table (unmeasured) + the shared scene objects as free bodies + arm
@@ -77,15 +77,15 @@ def build_variant(model: Path, camera: str, cfg: Path, base: str):
 
 
 def go2_urdf_for_mujoco(stl_dir: Path) -> str:
-    """The Go2 + Piper URDF for the converter: legs frozen at the stand pose, the dog held at its floor height, the dog's visual meshes as STL
+    """The Go2 + Piper URDF for the converter: legs frozen at the stand pose, re-rooted so the ARM's base is the world origin (as in every other setup) with the plate and the dog fixed around it, the dog's visual meshes as STL
     (the converter cannot take the Go2's .dae: several materials per visual), one grey material, virtual inertials for the arm's massless moving links."""
     import logging
     import xml.etree.ElementTree as ET
 
     import trimesh
-    from piper_description import cover_report, freeze_legs, go2_piper_description
+    from piper_description import cover_report, freeze_legs, go2_piper_description, reroot_at_arm_base
     logging.getLogger("trimesh").setLevel(logging.ERROR)
-    root = ET.fromstring(freeze_legs(go2_piper_description(prefix="", camera="zedxm", hardware="mujoco")))
+    root = ET.fromstring(reroot_at_arm_base(freeze_legs(go2_piper_description(prefix="", camera="zedxm", hardware="mujoco"))))
     used, first = set(cover_report()["links_used"]), True
     stl_dir.mkdir(parents=True, exist_ok=True)
     for link in root.findall("link"):
@@ -114,7 +114,7 @@ def dog_collision_is_the_cover(xml_file: Path):
     generated box of the planner's world (tools/go2_cover) as the dog's collision, in the `world` body the dog is fused into; the dog's visual meshes stay. The plate keeps its own box."""
     import xml.etree.ElementTree as ET
 
-    from piper_description import cover_report, dog_cover
+    from piper_description import dog_cover
     tree = ET.parse(xml_file)
     world = tree.getroot().find("worldbody")
     go2_meshes = {el.get("mesh") for el in world.findall("geom") if (el.get("mesh") or "").startswith("go2_")}
@@ -123,10 +123,10 @@ def dog_collision_is_the_cover(xml_file: Path):
         if geom.get("class") == "collision" and geom.get("mesh") in go2_meshes:
             world.remove(geom)
             removed += 1
-    h = -cover_report()["lowest_point_z_m"]                      # the dog is held this high over the floor (freeze_legs)
-    dog = dog_cover("base")["dog"]
-    x, y, z = dog["pose"][:3]
-    ET.SubElement(world, "geom", {"name": "dog_cover", "type": "box", "class": "collision", "size": " ".join(f"{v / 2:.6f}" for v in dog["dims"]), "pos": f"{x:.6f} {y:.6f} {z + h:.6f}"})
+    dog = dog_cover("arm_base")["dog"]                           # the planner's box, in the arm's base frame = the world frame of this model
+    x, y, z, qw, qx, qy, qz = dog["pose"]
+    ET.SubElement(world, "geom", {"name": "dog_cover", "type": "box", "class": "collision", "size": " ".join(f"{v / 2:.6f}" for v in dog["dims"]),
+                                  "pos": f"{x:.6f} {y:.6f} {z:.6f}", "quat": f"{qw:.6f} {qx:.6f} {qy:.6f} {qz:.6f}"})
     ET.indent(tree)
     tree.write(xml_file)
     return removed
@@ -139,7 +139,10 @@ def build_go2(model: Path, cfg: Path, base: str):
         shutil.copytree(scene.parent / "assets", model / "assets")
         shutil.copy2(scene.parent / "mujoco_description_formatted.xml", model / "mujoco_description_formatted.xml")
     assert dog_collision_is_the_cover(model / "mujoco_description_formatted.xml") >= 10, "the converter no longer makes collision copies of the dog's meshes: revisit"
-    (model / "scene_empty.xml").write_text(base)
+    from piper_description import floor_z_in_arm_base
+    z = floor_z_in_arm_base()           # the floor the dog stands on, seen from the arm (the arm base is the world origin)
+    assert '<geom name="floor" size="0 0 0.05"' in base
+    (model / "scene_empty.xml").write_text(base.replace('<geom name="floor" size="0 0 0.05"', f'<geom name="floor" pos="0 0 {z:.4f}" size="0 0 0.05"'))
 
 
 def add_scenes(model: Path, base: str, spec: dict):

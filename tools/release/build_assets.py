@@ -115,7 +115,7 @@ def main():
 
     setups = ["arm", "arm_cam"]
     if (GO2_PKG / "urdf/go2_description.urdf").exists():          # the full setup on the Go2: same arm names (no prefix), the Go2's links beside them
-        from piper_description import arm_base_pose, go2_piper_description, go2_stand_pose, go2_world, setup_config
+        from piper_description import arm_base_pose, dog_in_arm_base, floor_z_in_arm_base, go2_piper_description, go2_stand_pose, go2_world, setup_config
         g2 = localise_meshes(go2_piper_description(go2_urdf=GO2_PKG / "urdf/go2_description.urdf", prefix="", gripper=True, camera="zedxm"), out)
         for name, text in {"go2_piper_open.urdf": g2, **{f"go2_piper_w{w}.urdf": fixed_gripper(g2, w, "") for w in GRIPPER_WIDTHS}}.items():
             (out / name).write_text(text)
@@ -133,7 +133,7 @@ def main():
         cfg = setup_config()
         (wd / "mount.json").write_text(json.dumps({
             "NOMINAL": "estimates, not measured on the Go2 expansion dock (config/go2/go2_setup.yaml)", **cfg["mount"], "frame": "Go2 `base`",
-            "base_in_go2": arm_base_pose().tolist(), "go2_root_link": "base", "stand_pose": go2_stand_pose(), "stand_source": cfg["stand_source"]}, indent=1))
+            "base_in_go2": arm_base_pose().tolist(), "dog_in_arm_base": dog_in_arm_base().tolist(), "floor_z_in_arm_base": floor_z_in_arm_base(), "go2_root_link": "base", "stand_pose": go2_stand_pose(), "stand_source": cfg["stand_source"]}, indent=1))
         setups.append("go2")
 
     # limits with provenance

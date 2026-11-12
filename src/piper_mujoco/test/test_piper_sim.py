@@ -235,6 +235,14 @@ def test_go2_setup_has_the_same_arm_and_the_dog_is_one_fused_posed_body(go2_sim)
     assert meshes == ["base_link"]                                                  # the only colliding mesh in the fused body is the arm's own base, none of the dog's
     boxes = [g for g in colliding if m.geom_type[g] == mujoco.mjtGeom.mjGEOM_BOX]
     sizes = sorted(tuple(np.round(m.geom_size[g] * 2, 4)) for g in boxes)
+    # the arm base is the world origin (as in every other model); the floor is where the dog's feet are, the dog's box the planner's world box
+    mujoco.mj_forward(m, go2_sim.data)
+    assert go2_sim.data.xpos[m.body("link1").id][2] == pytest.approx(0.123, abs=0.01)
+    floor = next(g for g in range(m.ngeom) if m.geom_type[g] == mujoco.mjtGeom.mjGEOM_PLANE)
+    assert m.geom_pos[floor][2] == pytest.approx(-0.4222, abs=1e-3)
+    import piper_assets
+    dog = piper_assets.world("go2")["dog"]
+    assert m.geom_pos[next(g for g in boxes if abs(m.geom_size[g][0] - 0.35313) < 1e-3)] == pytest.approx(dog["pose"][:3], abs=1e-4)
     assert sizes == [(0.14, 0.09, 0.03), (0.7063, 0.328, 0.4232)]
 
 
@@ -244,9 +252,24 @@ def test_go2_named_poses_are_clear_of_the_dog_and_a_pose_through_the_dog_is_not(
     for a, v in zip(go2_sim._qadr, [0.0, 1.0, -1.0, 0.0, 1.0, 0.0]):             # ready
         go2_sim.data.qpos[a] = v
     assert _arm_vs_dog_contacts(go2_sim) == 0
-    for a, v in zip(go2_sim._qadr, [0.602, 1.208, -0.018, 1.669, 0.45, 0.89]):    # found by a random sweep: the forearm goes into the dog's box
+    for a, v in zip(go2_sim._qadr, [-1.555, 3.05, -0.579, -0.613, 1.073, -0.134]):   # the deepest of a random sweep (178 mm in the sphere model): the arm folded back into the dog
         go2_sim.data.qpos[a] = v
     assert _arm_vs_dog_contacts(go2_sim) > 0
+    go2_sim.reset()
+
+
+def test_go2_the_dogs_box_blocks_the_arm_and_contacts_are_reported(go2_sim):
+    """Same motion as the Isaac test (test_piper_isaac.py): the arm folded back into the dog is stopped by the dog's box, the contacts are with `dog_cover`."""
+    from piper_core import Trajectory
+    go2_sim.reset()
+    goal = np.array([-1.555, 3.05, -0.579, -0.613, 1.073, -0.134])
+    n = int(5.0 / 0.025) + 1
+    t = np.linspace(0, 5.0, n)
+    sm = (10 * (t / 5) ** 3 - 15 * (t / 5) ** 4 + 6 * (t / 5) ** 5)[:, None]
+    res = go2_sim.execute(Trajectory(pa.JOINT_NAMES, t, Z + sm * (goal - Z), np.zeros((n, 6))))
+    q = np.array(go2_sim.state().q)
+    assert np.abs(q - goal).max() > 0.5, "the arm went through the dog"
+    assert any("dog_cover" in (c[1], c[2]) for c in res.contacts)
     go2_sim.reset()
 
 

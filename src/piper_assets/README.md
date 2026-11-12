@@ -34,3 +34,8 @@ pa.mount()                                 # plate pose and size, base_in_go2 (4
 ```
 The arm is planned alone in every setup; the dog is the world. The mount is an estimate until the plate is measured: re-run `tools/release/build_assets.py` after changing `piper_description/go2.py`.
 Go2 meshes are Unitree's (BSD-3, `licenses/unitree_ros-BSD3.txt`).
+
+**Which URDF for what.** `pa.urdf_path(setup="go2")` is the whole robot as one tree (dog root, the arm hanging off the plate): right for TF, kinematics, viewers and visual import. **Do not use it as a physics robot**: the dog's links would be part of the arm's articulation, whose links do not collide with each other
+(a simulator would let the arm pass through the dog; a GPU run in Isaac showed exactly that). For physics use the ARM's URDF (`pa.urdf_path(setup="arm_cam")`) and the dog and plate as static bodies: `pa.world("go2")` (the boxes), `pa.mount()["dog_in_arm_base"]` (where the dog's frame is in the arm's base frame) and `pa.mount()["floor_z_in_arm_base"]` (the floor).
+That is what `piper_mujoco` and `piper_isaac` do.
+
