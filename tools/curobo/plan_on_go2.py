@@ -91,8 +91,11 @@ def main():
         tp = mp.compute_kinematics(JointState.from_position(torch.as_tensor(q, dtype=torch.float32, device="cuda").reshape(1, m), joint_names=names)).tool_poses
         r = mp.plan_pose(tp.as_goal(), start, max_attempts=4)
         if r is None or not bool(r.success.any()):
-            rows.append({"goal": name, "success": False})
-            continue
+            r = mp.plan_pose(tp.as_goal(), start, max_attempts=20)          # a failed goal gets a second, longer try
+            gc, gr = spheres_at(q)
+            if r is None or not bool(r.success.any()):
+                rows.append({"goal": name, "success": False, "goal_config_clearance_mm": round(clearance(gc, gr, world) * 1000, 2), "joints": [round(x, 3) for x in q]})
+                continue
         tr = r.get_interpolated_plan()
         P = tr.position.reshape(-1, m).cpu().numpy()
         worst = np.inf
