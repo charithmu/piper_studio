@@ -22,6 +22,8 @@ BASE_LINK = "base_link"
 TCP_LINK = "tcp_link"
 GRIPPER_LINK = "gripper_base"          # the TCP frame is TCP_OFFSET along +z of this link (+z = approach direction)
 TCP_OFFSET = (0.0, 0.0, 0.138)         # m, in GRIPPER_LINK
+SETUPS = ("arm", "arm_cam", "go2")     # robot only | robot with the ZED X Mini | the full setup on the Go2 (nominal mount); `manifest()["setups"]` says which this build has
+DEFAULT_SETUP = "go2"                  # the default of the viewers and tools. The functions below keep the older `camera=` meaning when `setup` is None (a real arm on a table is not on a dog)
 CAMERAS = (None, "zedxm")             # None = the robot only; "zedxm" = with the ZED X Mini wrist camera on its bracket (the default everywhere)
 
 
@@ -45,28 +47,55 @@ def _camera(camera) -> str:
     raise ValueError(f"camera must be True/'zedxm' (with the camera) or None/False/'none' (robot only), got {camera!r}")
 
 
-def urdf_path(gripper_width: float | None = 0.07, camera: str | bool | None = True) -> Path:
+def _setup(setup, camera):
+    """-> (file stem, camera) for a `setup` (arm | arm_cam | go2), or None when `setup` is None (then `camera` decides, the older way)."""
+    if setup is None:
+        return f"piper_{_camera(camera)}", _camera(camera)
+    if setup not in SETUPS:
+        raise ValueError(f"setup must be one of {SETUPS} or None, got {setup!r}")
+    if setup == "go2" and "go2" not in manifest().get("setups", []):
+        raise FileNotFoundError("this build of piper_assets has no go2 setup (build it with go2_studio's unitree_ros checkout present)")
+    return ("go2_piper", "zedxm") if setup == "go2" else (f"piper_{'zedxm' if setup == 'arm_cam' else 'none'}", "zedxm" if setup == "arm_cam" else "none")
+
+
+def urdf_path(gripper_width: float | None = 0.07, camera: str | bool | None = True, setup: str | None = None) -> Path:
     """Flat URDF (WITH the ZED X Mini wrist camera by default; camera=None: the robot only) with the gripper fixed at `gripper_width` metres (0.0 closed .. 0.07 open); None keeps the moving gripper (mimic fingers).
     0.0 and 0.07 are shipped; other widths are made on first use in the user cache with absolute mesh paths."""
-    cam, d = _camera(camera), data_dir()
+    (stem, cam), d = _setup(setup, camera), data_dir()
+    cam = stem                           # file stem: piper_none | piper_zedxm | go2_piper
     if gripper_width is None:
-        return d / f"piper_{cam}_open.urdf"
-    shipped = d / f"piper_{cam}_w{float(gripper_width)}.urdf"
+        return d / f"{cam}_open.urdf"
+    shipped = d / f"{cam}_w{float(gripper_width)}.urdf"
     if shipped.exists():
         return shipped
     from piper_core.urdf_tools import fixed_gripper
     cache = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "piper_assets" / __version__
-    out = cache / f"piper_{cam}_w{float(gripper_width):.6g}.urdf"
+    out = cache / f"{cam}_w{float(gripper_width):.6g}.urdf"
     if not out.exists():
-        text = (d / f"piper_{cam}_open.urdf").read_text()
+        text = (d / f"{cam}_open.urdf").read_text()
         text = re.sub(r'filename="(meshes/[^"]+)"', lambda m: f'filename="{d / m.group(1)}"', text)
         cache.mkdir(parents=True, exist_ok=True)
         out.write_text(fixed_gripper(text, float(gripper_width), ""))
     return out
 
 
-def srdf_path(camera: str | bool | None = True) -> Path:
-    return data_dir() / f"piper_{_camera(camera)}.srdf"
+def srdf_path(camera: str | bool | None = True, setup: str | None = None) -> Path:
+    return data_dir() / f"{_setup(setup, camera)[0]}.srdf"
+
+
+def world(setup: str | None = DEFAULT_SETUP, frame: str = "arm_base") -> dict:
+    """The dog's obstacles of the `go2` setup as {name: {"dims": [x, y, z], "pose": [x, y, z, qw, qx, qy, qz]}}, in the arm's base_link frame (frame="arm_base", what cuRobo plans in,
+    without the plate the arm stands on) or in the Go2 `base` frame (frame="base", with the plate). Other setups have none: {}. NOMINAL until the dock plate is measured (mount())."""
+    if setup != "go2":
+        _setup(setup, True)
+        return {}
+    return json.loads((data_dir() / "go2" / f"world_{frame}.json").read_text())
+
+
+def mount() -> dict:
+    """The arm's mount on the Go2 (go2 setup): plate pose and size in the Go2 `base` frame, `base_in_go2` (4x4), the stand pose, and the NOMINAL warning."""
+    _setup("go2", True)
+    return json.loads((data_dir() / "go2" / "mount.json").read_text())
 
 
 def urdf_fingerprint(urdf: str | Path, srdf: str | Path | None = None) -> str:
@@ -103,10 +132,26 @@ def curobo_model(camera: str | bool | None = True) -> Path:
     return data_dir() / "curobo" / f"piper_{_camera(camera)}.yml"
 
 
-def curobo_config(camera: str | bool | None = True, gripper_width: float = 0.07) -> dict:
+def curobo_world(setup: str | None = DEFAULT_SETUP) -> dict:
+    """cuRobo world_model dict ({"cuboid": {...}}, planning frame = the arm's base_link) for a setup: the dog's boxes for go2, {} for the others."""
+    w = world(setup)
+    return {"cuboid": w} if w else {}
+
+
+def camera_of(setup: str | None, camera: str | bool | None = True):
+    """The camera argument that goes with a setup: arm -> None (robot only), arm_cam and go2 -> "zedxm". The arm is planned alone in every setup (the dog is the world, `curobo_world`)."""
+    if setup is None:
+        return camera
+    _setup(setup, camera)
+    return None if setup == "arm" else "zedxm"
+
+
+def curobo_config(camera: str | bool | None = True, gripper_width: float = 0.07, setup: str | None = None) -> dict:
     """The model as the dict cuRobo's RobotCfg.create() takes, with `kinematics.urdf_path` set to the shipped URDF of the same camera and `gripper_width` (the file itself carries no path).
+    `setup` (arm | arm_cam | go2) replaces `camera`: the robot is the arm alone in all three (flat URDF, joint1..6, base_link); for go2 add `curobo_world("go2")` as the world.
     A planner may change what it needs (load_dynamics, position_limit_clip, ...) on the returned dict; the model file stays as it is."""
     import yaml
+    camera = camera_of(setup, camera)
     raw = yaml.safe_load(curobo_model(camera).read_text())
     top = raw.get("robot_cfg", raw)
     top["kinematics"]["urdf_path"] = str(urdf_path(gripper_width, camera))

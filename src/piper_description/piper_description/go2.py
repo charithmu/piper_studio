@@ -84,3 +84,26 @@ def go2_piper_curobo(camera: str | bool | None = "zedxm", gripper_width: float =
     world.pop("dock_plate")      # the arm's base sits on it
     return {"robot": pa.curobo_config(camera=camera, gripper_width=gripper_width), "world": {"cuboid": world},
             "base_in_go2": arm_base_pose(mount.get("plate_xyz", PLATE_XYZ), mount.get("plate_size", PLATE_SIZE), mount.get("mount_rpy", MOUNT_RPY)).tolist()}
+
+
+# ---- the three setups -------------------------------------------------------------------------------------------------------------------------------
+# One selector for viewers, tools and assets. `go2` is the default of the viewers, the export tool and the `setup=` argument of piper_assets; the older
+# `camera=` arguments (robot only / with camera, on a table) keep their meaning, because a real arm on a table is not on a dog.
+DEFAULT_SETUP = "go2"
+SETUPS = {
+    "arm": {"title": "Robot only", "camera": "none", "go2": False},
+    "arm_cam": {"title": "Robot with the ZED X Mini", "camera": "zedxm", "go2": False},
+    "go2": {"title": "Full setup on the Go2 (nominal mount)", "camera": "zedxm", "go2": True},
+}
+
+
+def check_setup(setup: str | None) -> str:
+    setup = setup or DEFAULT_SETUP
+    if setup not in SETUPS:
+        raise ValueError(f"setup must be one of {sorted(SETUPS)}, got {setup!r}")
+    return setup
+
+
+def go2_stand_pose() -> dict:
+    """Joint angles of a standing Go2 (hip 0, thigh 0.8, calf -1.5 rad; the usual stand), by the Go2 URDF's joint names. NOMINAL: for pictures and planning checks."""
+    return {f"{leg}_{j}_joint": v for leg in ("FL", "FR", "RL", "RR") for j, v in (("hip", 0.0), ("thigh", 0.8), ("calf", -1.5))}

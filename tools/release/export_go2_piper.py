@@ -17,7 +17,6 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import json
-import re
 import shutil
 import sys
 from pathlib import Path
@@ -47,17 +46,7 @@ def main():
     urdf = go2_piper_description(go2_urdf=Path(a.go2_pkg) / "urdf/go2_description.urdf", plate_xyz=a.plate_xyz, plate_size=a.plate_size,
                                  mount_rpy=a.mount_rpy, camera=a.camera)
 
-    def go2_mesh(m):                      # package://go2_description/dae/x.dae  ->  meshes/go2_description/dae/x.dae
-        rest = m.group(1)
-        dst = out / "meshes/go2_description" / rest
-        dst.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(Path(a.go2_pkg) / rest, dst)
-        return f'filename="meshes/go2_description/{rest}"'
-
-    # build_assets.localise_meshes resolves every filename="..." through ament: hide the Go2's under another attribute name first
-    urdf = urdf.replace('filename="package://go2_description/', 'go2file="')
-    urdf = build_assets.localise_meshes(urdf, out)
-    urdf = re.sub(r'go2file="([^"]+)"', go2_mesh, urdf)
+    urdf = build_assets.localise_meshes(urdf, out)      # also copies the Go2's meshes (build_assets.GO2_PKG; --go2-pkg only changes the URDF it expands)
     (out / "go2_piper.urdf").write_text(urdf)
 
     mount = dict(plate_xyz=floats(a.plate_xyz), plate_size=floats(a.plate_size), mount_rpy=floats(a.mount_rpy))

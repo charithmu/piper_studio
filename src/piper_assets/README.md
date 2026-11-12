@@ -17,3 +17,19 @@ pa.manifest()                                    # version, source commit, file 
 Plan inside `lim.planning`, start and end at `zero_pose()`: a trajectory then passes `piper_core.backend.check_trajectory` and is executed
 unchanged. `urdf_path(width)` for a width other than 0.0 or 0.07 writes a URDF into the user cache (mesh paths made absolute).
 Licences of the third-party meshes: `data/licenses/`.
+
+
+## Three setups (0.11)
+`piper_assets.SETUPS = ("arm", "arm_cam", "go2")`: the robot only, the robot with the ZED X Mini on its bracket, and the full setup on the Go2 (**the default of the viewers and tools**, `DEFAULT_SETUP = "go2"`).
+The older `camera=` arguments keep their meaning when `setup` is not given (a real arm on a table is not on a dog); pass `setup=` to choose.
+```python
+import piper_assets as pa
+pa.manifest()["setups"]                    # which this build has ("go2" needs go2_studio's unitree_ros checkout when the wheel is built)
+pa.urdf_path(setup="go2")                  # the whole robot: the arm with its usual names (joint1..6, base_link, tcp_link) + the Go2's links (base, FL_hip, ...), meshes beside it
+pa.srdf_path(setup="go2")                  # the arm's SRDF + the plate/base pairs that touch by construction
+pa.world("go2")                            # the dog's boxes in the arm's base frame (what cuRobo plans in): trunk, head, radar, floor. frame="base": in the Go2 `base` frame, with the plate
+pa.curobo_config(setup="go2"), pa.curobo_world("go2")   # the arm model (unchanged) + the dog as cuRobo's world_model {"cuboid": {...}}
+pa.mount()                                 # plate pose and size, base_in_go2 (4x4), the Go2 stand pose; NOMINAL (estimates, not measured on the dock)
+```
+The arm is planned alone in every setup; the dog is the world. The mount is an estimate until the plate is measured: re-run `tools/release/build_assets.py` after changing `piper_description/go2.py`.
+Go2 meshes are Unitree's (BSD-3, `licenses/unitree_ros-BSD3.txt`).

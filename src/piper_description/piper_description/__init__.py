@@ -94,4 +94,4 @@ def go2_piper_description(go2_urdf: str | Path = GO2_URDF, **mappings) -> str:
     return xacro.process_file(str(path), mappings=args).toxml()
 
 
-from .go2 import arm_base_pose, go2_dock_world, go2_piper_curobo  # noqa: E402,F401
+from .go2 import DEFAULT_SETUP, SETUPS, arm_base_pose, check_setup, go2_dock_world, go2_piper_curobo, go2_stand_pose  # noqa: E402,F401

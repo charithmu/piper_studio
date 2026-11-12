@@ -3,6 +3,7 @@
 import re
 import xml.etree.ElementTree as ET
 
+import numpy as np
 import pytest
 
 import piper_assets as pa
@@ -65,3 +66,50 @@ def test_srdf_names_match_the_urdf():
     srdf = ET.fromstring(pa.srdf_path().read_text())
     links = {l.get("name") for l in ET.fromstring(pa.urdf_path().read_text()).findall("link")}
     assert srdf.findall("disable_collisions") and all(d.get("link1") in links and d.get("link2") in links for d in srdf.findall("disable_collisions"))
+
+
+# ---- the three setups: arm | arm_cam | go2 ----------------------------------------------------------------------------------------------------------------
+
+needs_go2 = pytest.mark.skipif("go2" not in pa.manifest().get("setups", []), reason="this build has no go2 setup")
+
+
+def test_setups_and_the_older_arguments_keep_their_meaning():
+    assert pa.SETUPS == ("arm", "arm_cam", "go2") and pa.DEFAULT_SETUP == "go2"
+    assert pa.urdf_path().name == "piper_zedxm_w0.07.urdf"                       # setup=None: a real arm on a table, as before
+    assert pa.urdf_path(camera=None).name == "piper_none_w0.07.urdf"
+    assert pa.urdf_path(setup="arm").name == "piper_none_w0.07.urdf" and pa.urdf_path(setup="arm_cam").name == "piper_zedxm_w0.07.urdf"
+    assert pa.world("arm") == {} and pa.curobo_world("arm_cam") == {}
+    with pytest.raises(ValueError):
+        pa.urdf_path(setup="dog")
+
+
+@needs_go2
+def test_go2_urdf_has_the_same_arm_names_the_dog_beside_them_and_every_mesh():
+    root = ET.parse(pa.urdf_path(setup="go2")).getroot()
+    links = {l.get("name") for l in root.iter("link")}
+    joints = {j.get("name") for j in root.iter("joint")}
+    assert {*pa.JOINT_NAMES, "gripper"} <= joints and {pa.BASE_LINK, pa.TCP_LINK, "gripper_base", "zed_left_camera_frame_optical"} <= links
+    assert {"base", "FL_hip", "RR_foot", "radar", "dock_plate", "mount"} <= links
+    children = {j.find("child").get("link"): j.find("parent").get("link") for j in root.iter("joint")}
+    assert set(links) - set(children) == {"base"} and children["mount"] == "dock_plate" and children["base_link"] == "mount"
+    d = pa.data_dir()
+    meshes = [m.get("filename") for m in root.iter("mesh")]
+    assert all((d / f).exists() for f in meshes) and any("go2_description" in f for f in meshes)
+    assert (d / "licenses/unitree_ros-BSD3.txt").exists()
+
+
+@needs_go2
+def test_go2_world_mount_and_cuRobo_pieces_agree():
+    base, arm = pa.world("go2", "base"), pa.world("go2", "arm_base")
+    assert "dock_plate" in base and "dock_plate" not in arm and {"go2_trunk", "go2_head", "go2_radar", "floor"} <= set(arm)
+    m = pa.mount()
+    assert "NOMINAL" in m and m["plate_size"][2] == pytest.approx(0.030) and np.array(m["base_in_go2"]).shape == (4, 4)
+    T = np.array(m["base_in_go2"])
+    for name, b in arm.items():
+        assert (T @ [*b["pose"][:3], 1.0])[:3] == pytest.approx(base[name]["pose"][:3])
+    cfg = pa.curobo_config(setup="go2")                                         # the arm alone: the dog is the world
+    assert cfg["kinematics"]["urdf_path"].endswith("piper_zedxm_w0.07.urdf")
+    assert pa.curobo_world()["cuboid"] == arm
+    assert pa.srdf_path(setup="go2").name == "go2_piper.srdf"
+    srdf = ET.parse(pa.srdf_path(setup="go2")).getroot()
+    assert {("base_link", "dock_plate")} <= {(e.get("link1"), e.get("link2")) for e in srdf.iter("disable_collisions")}

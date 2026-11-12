@@ -1,6 +1,6 @@
 """Piper cuRobo model viewer: the models shipped in piper_assets (spheres, self-collision ignore list, URDF meshes), in the browser.
 Serves index.html and /api/models, /api/model?name=..., /mesh?p=... (.stl/.dae under the piper_assets data directory only; nothing is copied). Binds to loopback; the :8700 gateway route
-(artifacts.yaml, docs/CUROBO.md) exposes it on the tailnet. Models: piper_zedxm (the arm with the ZED X Mini on its bracket) and piper_none (the robot only); extra yml files of
+(artifacts.yaml, docs/CUROBO.md) exposes it on the tailnet. Models: piper_go2 (the arm with the ZED X Mini on the Go2, the dog as world boxes; the default), piper_zedxm (the arm with the ZED X Mini on its bracket) and piper_none (the robot only); extra yml files of
 experiments can be viewed with --extra DIR (they need `urdf_path` or <name>.urdf beside them).
     source scripts/env.sh && python tools/curobo_viewer/server.py 8782 [--extra DIR]        (scripts/curobo_viewer.sh start|stop|status)
 """
@@ -19,7 +19,7 @@ import piper_assets as pa
 
 HERE = Path(__file__).resolve().parent
 EXTRA = None
-CAMERA = {"piper_zedxm": True, "piper_none": None}
+CAMERA = {"piper_go2": True, "piper_zedxm": True, "piper_none": None}      # model name -> camera of the arm model; piper_go2 = the arm with the camera + the dog as the cuRobo world (the default)
 
 
 def _pose(camera, name):
@@ -30,12 +30,16 @@ def _pose(camera, name):
 
 
 def model(name):
+    world = {}
     if name in CAMERA:
         cam = CAMERA[name]
         top, urdf_file = pa.curobo_config(cam), pa.urdf_path(0.07, cam)
         prov = pa.curobo_provenance(cam)
         info = f"built for description {prov['description_commit']}, {'current' if pa.curobo_model_is_current(cam) else 'STALE: regenerate'}"
         poses = {n: _pose(cam, n) for n in ("zero", "ready")}
+        if name == "piper_go2":              # the arm is planned alone; the dog is the world (boxes in the arm's base_link frame)
+            world = pa.world("go2")
+            info += " · the Go2 as world boxes, NOMINAL mount (not measured)"
     else:                                                   # an experiment's yml
         raw = yaml.safe_load((EXTRA / (Path(name).name + ".yml")).read_text())
         top = raw.get("robot_cfg", raw)
@@ -46,7 +50,7 @@ def model(name):
     text = re.sub(r'filename="(?!/)([^"]*)"', lambda m: 'filename="%s"' % (Path(urdf_file).parent / m.group(1)).resolve(), text)   # relative mesh paths -> absolute
     return {"name": name, "urdf": text, "spheres": {link: [{"c": s["center"], "r": s["radius"]} for s in v] for link, v in k["collision_spheres"].items()},
             "ignore": k.get("self_collision_ignore", {}), "buffer": k.get("self_collision_buffer", {}), "sphere_buffer": k.get("collision_sphere_buffer", 0.0),
-            "tool_frames": k["tool_frames"], "default_joint_position": k["cspace"]["default_joint_position"], "poses": poses, "info": info}
+            "world": world, "tool_frames": k["tool_frames"], "default_joint_position": k["cspace"]["default_joint_position"], "poses": poses, "info": info}
 
 
 class H(BaseHTTPRequestHandler):
