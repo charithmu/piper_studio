@@ -139,3 +139,79 @@ def test_robot_only_variant_has_no_camera():
         assert s.start()
     finally:
         s.close()
+
+
+# ---- the full setup on the Go2 (nominal mount) -----------------------------------------------------------------------------------------------------------
+
+def test_go2_setup_arguments():
+    with pytest.raises(ValueError):
+        PiperIsaacSim(setup="dog")
+    with pytest.raises(ValueError):
+        PiperIsaacSim(setup="go2", scene="table")
+
+
+@pytest.fixture(scope="module")
+def go2_sim():
+    from piper_isaac.sim import dog_usd_path
+    try:
+        dog_usd_path()
+    except FileNotFoundError:
+        pytest.skip("no dog USD: scripts/isaac.sh build-usd go2")
+    s = PiperIsaacSim(setup="go2")
+    yield s
+    s.close()
+
+
+def move(sim, goal, dur):
+    """A rest-to-rest move from the zero pose (where every plan starts) to `goal`."""
+    n = int(dur / 0.025) + 1
+    t = np.linspace(0, dur, n)
+    sm = (10 * (t / dur) ** 3 - 15 * (t / dur) ** 4 + 6 * (t / dur) ** 5)[:, None]
+    return sim.execute(Trajectory(pa.JOINT_NAMES, t, Z + sm * (np.asarray(goal) - Z), np.zeros((n, 6))))
+
+
+def test_go2_arm_reaches_ready_without_guard_events_or_contacts_and_the_camera_sees(go2_sim):
+    ready = np.array([0.0, 1.0, -1.0, 0.0, 1.0, 0.0])
+    assert go2_sim.setup == "go2" and go2_sim.camera_enabled and go2_sim.start()
+    t = np.linspace(0, 3, 121)
+    sm = (10 * (t / 3) ** 3 - 15 * (t / 3) ** 4 + 6 * (t / 3) ** 5)[:, None]
+    res = go2_sim.execute(Trajectory(pa.JOINT_NAMES, t, Z + sm * (ready - Z), np.zeros((121, 6))))
+    assert go2_sim.state().q == pytest.approx(ready, abs=2e-3) and not res.guard_events and not res.contacts
+    img = go2_sim.camera_image()
+    assert img.shape == (600, 960, 3)
+
+
+def test_go2_the_dogs_box_blocks_the_arm_and_the_contact_is_reported(go2_sim):
+    """The dog and the plate are static bodies around the arm (not links of its articulation, where self-collision is off): a pose that goes through the dog's box is not reached, the arm stops on the box,
+    and the contact is reported with the planner's name for it (`dog`) and a small penetration. (A pose of a random sweep that penetrates the box by 178 mm in the sphere model: the arm folded back into the dog.)"""
+    go2_sim.reset()
+    goal = np.array([-1.555, 3.05, -0.579, -0.613, 1.073, -0.134])
+    res = move(go2_sim, goal, 5.0)
+    q = np.array(go2_sim.state().q)
+    assert np.abs(q - goal).max() > 0.5, "the arm went through the dog"
+    hits = [c for c in res.contacts if "dog" in (c[1], c[2])]
+    assert hits and max(c[3] for c in hits) < 0.01, "no contact with the dog reported, or a deep penetration"
+    assert np.all(np.isfinite(q)) and np.abs(q - np.array(res.q_cmd[-1])).max() < 4.0      # stopped, not exploded
+    go2_sim.reset()
+
+
+def test_go2_the_world_is_the_planners_world(go2_sim):
+    """What collides in Isaac is what cuRobo plans against: the dog's box and the plate, the same numbers (piper_assets.world), and the ground is where the dog's feet are."""
+    import json
+    sim_boxes = json.loads(go2_sim._world_json_text)
+    world = pa.world("go2")
+    assert {b["name"] for b in sim_boxes} == set(world)
+    for b in sim_boxes:
+        assert b["size"] == world[b["name"]]["dims"] and b["pos"] == world[b["name"]]["pose"][:3]
+    assert go2_sim._ground_z == pytest.approx(pa.mount()["floor_z_in_arm_base"])
+
+
+def test_go2_start_is_as_exact_as_without_the_dog(go2_sim):
+    """The arm's base clears the dog's box (plate 36 mm): the first start is exact, identical to the arm alone (0.00000), not perturbed by an overlap."""
+    from piper_isaac.sim import dog_usd_path
+    dog_usd_path()
+    sim = PiperIsaacSim(setup="go2")                    # a fresh server: the first start of a session
+    try:
+        assert np.abs(np.array(sim.state().q) - Z).max() < 1e-4
+    finally:
+        sim.close()

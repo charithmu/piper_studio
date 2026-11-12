@@ -54,7 +54,7 @@
     <div id="err"></div>
 
     <h2>Description</h2>
-    <div class="row"><label>camera</label><select id="o-camera"><option value="zedxm">ZED X Mini on own bracket</option><option value="none">none</option></select></div>
+    <div class="row"><label>setup</label><select id="o-setup"><option value="go2">Full setup on the Go2 (nominal mount)</option><option value="arm_cam">Robot with the ZED X Mini</option><option value="arm">Robot only</option></select></div>
     <div class="row"><label>calibration</label><select id="o-cal"></select></div>
     <div class="row"><label>compare with</label><select id="o-cmp"><option value="">nothing</option></select></div><div class="dim" id="cmp-note"></div>
     <div class="dim" id="summary"></div>
@@ -146,7 +146,8 @@ function setViewPreset(v) {
     t.copy(at([-0.04, 0, -0.07])); camera.position.copy(at([-0.04, -0.28, -0.07])); controls.update(); return;
   }
   if (!p) return;
-  t.set(0.15, 0, 0.15); camera.position.set(t.x + p[0], t.y + p[1], t.z + p[2]); controls.update();
+  const k = model && model.initial && Object.keys(model.initial).length ? 1.9 : 1;      // the dog: a wider view
+  t.set(0.15, 0, model && model.initial && Object.keys(model.initial).length ? 0.0 : 0.15); camera.position.set(t.x + k * p[0], t.y + k * p[1], t.z + k * p[2]); controls.update();
 }
 document.querySelectorAll('[data-view]').forEach(b => b.onclick = () => setViewPreset(b.dataset.view));
 $('fit').onclick = () => { controls.target.set(0.15, 0, 0.15); controls.update(); };
@@ -161,7 +162,7 @@ function place(obj, s) { obj.position.set(...s.xyz); obj.quaternion.copy(rpyQuat
 async function visualObject(s, linkName) {
   const cmp = linkName.endsWith('__cmp');
   if (s.type !== 'mesh') return primitive(s, new THREE.MeshStandardMaterial({color: cmp ? 0xff8a3d : 0x9aa5b5}));
-  if (!full) {      // light copy made by the server (vertices clustered on a 2.5 mm grid, gzip, cached): a few hundred KB instead of tens of MB
+  if (!full && !s.url.includes('go2_description')) {      // (the Go2's meshes are .dae and have no light copy: always loaded as they are) light copy made by the server (vertices clustered on a 2.5 mm grid, gzip, cached): a few hundred KB instead of tens of MB
     const g = await loadStl(s.url + '&lite=1');
     const dark = /camera|mount/.test(linkName) ;
     return new THREE.Mesh(g, new THREE.MeshStandardMaterial({color: cmp ? 0xff8a3d : dark ? 0x3a3f48 : 0xb9c1cf, metalness: 0.1, roughness: 0.75, flatShading: false}));
@@ -414,7 +415,7 @@ function buildLimits() {
 // ---------------------------------------------------------------- loading a model from the server
 async function load() {
   $('err').textContent = '';
-  const o = {camera: $('o-camera').value, gripper: 'true', calibration: $('o-cal').value, compare: $('o-cmp').value};
+  const o = {setup: $('o-setup').value, gripper: 'true', calibration: $('o-cal').value, compare: $('o-cmp').value};
   const keep = {...q};
   try {
     const r = await fetch('api/model?' + new URLSearchParams(o)); const m = await r.json();
@@ -426,7 +427,7 @@ async function load() {
     fill($('o-cal'), null); fill($('o-cmp'), 'nothing');      // calibration: the versions, the newest selected; compare: none or a version
     for (const id of ['o-cal', 'o-cmp']) $(id).parentElement.style.display = m.calibrations.length ? '' : 'none';
     $('cmp-note').textContent = m.options.compare ? `orange = ${m.options.compare}, drawn on the same gripper; its names end in __cmp` : '';
-    q = Object.keys(keep).length ? keep : {...m.poses.zero};
+    q = {...(m.initial || {}), ...(Object.keys(keep).length ? keep : m.poses.zero)};      // the Go2's legs stand; a kept pose wins
     for (const a of m.arm_joints) if (!(a in q)) q[a] = 0;
     const g = m.prefix + 'gripper'; if (!(g in q)) q[g] = 0.07;
     buildPanel(); buildLinks(); buildLimits(); detail();
@@ -434,7 +435,7 @@ async function load() {
     setViewPreset('iso');
   } catch (e) { $('err').textContent = String(e); }
 }
-['o-camera', 'o-cal', 'o-cmp'].forEach(id => $(id).onchange = load);
+['o-setup', 'o-cal', 'o-cmp'].forEach(id => $(id).onchange = load);
 applyTheme();
 load();
 </script>

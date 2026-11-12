@@ -1,0 +1,83 @@
+<?xml version="1.0"?>
+<!--
+  Go2 carrying the Piper (optional assembly; the standalone arm is piper.urdf.xacro). The Go2 description is an EXTERNAL input
+  (go2_urdf, default: go2_studio's checkout of unitree_ros, commit 725b59b); this package does not ship it. Its mesh URIs are
+  package://go2_description/..., so a consumer needs that package on its path to see meshes (TF and collision boxes do not).
+
+  NOMINAL MOUNT (2026-11-12): the plate and the arm's mount (config/go2/go2_setup.yaml, read below) are the user's estimates, NOT measured on the user's
+  Go2 EDU dock. Replace them with the measured plate pose in the Go2 `base` frame before trusting reach, collision or balance.
+  Chain: base (Go2) -> piper_dock_plate -> piper_mount -> piper_mount_joint -> piper_base_link (the arm).
+-->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="go2_piper">
+  <xacro:arg name="go2_urdf" default="$(env HOME)/projects/ros/go2_studio/third_party/unitree_ros/robots/go2_description/urdf/go2_description.urdf" />
+  <xacro:arg name="prefix" default="piper_" />
+  <xacro:arg name="gripper" default="true" />
+  <!-- the wrist camera exactly as in piper.urdf.xacro (same args, same bracket, same frames); camera:=none for the robot only -->
+  <xacro:arg name="camera" default="zedxm" />
+  <xacro:arg name="camera_calibration" default="" />
+  <xacro:arg name="camera_lens" default="" />
+  <xacro:arg name="camera_width" default="" />
+  <xacro:arg name="camera_height" default="" />
+  <xacro:arg name="camera_hfov_deg" default="" />
+  <xacro:arg name="camera_rate" default="" />
+  <xacro:arg name="hardware" default="mock" />
+  <xacro:arg name="initial_positions_file" default="$(find piper_description)/config/initial_positions.yaml" />
+  <!-- the mount (plate pose in the Go2 `base` frame, plate size, arm orientation) comes from config/go2/go2_setup.yaml, the one place the numbers live; the args override it -->
+  <xacro:arg name="plate_xyz" default="" />
+  <xacro:arg name="plate_size" default="" />
+  <xacro:arg name="mount_rpy" default="" />
+  <xacro:property name="go2_setup" value="${xacro.load_yaml('$(find piper_description)/config/go2/go2_setup.yaml')}" />
+  <xacro:property name="plate_xyz" value="${'$(arg plate_xyz)' or ' '.join(str(v) for v in go2_setup['mount']['plate_xyz'])}" />
+  <xacro:property name="plate_size_s" value="${'$(arg plate_size)' or ' '.join(str(v) for v in go2_setup['mount']['plate_size'])}" />
+  <xacro:property name="mount_rpy" value="${'$(arg mount_rpy)' or ' '.join(str(v) for v in go2_setup['mount']['mount_rpy'])}" />
+
+  <xacro:property name="prefix" value="$(arg prefix)" />
+  <xacro:property name="use_gripper" value="$(arg gripper)" />
+  <xacro:property name="plate_size" value="${plate_size_s}" />
+
+  <xacro:include filename="$(arg go2_urdf)" />
+
+  <link name="${prefix}dock_plate">
+    <visual>
+      <geometry><box size="${plate_size}" /></geometry>
+      <material name="${prefix}dock_plate_grey"><color rgba="0.4 0.4 0.4 1" /></material>
+    </visual>
+    <collision><geometry><box size="${plate_size}" /></geometry></collision>
+  </link>
+  <joint name="${prefix}dock_plate_joint" type="fixed">
+    <parent link="base" />
+    <child link="${prefix}dock_plate" />
+    <origin xyz="${plate_xyz}" rpy="0 0 0" />
+  </joint>
+
+  <!-- the arm's mount frame: the top face of the plate -->
+  <link name="${prefix}mount" />
+  <joint name="${prefix}mount_frame_joint" type="fixed">
+    <parent link="${prefix}dock_plate" />
+    <child link="${prefix}mount" />
+    <origin xyz="0 0 ${float(plate_size.split()[2]) / 2}" rpy="${mount_rpy}" />
+  </joint>
+
+  <xacro:include filename="$(find piper_description)/urdf/piper_arm.xacro" />
+  <xacro:piper_arm parent="${prefix}mount" prefix="${prefix}" gripper="${use_gripper}" />
+
+  <xacro:include filename="$(find piper_description)/urdf/piper.tool.xacro" />
+  <xacro:piper_tool_frames prefix="${prefix}" gripper="${use_gripper}" tcp_xyz="0 0 0.138" tcp_rpy="0 0 0" />
+
+  <xacro:if value="${'$(arg camera)' != 'none'}">
+    <xacro:include filename="$(find piper_description)/urdf/cameras/$(arg camera).xacro" />
+    <xacro:include filename="$(find piper_description)/urdf/mounts/zedxm_bracket.xacro" />
+    <xacro:include filename="$(find piper_description)/urdf/piper_camera.xacro" />
+    <xacro:if value="${'$(arg camera_calibration)' != ''}">
+      <xacro:property name="piper_mount_calibration"
+                      value="${xacro.load_yaml('$(arg camera_calibration)' if '/' in '$(arg camera_calibration)' else '$(find piper_description)/config/camera_mounts/$(arg camera_calibration).yaml')}" />
+    </xacro:if>
+    <xacro:property name="cam_model" value="${xacro.load_yaml('$(find piper_description)/config/camera_models/$(arg camera).yaml')}" />
+    <xacro:property name="cam_lens" value="${'$(arg camera_lens)' or cam_model['lens']}" />
+    <xacro:piper_camera prefix="${prefix}" parent="${prefix}gripper_base" hardware="$(arg hardware)"
+                        width="${'$(arg camera_width)' or cam_model['image']['width']}" height="${'$(arg camera_height)' or cam_model['image']['height']}"
+                        hfov_deg="${'$(arg camera_hfov_deg)' or cam_model['lenses'][cam_lens]['hfov_deg']}"
+                        update_rate="${'$(arg camera_rate)' or cam_model['rate']}"
+                        near="${cam_model['lenses'][cam_lens]['depth_min']}" far="${cam_model['lenses'][cam_lens]['depth_max']}" />
+  </xacro:if>
+</robot>

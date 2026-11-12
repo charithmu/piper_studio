@@ -8,6 +8,8 @@ Writes into the package (git-ignored, built into the wheel by scripts/build_whee
   runner/        isaac/world.py, run_server.py, servo_gains.py (the Isaac-side files the client starts in Isaac's own environment)
   data/usd/            the Piper USD with the ZED X Mini bracket and camera (the default; piper_isaac/piper_isaac.usda with its payloads and textures), prefix piper_
   data/usd_no_camera/  the robot only (piper_isaac_no_camera/piper_isaac_no_camera.usda)
+  data/usd_go2_dog/    the DOG's visual for the Go2 setup (legs frozen at the stand pose, no physics; piper_isaac_go2_dog/piper_isaac_go2_dog.usda), only if `scripts/isaac.sh build-usd go2` was run.
+                       The Go2 setup is the default arm USD + this + the planner's boxes as static colliders (piper_assets.world("go2")): the arm alone is the robot
   data/camera_pose.json  the wrist camera in link6 (USD convention), size, field of view, near/far, K
   data/manifest.json  source commit, USD build time, hashes of every file
 """
@@ -47,6 +49,10 @@ def main():
         shutil.copy2(WS / "isaac" / f, out / "runner" / f)
     shutil.copytree(usd, out / "data" / "usd" / "piper_isaac")                                    # with the ZED X Mini bracket and camera (the default)
     shutil.copytree(usd_nocam, out / "data" / "usd_no_camera" / "piper_isaac_no_camera")        # the robot only
+    dog = base / "usd_go2_dog" / "piper_isaac_go2_dog"
+    has_go2 = (dog / "piper_isaac_go2_dog.usda").exists()
+    if has_go2:
+        shutil.copytree(dog, out / "data" / "usd_go2_dog" / "piper_isaac_go2_dog")
     shutil.copy2(base / "camera_pose.json", out / "data" / "camera_pose.json")
 
     def run(*args):
@@ -54,7 +60,7 @@ def main():
     files = {str(p.relative_to(out)): hashlib.sha256(p.read_bytes()).hexdigest() for d in ("runner", "data") for p in sorted((out / d).rglob("*")) if p.is_file()}
     built = (a.usd_dir.expanduser() / "usd" / "piper_isaac" / "piper_isaac.usda").stat().st_mtime
     (out / "data" / "manifest.json").write_text(json.dumps({"source": {"commit": run("rev-parse", "HEAD"), "describe": run("describe", "--tags", "--always", "--dirty")},
-                                                  "usd": {"prefix": "piper_", "default": "camera (zedxm)", "variants": ["camera", "no_camera"], "built_epoch": built, "from": str(usd)}, "files": files}, indent=1))
+                                                  "usd": {"prefix": "piper_", "default": "camera (zedxm)", "variants": ["camera", "no_camera"] + (["go2"] if has_go2 else []), "built_epoch": built, "from": str(usd)}, "files": files}, indent=1))
     size = sum(p.stat().st_size for p in out.rglob("*") if p.is_file() and "__pycache__" not in p.parts) / 1e6
     print(f"{out}: {len(files)} files, {size:.1f} MB")
 

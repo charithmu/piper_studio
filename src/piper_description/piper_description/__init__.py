@@ -80,3 +80,18 @@ def fixed_gripper(urdf: str, width: float, prefix: str = DEFAULT_PREFIX) -> str:
     (planners use it without this package). Imported on use, because piper_core's tests depend on this package (no dependency cycle)."""
     from piper_core.urdf_tools import fixed_gripper as impl
     return impl(urdf, width, prefix)
+
+
+GO2_URDF = Path.home() / "projects/ros/go2_studio/third_party/unitree_ros/robots/go2_description/urdf/go2_description.urdf"
+
+
+def go2_piper_description(go2_urdf: str | Path = GO2_URDF, **mappings) -> str:
+    """The Go2 carrying the Piper (urdf/go2_piper.urdf.xacro). NOMINAL mount until the dock plate is measured: `plate_xyz`, `plate_size`,
+    `mount_rpy` are xacro arguments in the Go2 `base` frame. The Go2 URDF is an external input (default: go2_studio's unitree_ros checkout)."""
+    import xacro
+    args = {"go2_urdf": str(go2_urdf), **{k: str(v).lower() if isinstance(v, bool) else str(v) for k, v in mappings.items()}}
+    path = xacro_file().with_name("go2_piper.urdf.xacro")
+    return xacro.process_file(str(path), mappings=args).toxml()
+
+
+from .go2 import DEFAULT_SETUP, SETUPS, arm_base_pose, check_setup, cover_report, dog_cover, go2_piper_curobo, go2_stand_pose, dog_in_arm_base, floor_z_in_arm_base, freeze_legs, go2_dog_urdf, go2_world, mount_boxes, reroot_at_arm_base, setup_config  # noqa: E402,F401

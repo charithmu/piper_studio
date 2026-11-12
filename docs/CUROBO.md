@@ -24,6 +24,17 @@ pa.curobo_planner_defaults()                  # algorithm, interpolation step, c
 Change what you need on the returned dict (`load_dynamics`, `position_limit_clip`, payload spheres, ...); never edit the shipped file. **Use the model of the arm that is physically there**
 (the camera is on the real arm since 2026-11-11, so `camera="zedxm"` is the arm that is there; run on it: CHECKLIST R3.10). The model with the camera covers the bracket only about 70 % (numbers below).
 
+## The arm on the Go2 (setup `go2`, nominal mount)
+The arm model is unchanged; only its surroundings change. `pa.curobo_config(setup="go2")` is the same arm (with the camera) and `pa.curobo_world("go2")` the world: **one box** around the whole dog at its stand pose (0.71 x 0.33 x 0.42 m) plus a small box for the mount plate (the numbers the URDF places it with) and any `payload_boxes` listed in `config/go2/go2_setup.yaml` (the ZED Box Mini, a battery, ...; none given yet), all in the arm's base frame, which is the frame cuRobo plans in.
+The world is otherwise empty (no floor). Today the plate lies inside the dog's box (its top is 1 mm under the box top), so it changes nothing yet; it matters once the plate is measured or sticks out. The box is **generated**, not written: `tools/go2_cover/build_dog_cover.py` puts the Go2's meshes and collision shapes at the stand pose of `config/go2/go2_setup.yaml`
+(go2_studio's `STAND`) and takes their bounding box; `dog_cover_report.json` records the Go2 description hashes and that every point is inside, and a test regenerates it and compares. From the arm it looks like standing on a block.
+A box fitted to the legs and body was tried and dropped (2026-11-12): boxes cannot hug round legs, the gap stayed 17-47 mm with 80 boxes per link. Needs the Go2 only standing: the legs are not modelled as moving.
+**The mount plate is 45 mm thick and the arm base 4 cm behind the body centre (user, measured by touch, 2026-11-12; the earlier 36 mm default is superseded; the numbers below are for 36 mm):** the box's top is the dog's highest point (the shoulder hump, z = 0.0893 in the Go2 `base` frame), the arm's base spheres start 3 mm above the plate top and the model's sphere buffer is 2 mm,
+so the arm's base must stand more than 2 mm above that top; 36 mm leaves 3.0 mm. An earlier 30 mm estimate overlapped by 1 mm: cuRobo could not plan (the start was inside the buffer) and Isaac's first start was 1.5 mrad off. CPU checks (no cuRobo, `test_go2_cover.py`): the arm is clear of the world at `zero` and `ready`
+and its base clears the buffer; 33 of 150 random poses inside the limits would hit the dog or the plate. The viewer (`/piper-studio/curobo/`) shows it as the model `piper_go2` (default).
+**One cuRobo planning in this world (GPU, `tools/curobo/plan_on_go2.py`, evidence `config/go2/planning_check.json`):** 31 of 31 goals planned (`ready` + 30 random joint poses no closer to the dog than the arm's own base), goal error at most 1.8 mm, no limit violated, every trajectory clear of the world with the buffer (minimum 3.0 mm, the base),
+mean solve 59 ms after the first call. The 100-pose validation of the arm model itself (`validation_zedxm.json`) was made on a table and is unchanged.
+
 ## Regenerating (only when the description or `policy.yaml` changes; optional environment)
 Normal users never need this: running, controlling and simulating the arm, the wheels and reading the model need no cuRobo.
 ```bash

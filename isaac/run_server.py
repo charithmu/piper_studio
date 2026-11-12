@@ -44,6 +44,10 @@ ap.add_argument("--socket", required=True, help="unix socket path (put it under 
 ap.add_argument("--prefix", default="piper_", help="prefix of every joint and link name in the USD (the description's prefix)")
 ap.add_argument("--scene", choices=["empty", "table"], default="empty")
 ap.add_argument("--scene-json", type=Path, help="JSON {objects: [...], table: {...}} as piper_assets.scene() returns it")
+ap.add_argument("--world-json", type=Path, help="JSON list of static boxes [{name, size, pos, quat, rgba, visible}] in the base frame: the planner's world (the Go2 setup's dog and plate)")
+ap.add_argument("--dog-usd", type=Path, help="USD of the dog's visual (no physics), placed by --dog-pose")
+ap.add_argument("--dog-pose", help="JSON 4x4 pose of the dog's frame in the base frame (column-vector convention)")
+ap.add_argument("--ground-z", type=float, help="height of the ground plane in the base frame (default 0, or -0.5 in the table scene)")
 ap.add_argument("--zero", default="[0, 0.01, -0.01, 0, 0, 0]", help="JSON list: the zero pose (piper_assets.zero_pose())")
 ap.add_argument("--camera", default="zedxm", help="zedxm (default): the ZED X Mini wrist camera (the USD with the bracket and camera, plus --camera-pose) | none: the robot only")
 ap.add_argument("--camera-pose", type=Path, help="camera_pose.json of `scripts/isaac.sh build-usd` / the wheel (the optical frame in link6, size, field of view); needed unless --camera none")
@@ -70,8 +74,12 @@ from world import World  # noqa: E402
 zero = json.loads(args.zero)
 spec = json.loads(args.scene_json.read_text()) if args.scene_json else {"objects": [], "table": None}
 table_scene = args.scene == "table"
-world = World(app, args.usd, prefix=args.prefix, ctrl_hz=args.ctrl_hz, physics_hz=args.physics_hz, ground_z=-0.5 if table_scene else 0.0, contacts=True,
-             camera=args.camera != "none")
+world = World(app, args.usd, prefix=args.prefix, ctrl_hz=args.ctrl_hz, physics_hz=args.physics_hz,
+              ground_z=args.ground_z if args.ground_z is not None else (-0.5 if table_scene else 0.0), contacts=True, camera=args.camera != "none")
+if args.world_json:
+    world.add_static_boxes(json.loads(args.world_json.read_text()))
+if args.dog_usd:
+    world.add_visual_usd(args.dog_usd, json.loads(args.dog_pose))
 world.add_scene(spec.get("objects", []) if table_scene else [], spec.get("table") if table_scene else None, dynamic=True)   # MuJoCo's empty scene has no objects
 world.start(zero, args.gripper_width)
 world.gui = args.gui

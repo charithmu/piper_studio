@@ -1,0 +1,394 @@
+{
+ "world": {
+  "dog": {
+   "dims": [
+    0.70626,
+    0.328,
+    0.4232
+   ],
+   "pose": [
+    0.02687,
+    0.0,
+    -0.22515999999999997,
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ]
+  },
+  "plate": {
+   "dims": [
+    0.14,
+    0.09,
+    0.045
+   ],
+   "pose": [
+    0.0,
+    0.0,
+    -0.022499999999999992,
+    1.0,
+    0.0,
+    0.0,
+    0.0
+   ]
+  }
+ },
+ "raise_mm": 0.0,
+ "sphere_buffer_m": 0.002,
+ "mount_nominal": "estimates, not measured on the Go2 expansion dock (config/go2/go2_setup.yaml)",
+ "start_clearance_mm": 3.0,
+ "start_clearance_ok_with_buffer": true,
+ "plans": [
+  {
+   "goal": "ready",
+   "success": true,
+   "solve_ms": 1476.7,
+   "duration_s": 1.72,
+   "waypoints": 70,
+   "goal_err_mm": 0.0,
+   "min_clearance_mm": 3.0,
+   "clear_of_world_with_buffer": true,
+   "pos_viol_rad": 0.0
+  },
+  {
+   "goal": "random1",
+   "success": true,
+   "solve_ms": 15.4,
+   "duration_s": 2.82,
+   "waypoints": 114,
+   "goal_err_mm": 0.05,
+   "min_clearance_mm": 3.0,
+   "clear_of_world_with_buffer": true,
+   "pos_viol_rad": 0.0
+  },
+  {
+   "goal": "random2",
+   "success": true,
+   "solve_ms": 16.2,
+   "duration_s": 2.68,
+   "waypoints": 109,
+   "goal_err_mm": 0.0,
+   "min_clearance_mm": 3.0,
+   "clear_of_world_with_buffer": true,
+   "pos_viol_rad": 0.0
+  },
+  {
+   "goal": "random3",
+   "success": true,
+   "solve_ms": 14.8,
+   "duration_s": 2.21,
+   "waypoints": 90,
+   "goal_err_mm": 0.0,
+   "min_clearance_mm": 3.0,
+   "clear_of_world_with_buffer": true,
+   "pos_viol_rad": 0.0
+  },
+  {
+   "goal": "random4",
+   "success": true,
+   "solve_ms": 14.2,
+   "duration_s": 2.98,
+   "waypoints": 121,
+   "goal_err_mm": 0.0,
+   "min_clearance_mm": 3.0,
+   "clear_of_world_with_buffer": true,
+   "pos_viol_rad": 0.0
+  },
+  {
+   "goal": "random5",
+   "success": true,
+   "solve_ms": 15.1,
+   "duration_s": 2.72,
+   "waypoints": 110,
+   "goal_err_mm": 0.0,
+   "min_clearance_mm": 3.0,
+   "clear_of_world_with_buffer": true,
+   "pos_viol_rad": 0.0
+  },
+  {
+   "goal": "random6",
+   "success": true,
+   "solve_ms": 15.3,
+   "duration_s": 2.15,
+   "waypoints": 87,
+   "goal_err_mm": 0.0,
+   "min_clearance_mm": 3.0,
+   "clear_of_world_with_buffer": true,
+   "pos_viol_rad": 0.0
+  },
+  {
+   "goal": "random7",
+   "success": true,
+   "solve_ms": 14.8,
+   "duration_s": 2.25,
+   "waypoints": 91,
+   "goal_err_mm": 1.82,
+   "min_clearance_mm": 3.0,
+   "clear_of_world_with_buffer": true,
+   "pos_viol_rad": 0.0
+  },
+  {
+   "goal": "random8",
+   "success": true,
+   "solve_ms": 15.0,
+   "duration_s": 2.6,
+   "waypoints": 106,
+   "goal_err_mm": 0.0,
+   "min_clearance_mm": 3.0,
+   "clear_of_world_with_buffer": true,
+   "pos_viol_rad": 0.0
+  },
+  {
+   "goal": "random9",
+   "success": true,
+   "solve_ms": 14.8,
+   "duration_s": 2.91,
+   "waypoints": 118,
+   "goal_err_mm": 0.09,
+   "min_clearance_mm": 3.0,
+   "clear_of_world_with_buffer": true,
+   "pos_viol_rad": 0.0
+  },
+  {
+   "goal": "random10",
+   "success": true,
+   "solve_ms": 15.8,
+   "duration_s": 2.15,
+   "waypoints": 87,
+   "goal_err_mm": 0.0,
+   "min_clearance_mm": 3.0,
+   "clear_of_world_with_buffer": true,
+   "pos_viol_rad": 0.0
+  },
+  {
+   "goal": "random11",
+   "success": true,
+   "solve_ms": 15.1,
+   "duration_s": 2.78,
+   "waypoints": 113,
+   "goal_err_mm": 0.0,
+   "min_clearance_mm": 3.0,
+   "clear_of_world_with_buffer": true,
+   "pos_viol_rad": 0.0
+  },
+  {
+   "goal": "random12",
+   "success": true,
+   "solve_ms": 13.5,
+   "duration_s": 2.93,
+   "waypoints": 119,
+   "goal_err_mm": 0.06,
+   "min_clearance_mm": 3.0,
+   "clear_of_world_with_buffer": true,
+   "pos_viol_rad": 0.0
+  },
+  {
+   "goal": "random13",
+   "success": true,
+   "solve_ms": 14.1,
+   "duration_s": 2.82,
+   "waypoints": 114,
+   "goal_err_mm": 0.0,
+   "min_clearance_mm": 3.0,
+   "clear_of_world_with_buffer": true,
+   "pos_viol_rad": 0.0
+  },
+  {
+   "goal": "random14",
+   "success": true,
+   "solve_ms": 13.1,
+   "duration_s": 2.24,
+   "waypoints": 91,
+   "goal_err_mm": 0.0,
+   "min_clearance_mm": 3.0,
+   "clear_of_world_with_buffer": true,
+   "pos_viol_rad": 0.0
+  },
+  {
+   "goal": "random15",
+   "success": true,
+   "solve_ms": 13.7,
+   "duration_s": 2.49,
+   "waypoints": 101,
+   "goal_err_mm": 0.0,
+   "min_clearance_mm": 3.0,
+   "clear_of_world_with_buffer": true,
+   "pos_viol_rad": 0.0
+  },
+  {
+   "goal": "random16",
+   "success": true,
+   "solve_ms": 13.2,
+   "duration_s": 2.33,
+   "waypoints": 95,
+   "goal_err_mm": 0.0,
+   "min_clearance_mm": 3.0,
+   "clear_of_world_with_buffer": true,
+   "pos_viol_rad": 0.0
+  },
+  {
+   "goal": "random17",
+   "success": true,
+   "solve_ms": 14.2,
+   "duration_s": 2.12,
+   "waypoints": 86,
+   "goal_err_mm": 0.07,
+   "min_clearance_mm": 3.0,
+   "clear_of_world_with_buffer": true,
+   "pos_viol_rad": 0.0
+  },
+  {
+   "goal": "random18",
+   "success": true,
+   "solve_ms": 14.3,
+   "duration_s": 2.61,
+   "waypoints": 106,
+   "goal_err_mm": 0.0,
+   "min_clearance_mm": 3.0,
+   "clear_of_world_with_buffer": true,
+   "pos_viol_rad": 0.0
+  },
+  {
+   "goal": "random19",
+   "success": true,
+   "solve_ms": 13.5,
+   "duration_s": 2.94,
+   "waypoints": 119,
+   "goal_err_mm": 0.0,
+   "min_clearance_mm": 3.0,
+   "clear_of_world_with_buffer": true,
+   "pos_viol_rad": 0.0
+  },
+  {
+   "goal": "random20",
+   "success": true,
+   "solve_ms": 14.0,
+   "duration_s": 2.2,
+   "waypoints": 90,
+   "goal_err_mm": 0.0,
+   "min_clearance_mm": 3.0,
+   "clear_of_world_with_buffer": true,
+   "pos_viol_rad": 0.0
+  },
+  {
+   "goal": "random21",
+   "success": true,
+   "solve_ms": 14.5,
+   "duration_s": 2.59,
+   "waypoints": 105,
+   "goal_err_mm": 0.0,
+   "min_clearance_mm": 3.0,
+   "clear_of_world_with_buffer": true,
+   "pos_viol_rad": 0.0
+  },
+  {
+   "goal": "random22",
+   "success": false,
+   "goal_config_clearance_mm": 3.0,
+   "joints": [
+    -2.347,
+    1.465,
+    -0.188,
+    -0.708,
+    1.094,
+    1.071
+   ]
+  },
+  {
+   "goal": "random23",
+   "success": true,
+   "solve_ms": 13.7,
+   "duration_s": 1.9,
+   "waypoints": 77,
+   "goal_err_mm": 0.0,
+   "min_clearance_mm": 3.0,
+   "clear_of_world_with_buffer": true,
+   "pos_viol_rad": 0.0
+  },
+  {
+   "goal": "random24",
+   "success": true,
+   "solve_ms": 13.8,
+   "duration_s": 2.87,
+   "waypoints": 116,
+   "goal_err_mm": 0.01,
+   "min_clearance_mm": 3.0,
+   "clear_of_world_with_buffer": true,
+   "pos_viol_rad": 0.0
+  },
+  {
+   "goal": "random25",
+   "success": true,
+   "solve_ms": 15.2,
+   "duration_s": 2.7,
+   "waypoints": 109,
+   "goal_err_mm": 0.0,
+   "min_clearance_mm": 3.0,
+   "clear_of_world_with_buffer": true,
+   "pos_viol_rad": 0.0
+  },
+  {
+   "goal": "random26",
+   "success": true,
+   "solve_ms": 13.6,
+   "duration_s": 2.36,
+   "waypoints": 96,
+   "goal_err_mm": 0.0,
+   "min_clearance_mm": 3.0,
+   "clear_of_world_with_buffer": true,
+   "pos_viol_rad": 0.0
+  },
+  {
+   "goal": "random27",
+   "success": true,
+   "solve_ms": 13.8,
+   "duration_s": 2.81,
+   "waypoints": 114,
+   "goal_err_mm": 0.0,
+   "min_clearance_mm": 3.0,
+   "clear_of_world_with_buffer": true,
+   "pos_viol_rad": 0.0
+  },
+  {
+   "goal": "random28",
+   "success": true,
+   "solve_ms": 14.2,
+   "duration_s": 1.9,
+   "waypoints": 77,
+   "goal_err_mm": 0.38,
+   "min_clearance_mm": 3.0,
+   "clear_of_world_with_buffer": true,
+   "pos_viol_rad": 0.0
+  },
+  {
+   "goal": "random29",
+   "success": true,
+   "solve_ms": 14.7,
+   "duration_s": 2.37,
+   "waypoints": 96,
+   "goal_err_mm": 0.1,
+   "min_clearance_mm": 3.0,
+   "clear_of_world_with_buffer": true,
+   "pos_viol_rad": 0.0
+  },
+  {
+   "goal": "random30",
+   "success": true,
+   "solve_ms": 14.3,
+   "duration_s": 2.9,
+   "waypoints": 118,
+   "goal_err_mm": 0.05,
+   "min_clearance_mm": 3.0,
+   "clear_of_world_with_buffer": true,
+   "pos_viol_rad": 0.0
+  }
+ ],
+ "summary": {
+  "goals": 31,
+  "success": 30,
+  "clear_of_world": 30,
+  "mean_solve_ms": 63.2,
+  "max_goal_err_mm": 1.82,
+  "max_pos_violation_rad": 0.0
+ }
+}

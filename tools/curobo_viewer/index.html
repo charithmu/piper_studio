@@ -28,6 +28,7 @@ button{cursor:pointer;margin:2px 2px 2px 0}button:hover{border-color:var(--ac)}
 <label><input type="checkbox" id="tsph" checked> cuRobo spheres</label>
 <div class="row"><span>sphere α</span><input type="range" id="sop" min="0.05" max="1" step="0.05" value="0.35"><span id="sopv">0.35</span></div>
 <label><input type="checkbox" id="tfr" checked> frames (tcp, camera, links)</label>
+<label title="what cuRobo avoids besides the arm: one box around the whole dog (generated, orange) and the plate / payload boxes (blue), in the arm base frame, nominal mount"><input type="checkbox" id="tworld" checked> world boxes (the dog)</label>
 <label><input type="checkbox" id="tpair" checked> highlight overlapping sphere pairs</label>
 <label><input type="checkbox" id="tbuf"> inflate by collision_sphere_buffer</label>
 <h3>Links (spheres / mesh)</h3><div id="links"></div>
@@ -99,9 +100,13 @@ async function load(name){
     const lb=document.createElement('label');lb.innerHTML=`<input type="checkbox" checked><span class="sw" style="background:${'#'+col.getHexString()}"></span>${n} <span style="color:var(--mut)">${(M.spheres[n]||[]).length} sph</span>`;
     lb.querySelector('input').onchange=e=>{sphereObjs.filter(s=>s.userData.link===n).forEach(s=>s.userData.hide=!e.target.checked);meshObjs.filter(s=>s.userData.link===n).forEach(s=>s.userData.hide=!e.target.checked);vis();};$('links').appendChild(lb);});
   $('src').textContent=`${sphereObjs.length} spheres · tool: ${M.tool_frames.join(',')}${M.info?' · '+M.info:''}`;
-  setPose('zero');vis();
+  drawWorld();setPose('zero');vis();
 }
 let visLoaded=false,visObjs=[];
+let worldObjs=[];
+function drawWorld(){worldObjs.forEach(o=>rootObj.remove(o));worldObjs=[];
+  for(const [n,b] of Object.entries(M.world||{})){const g=new THREE.BoxGeometry(...b.dims);const m=new THREE.Mesh(g,new THREE.MeshBasicMaterial({color:n==='dog'?0xe0a030:0x4cc9f0,transparent:true,opacity:0.18,depthWrite:false}));
+    m.add(new THREE.LineSegments(new THREE.EdgesGeometry(g),new THREE.LineBasicMaterial({color:n==='dog'?0xe0a030:0x4cc9f0})));m.position.set(b.pose[0],b.pose[1],b.pose[2]);m.quaternion.set(b.pose[4],b.pose[5],b.pose[6],b.pose[3]);m.userData.world=n;m.visible=$('tworld').checked;rootObj.add(m);worldObjs.push(m);}}
 function loadVisuals(){visLoaded=true;const cl=new ColladaLoader();
   for(const n of Object.keys(links))for(const v of links[n].visuals||[]){cl.load('mesh?p='+encodeURIComponent(v.file),c=>{
     const yUp=Math.abs(c.scene.quaternion.w-1)<1e-6;                       // loader leaves Y_UP assets alone, rotates Z_UP ones to Y-up
@@ -131,10 +136,10 @@ function overlaps(){
 function size(){const v=$('view');R.setSize(v.clientWidth,v.clientHeight,false);cam.aspect=v.clientWidth/v.clientHeight;cam.updateProjectionMatrix();}
 addEventListener('resize',size);size();
 (function loop(){requestAnimationFrame(loop);ctl.update();R.render(scene,cam);})();
-for(const id of['tmesh','tsph','tfr','tbuf','tvis'])$(id).onchange=vis;$('tpair').onchange=overlaps;
+for(const id of['tmesh','tsph','tfr','tbuf','tvis'])$(id).onchange=vis;$('tworld').onchange=()=>worldObjs.forEach(o=>o.visible=$('tworld').checked);$('tpair').onchange=overlaps;
 $('mop').oninput=e=>{$('mopv').textContent=e.target.value;meshObjs.forEach(m=>m.material.opacity=+e.target.value);};
 $('sop').oninput=e=>{$('sopv').textContent=e.target.value;sphereObjs.forEach(m=>m.material.opacity=+e.target.value);};
 document.querySelectorAll('button[data-p]').forEach(b=>b.onclick=()=>setPose(b.dataset.p));
 const names=await (await fetch('api/models')).json();names.forEach(n=>{const o=document.createElement('option');o.value=o.textContent=n;$('model').appendChild(o);});
-$('model').onchange=async()=>{await load($('model').value);setPose('zero');};const def=names.includes('piper_zedxm')?'piper_zedxm':names[0];$('model').value=def;await load(def);setPose('zero');
+$('model').onchange=async()=>{await load($('model').value);setPose('zero');};const def=names.includes('piper_go2')?'piper_go2':(names.includes('piper_zedxm')?'piper_zedxm':names[0]);$('model').value=def;await load(def);setPose('zero');
 </script></body></html>

@@ -33,6 +33,8 @@ def main():
     p.add_argument("--camera-width", type=int, default=0, help="simulated image width, px (default: the camera model's)")
     p.add_argument("--camera-height", type=int, default=0, help="simulated image height, px (default: the camera model's)")
     p.add_argument("--prefix", default="piper_", help="prefix of every link, joint and frame name")
+    p.add_argument("--go2-dog", action="store_true", help="write the DOG alone instead (the Go2 with its legs frozen at the stand pose of config/go2, root `base`, no collision shapes) for a simulator's visual; "
+                   "place it with piper_description.dog_in_arm_base(). The arm is never part of it: in a physics simulator the arm is the robot and the dog and plate are static world objects")
     p.add_argument("--camera-pose-out", type=Path,
                    help="with --camera: write the colour camera pose in link6 as JSON, for a simulator that creates the camera itself "
                         "(USD convention: the camera looks along -Z with +Y up, i.e. the optical frame turned 180 deg about x)")
@@ -41,6 +43,12 @@ def main():
     if a.camera != "none":
         cam.update({k: v for k, v in (("camera_calibration", a.camera_calibration), ("camera_lens", a.camera_lens),
                                       ("camera_width", a.camera_width or ""), ("camera_height", a.camera_height or "")) if v})
+    if a.go2_dog:
+        from piper_description import go2_dog_urdf
+        a.out.parent.mkdir(parents=True, exist_ok=True)
+        a.out.write_text(go2_dog_urdf())
+        print(a.out)
+        return
     urdf = robot_description(a.hardware, gripper=not a.no_gripper, prefix=a.prefix, **cam)
     if a.gripper_width is not None:
         urdf = fixed_gripper(urdf, a.gripper_width, a.prefix)

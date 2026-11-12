@@ -26,7 +26,8 @@ from urllib.parse import parse_qs, urlparse
 
 WS = Path(os.environ.get("PIPER_STUDIO_WS", Path(__file__).resolve().parents[2])).resolve()
 STATIC = Path(__file__).resolve().parent / "static"
-MESH_ROOTS = [WS.resolve()]
+GO2_PKG = Path.home() / "projects/ros/go2_studio/third_party/unitree_ros/robots/go2_description"   # the Go2's meshes (package://go2_description/...)
+MESH_ROOTS = [WS.resolve(), GO2_PKG.resolve()]
 MESH_SUFFIX = {".stl", ".dae"}
 CACHE = Path(__file__).resolve().parent / "run" / "cache"      # light copies of the big meshes (git-ignored)
 LITE_CELL = 0.0025                                                # m: vertex-clustering grid of the light meshes
@@ -39,7 +40,9 @@ def floats(text, default="0 0 0"):
 
 def mesh_url(filename: str) -> str:
     path = filename.removeprefix("file://")
-    if path.startswith("package://"):
+    if path.startswith("package://go2_description/"):
+        path = str(GO2_PKG / path[len("package://go2_description/"):])
+    elif path.startswith("package://"):
         from ament_index_python.packages import get_package_share_directory
         pkg, rest = path[len("package://"):].split("/", 1)
         path = str(Path(get_package_share_directory(pkg)) / rest)
@@ -74,15 +77,19 @@ def shapes(link, tag):
     return out
 
 
-def build_model(camera: str = "none", gripper: bool = True, calibration: str = "", prefix: str = "piper_", compare: str = "") -> dict:
+def build_model(camera: str = "none", gripper: bool = True, calibration: str = "", prefix: str = "piper_", compare: str = "", setup: str | None = None) -> dict:
+    """`setup` (arm | arm_cam | go2, see piper_description.SETUPS) wins over `camera`: arm = robot only, arm_cam = with the ZED X Mini, go2 = both on the Go2."""
     import xacro
     from piper_core import limits_from_urdf, named_poses_from_srdf, zero_pose
-    from piper_description import robot_description
+    from piper_description import SETUPS, go2_piper_description, go2_stand_pose, robot_description
 
+    on_go2 = False
+    if setup:
+        camera, on_go2 = SETUPS[setup]["camera"], SETUPS[setup]["go2"]
     maps = {"camera": camera, "gripper": gripper, "prefix": prefix}
     if camera != "none" and calibration:
         maps["camera_calibration"] = calibration
-    root = ET.fromstring(robot_description("mock", **maps))
+    root = ET.fromstring(go2_piper_description(**maps) if on_go2 else robot_description("mock", **maps))
     links = []
     for l in root.findall("link"):
         inertial = l.find("inertial")
@@ -116,7 +123,7 @@ def build_model(camera: str = "none", gripper: bool = True, calibration: str = "
     slumped = {f"{prefix}joint{i}": v for i, v in enumerate([0.004, -0.0382, 0.0427, -0.0073, 0.3859, 0.0], 1)}
     firmware = (WS / "src/piper_description/config/firmware_values.yaml")
     if compare and camera != "none":      # overlay: the camera mount subtree of another calibration (version) of the same camera, links renamed `<name>__cmp`
-        other = build_model(camera, gripper, compare, prefix)
+        other = build_model(camera, gripper, compare, prefix, setup=setup)
         mount = prefix + "camera_mount_link"
         sub, grew = {mount}, True
         while grew:
@@ -132,7 +139,8 @@ def build_model(camera: str = "none", gripper: bool = True, calibration: str = "
                 joints.append({**j, "name": j["name"] + "__cmp", "child": j["child"] + "__cmp",
                                "parent": j["parent"] + "__cmp" if j["parent"] in sub else j["parent"]})
     return {
-        "name": root.get("name"), "prefix": prefix, "options": {"camera": camera, "gripper": gripper, "calibration": calibration, "compare": compare},
+        "name": root.get("name"), "prefix": prefix, "options": {"camera": camera, "gripper": gripper, "calibration": calibration, "compare": compare, "setup": setup or ""},
+        "initial": go2_stand_pose() if on_go2 else {},
         "links": links, "joints": joints, "arm_joints": arm, "tcp": f"{prefix}tcp_link",
         "poses": {k: v for k, v in poses.items()}, "zero_computed": zero_pose(limits, arm, 0.01),
         "slumped": slumped, "disabled_collisions": disabled,
@@ -161,8 +169,8 @@ def lite_mesh(path: Path) -> Path:
 def prewarm():
     """Build the light meshes of the default models in the background, so the first visitor does not wait for them."""
     try:
-        for cam in ("none", "zedxm"):
-            m = build_model(cam)
+        for setup in ("arm", "arm_cam", "go2"):
+            m = build_model(setup=setup)
             for l in m["links"]:
                 for s in l["visual"] + l["collision"]:
                     if s["type"] == "mesh":
@@ -215,14 +223,18 @@ class Handler(BaseHTTPRequestHandler):
         q = {k: v[0] for k, v in parse_qs(url.query).items()}
         try:
             if url.path == "/api/model":
-                model = build_model(q.get("camera", "none"), q.get("gripper", "true") == "true", q.get("calibration", ""), compare=q.get("compare", ""))
+                model = build_model(q.get("camera", "none"), q.get("gripper", "true") == "true", q.get("calibration", ""), compare=q.get("compare", ""),
+                                    setup=q.get("setup") or None)
                 return self.send(200, json.dumps(model).encode(), "application/json")
             if url.path == "/mesh":
                 p = Path(q.get("p", "")).resolve()
                 if p.suffix.lower() not in MESH_SUFFIX or not any(r == p or r in p.parents for r in MESH_ROOTS) or not p.is_file():
                     return self.send(404, b"not served", "text/plain")
                 if q.get("lite") == "1":
-                    p = lite_mesh(p)
+                    try:
+                        p = lite_mesh(p)
+                    except Exception as e:      # no light-mesh helper (build_collision_meshes is not in the tree) or a mesh it cannot read: serve the full mesh
+                        sys.stderr.write(f"viewer: light mesh unavailable for {p.name}: {e}\n")
                 st = p.stat()
                 return self.send(200, p.read_bytes(), mimetypes.guess_type(str(p))[0] or "application/octet-stream",
                                  etag=f'"{st.st_mtime_ns}-{st.st_size}"', key=(str(p), st.st_mtime_ns))

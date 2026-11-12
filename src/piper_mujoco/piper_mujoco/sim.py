@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import math
 import time
 from importlib import resources
@@ -31,9 +32,18 @@ class PiperSim:
     joint_names = list(ARM_JOINTS)
 
     def __init__(self, scene: str = "empty", gripper_width: float = 0.07, physics_dt: float = 0.001, ctrl_hz: float = 500.0,
-                 realtime: bool = False, render: bool = False, camera: bool = True):
+                 realtime: bool = False, render: bool = False, camera: bool = True, setup: str | None = None):
         """`camera=True` (the default): the arm carries the ZED X Mini on its bracket (a body with collision, `camera_image()` renders from its left lens);
-        `camera=False`: the robot only."""
+        `camera=False`: the robot only. `setup` (arm | arm_cam | go2) replaces `camera` when given: arm = robot only, arm_cam = with the camera, go2 = the full setup on the Go2 (nominal mount):
+        the dog is fixed, standing, its collision is the planner's one generated box; scene "empty" only (a floor). Without `setup` nothing changes (the arm on its own, as before)."""
+        if setup is not None:
+            if setup not in ("arm", "arm_cam", "go2"):
+                raise ValueError("setup must be 'arm', 'arm_cam' or 'go2'")
+            if setup == "go2" and "go2" not in json.loads((data_dir() / "manifest.json").read_text()).get("setups", []):
+                raise FileNotFoundError("this build of piper_mujoco has no go2 setup (build it with go2_studio's unitree_ros checkout present)")
+            if setup == "go2" and scene != "empty":
+                raise ValueError("the go2 setup has the scene 'empty' only (the dog stands on a floor)")
+            camera = setup != "arm"
         if scene not in ("empty", "table"):
             raise ValueError("scene must be 'empty' or 'table'")
         self.limits_info = piper_assets.limits()
@@ -45,7 +55,9 @@ class PiperSim:
         self.scene, self.ctrl_dt, self.realtime, self.render_enabled = scene, 1.0 / ctrl_hz, realtime, render
         self.gripper_width = gripper_width
         self.camera_enabled = bool(camera)
-        self.model = mujoco.MjModel.from_xml_path(str(data_dir() / ("model" if camera else "model_no_camera") / f"scene_{scene}.xml"))
+        self.setup = setup
+        folder = "model_go2" if setup == "go2" else ("model" if camera else "model_no_camera")
+        self.model = mujoco.MjModel.from_xml_path(str(data_dir() / folder / f"scene_{scene}.xml"))
         self.model.opt.timestep = physics_dt
         self.data = mujoco.MjData(self.model)
         self.limits = dict(self.limits_info.hard)
