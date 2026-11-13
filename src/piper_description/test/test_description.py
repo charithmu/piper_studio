@@ -181,7 +181,7 @@ def test_wrist_camera_mount():
     91.71 mm out on the -x side, looking along the gripper (towards the fingers) and tilted 20 deg towards the gripper axis, between the finger planes."""
     import numpy as np
 
-    root = ET.fromstring(expand())
+    root = ET.fromstring(expand(camera_calibration="zedxm_bracket_v3"))        # v3 = the CAD pose; the default is v4 (hand-eye, tested below)
     assert np.allclose(_fixed_chain(root, P + "camera_mount_link", P + "gripper_base")[:3, 3], 0)
     hole = _fixed_chain(root, P + "zed_camera_link", P + "gripper_base")
     assert hole[:3, 3] == pytest.approx([-0.09171, 0.0, 0.016314], abs=1e-6)
@@ -194,6 +194,19 @@ def test_wrist_camera_mount():
     assert np.linalg.norm(left[:3, 3] - right[:3, 3]) == pytest.approx(0.05, abs=1e-6)
     mesh = {m.get("filename") for m in root.iter("mesh")}
     assert any(f.endswith("zedxm.stl") for f in mesh) and any(f.endswith("zedxm_bracket_v3.stl") for f in mesh)
+
+
+def test_default_camera_pose_is_the_hand_eye_calibration():
+    """The default bracket version (v4) puts the optical frame in link6 where the hand-eye calibration (kept as zedxm_bracket_v4.hand_eye.json) measured it."""
+    import json
+
+    import numpy as np
+
+    cal = json.loads((PKG / "config/camera_mounts/zedxm_bracket_v4.hand_eye.json").read_text())
+    root = ET.fromstring(expand())
+    T = _fixed_chain(root, P + "zed_left_camera_frame_optical", P + "link6")
+    assert np.allclose(T, np.array(cal["T_link6_optical"]), atol=2e-5)         # yaml rounding: 1e-6 m / rad
+    assert cal["verdict"]["acceptable"] is False                               # provisional: the file says so, and so does the yaml
 
 
 def test_frames_equal_stereolabs_zed_description():

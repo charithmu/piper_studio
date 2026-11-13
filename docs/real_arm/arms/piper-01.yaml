@@ -2,5 +2,5 @@
 # refuses to run a scenario on the real arm (or the real ROS stack) that was planned for different hardware, in either direction. EDIT IT WHEN YOU CHANGE THE HARDWARE.
 arm_id: piper-01
 camera: zedxm                  # none = the robot only | zedxm = the ZED X Mini on the user's bracket
-bracket: zedxm_bracket_v3      # config/camera_mounts/<bracket>.yaml (nominal pose, not hand-eye calibrated)
+bracket: zedxm_bracket_v4      # config/camera_mounts/<bracket>.yaml (hand-eye calibrated 2026-11-12, provisional: verdict not acceptable)
 mounted: 2026-11-11            # first run with it: CHECKLIST R3.10

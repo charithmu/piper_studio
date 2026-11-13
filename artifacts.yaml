@@ -50,13 +50,15 @@ artifacts:
     group: Experiments
     runtime: python-server
     workdir: .
-    start: scripts/viewer.sh start
-    stop: scripts/viewer.sh stop
+    start: scripts/viewer.sh run
     port: 8781
     bind: loopback
     exposure: tailnet
     route: /piper-studio/viewer
-    autostart: false
+    autostart: true
+    unit: web-piper-model-viewer.service
+    unit_scope: user
+    manage: "web-pages restart piper-model-viewer"
     data: none
     probe: {path: /}
     links:
@@ -69,13 +71,15 @@ artifacts:
     group: Experiments
     runtime: python-server
     workdir: .
-    start: scripts/curobo_viewer.sh start
-    stop: scripts/curobo_viewer.sh stop
+    start: scripts/curobo_viewer.sh run
     port: 8782
     bind: loopback
     exposure: tailnet
     route: /piper-studio/curobo
-    autostart: false
+    autostart: true
+    unit: web-piper-curobo-viewer.service
+    unit_scope: user
+    manage: "web-pages restart piper-curobo-viewer"
     data: none
     probe: {path: /}
     links:

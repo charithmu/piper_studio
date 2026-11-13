@@ -24,8 +24,15 @@ cp docs/real_arm/arms/*.yaml "$out/arms/"
 # deps installed on the box from PyPI / GitHub (the box has internet); same pins as env/requirements.in. numpy: the box's system Python has none visible with the user site off.
 { printf '%s\n' "numpy>=1.24" pyyaml python-can; grep -E '^pyAgxArm' env/requirements.in; } > "$out/pins.txt"
 echo "piper arm tools ${commit}${dirty} $(date -u +%FT%TZ)" > "$out/VERSION"
+# docs, the committed source (the submodule is cloned by ros_setup_on_box.sh at the pinned commit), the camera launch, the agent guide
+mkdir -p "$out/docs"
+cp docs/STATE.md docs/INTEGRATION.md docs/ARCHITECTURE.md docs/VERSIONS.md docs/CLEANUP.md docs/CUROBO.md "$out/docs/"; cp -r docs/real_arm docs/description "$out/docs/"
+git archive HEAD --prefix=piper_studio/ | gzip > "$out/piper-studio-src.tar.gz"
+git ls-tree HEAD external/agx_arm_ros | awk '{print $3}' > "$out/agx_arm_ros_commit"
+cp src/piper_control/launch/zed_camera.launch.py "$out/"
+cp scripts/box/BOX_AGENT.md scripts/box/ros_setup_on_box.sh "$out/"; chmod +x "$out/ros_setup_on_box.sh"
 cp scripts/box/install_on_box.sh "$out/"; chmod +x "$out/install_on_box.sh"
-( cd "$out" && sha256sum *.whl > SHA256SUMS && ls -l )
+( cd "$out" && sha256sum *.whl piper-studio-src.tar.gz > SHA256SUMS && ls -l )
 echo "bundle: $PWD/$out  ($(tr "\n" " " < "$out/pins.txt"))"
 if [ "$push" = 1 ]; then
   ssh "$target" 'rm -rf ~/piper-bundle && mkdir -p ~/piper-bundle'

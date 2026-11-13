@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Runs ON THE BOX (the bundle's copy of this file is what deploy_box.sh sends). Installs the Piper arm tools; sends nothing to the arm.
 #   ./install_on_box.sh            install or upgrade from the wheels next to this file
-# What it touches (all under the user's home, no sudo): ~/piper/ (venv, bin wrappers, env.sh, bundle copy), ~/.local/bin/piper-* (links to the wrappers),
+# What it touches (all under the user's home, no sudo): ~/piper/ (venv, bin wrappers, env.sh, docs, src, ros), ~/.local/bin/piper-* (links to the wrappers),
 # ~/.config/piper/arms/ (what is mounted on the arm). It never brings CAN up (that needs sudo: see the end) and never starts anything.
 set -euo pipefail
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -26,6 +26,11 @@ if ! "$venv/bin/python" -c "import pyzed" 2>/dev/null; then
 fi
 
 cp "$here"/arms/*.yaml "$HOME/.config/piper/arms/"
+# documents, source (read-only reference), camera launch, agent guide
+mkdir -p "$root/docs" "$root/ros" "$root/src"
+rm -rf "$root/docs" && cp -r "$here/docs" "$root/docs" && cp "$here/BOX_AGENT.md" "$root/docs/BOX_AGENT.md"
+rm -rf "$root/src/piper_studio" && tar -xzf "$here/piper-studio-src.tar.gz" -C "$root/src" && cp "$here/agx_arm_ros_commit" "$root/src/piper_studio/.agx_arm_ros_commit"
+cp "$here/zed_camera.launch.py" "$root/ros/"; cp "$here/ros_setup_on_box.sh" "$root/"; chmod +x "$root/ros_setup_on_box.sh"
 cp "$here"/pins.txt "$here"/SHA256SUMS "$here"/VERSION "$root/" 2>/dev/null || true
 
 # wrappers: every command runs the venv's script with the user site switched off, and finds the data and config folders
@@ -60,6 +65,7 @@ except Exception as e:
     print("  pyzed NOT visible:", e)
 PY
 echo
+echo "docs for the agents: ~/piper/docs (start with BOX_AGENT.md, STATE.md). Optional ROS workspace: ~/piper/ros_setup_on_box.sh"
 echo "next, by hand (sudo asks for your password):  piper-can-up      # finds the USB-CAN adapter by USB (can0/can1 swap between boots), 1 Mbit/s; the SoC's own CAN is never touched"
 echo "then, with nothing moving:  piper-info --arm-id piper-01   and   piper-joints --once"
 echo "emergency stop, typed in a second terminal and not run until needed:  piper-estop"
