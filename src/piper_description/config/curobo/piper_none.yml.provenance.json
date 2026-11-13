@@ -1,5 +1,5 @@
 {
-  "description_commit": "cfcd72c+dirty",
+  "description_commit": "02b364d+dirty",
   "urdf": "piper_none_w0.07.urdf",
   "srdf": "piper_none.srdf",
   "fingerprint": "e22eee30b800be65",
@@ -25,16 +25,16 @@
   },
   "policy_file": "tools/curobo/policy.yaml",
   "sphere_counts": {
-    "base_link": 35,
-    "flange_link": 9,
+    "base_link": 36,
+    "flange_link": 8,
     "gripper_base": 25,
     "gripper_link1": 9,
-    "gripper_link2": 8,
-    "link1": 23,
+    "gripper_link2": 9,
+    "link1": 21,
     "link2": 117,
-    "link3": 56,
+    "link3": 59,
     "link4": 19,
-    "link5": 26
+    "link5": 22
   },
   "ignore_pairs": {
     "base_link": [

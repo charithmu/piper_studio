@@ -1,8 +1,8 @@
 {
-  "description_commit": "cfcd72c+dirty",
+  "description_commit": "02b364d+dirty",
   "urdf": "piper_zedxm_w0.07.urdf",
   "srdf": "piper_zedxm.srdf",
-  "fingerprint": "8fae843c68fa216f",
+  "fingerprint": "ad94df45faefa1f3",
   "decisions": {
     "base_link": "base_link",
     "limits_source": "piper_assets limits.json: vendor URDF = limits stored in the arm (firmware S-V1.9-1, docs/real_arm/arms/piper-01.md); velocity 3.0 rad/s (firmware (max_joint_spd), measured on the arm)",
@@ -27,15 +27,15 @@
   "sphere_counts": {
     "base_link": 37,
     "camera_mount_link": 140,
-    "flange_link": 9,
-    "gripper_base": 27,
+    "flange_link": 8,
+    "gripper_base": 26,
     "gripper_link1": 9,
-    "gripper_link2": 9,
+    "gripper_link2": 8,
     "link1": 21,
-    "link2": 114,
-    "link3": 56,
-    "link4": 20,
-    "link5": 22,
+    "link2": 112,
+    "link3": 59,
+    "link4": 21,
+    "link5": 23,
     "zed_camera_center": 4
   },
   "ignore_pairs": {
