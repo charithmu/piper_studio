@@ -31,7 +31,7 @@ The bracket and its pose are versioned (`config/camera_mounts/zedxm_bracket_v1..
 Four wheels, one version, built into `dist/` from the tagged commit by `scripts/build_wheels.sh` (needs the ROS environment once, to generate the data). A downstream project installs them into its own venv (Python 3.10 or newer) and never reads this repo's `install/`:
 
 ```bash
-uv pip install --no-deps piper_core-0.10.1-py3-none-any.whl piper_assets-0.10.1-py3-none-any.whl piper_mujoco-0.10.1-py3-none-any.whl piper_isaac-0.10.1-py3-none-any.whl
+uv pip install --no-deps piper_core-0.11.0-py3-none-any.whl piper_assets-0.11.0-py3-none-any.whl piper_mujoco-0.11.0-py3-none-any.whl piper_isaac-0.11.0-py3-none-any.whl
 ```
 
 | Package | Gives | Needs |

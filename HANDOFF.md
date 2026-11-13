@@ -1,3 +1,15 @@
+# Handoff (2026-11-13, final): 0.11.0, hand-eye camera pose, arm on the Go2 base axis, ZED Box bundle
+
+**For downstream projects (piper_pick, curobo_piper_study).** Use tag **v0.11.0** (wheels 0.11.0 in `dist/`, built from that commit). No API or name changes; the DEFAULT NUMBERS changed, so replans and saved plans from 0.10.1 differ:
+- **Camera pose = the first hand-eye calibration** (`zedxm_bracket_v4`, from piper_pick's `calib1`; `piper_assets.camera_pose("link6")` is now its `T_link6_optical`, 0.64 deg and 15 mm from the CAD pose, which stays as `camera_calibration:=zedxm_bracket_v3`). Its own verdict is "not acceptable" (4.1 mm rms): provisional. piper_pick can drop its own `hand_eye_file` override for the default or keep it (the two now agree).
+- **Go2 mount:** the arm base is on the Go2 base z axis (`plate_xyz` [0, 0, 0.084], was [-0.04, 0, 0.0799]); the world, floor (-0.4409 m in the arm frame) and the cuRobo model were regenerated (`curobo_model_is_current` is true).
+- **Viewers** `/piper-studio/viewer/` and `/piper-studio/curobo/` are user services that start at boot (tailnet only).
+- **ZED Box:** `scripts/deploy_box.sh --push` installs the arm tools, the docs (`~/piper/docs`, start with `BOX_AGENT.md`), the source and the camera launch; `ros_setup_on_box.sh` (optional ROS workspace) is untested.
+**Open:** unchanged (more calibration poses and a checked board scale -> v5, weighing R3.2, stream test on joints 2, 3, 5, crash protection 0), simulator intrinsics still the datasheet ones (fx 336.1; the real camera reports 364.6 at 960x600).
+Verified 2026-11-13: offline 250 passed; launch tests mock, MuJoCo, Gazebo, Isaac and the carrier example; Isaac, MuJoCo and assets wheel tests 74 passed; `isaac.sh check`/`check-go2`; cuRobo scenario with the camera run in MuJoCo.
+
+---
+
 # Handoff (2026-11-11, final): 0.10.1, the camera is on the real arm
 
 **State.** The ZED X Mini on the user's bracket is mounted on `piper-01` and is the default everywhere. A cuRobo scenario planned with the camera model ran on the real arm (all steps ok, 0.32 deg worst joint error) and a stream test with the camera

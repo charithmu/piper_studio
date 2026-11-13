@@ -1,6 +1,6 @@
 # Current state: read this first when starting a new session
 
-Written 2026-11-11 for release **v0.10.1** (branch `main`, remote `origin` = github.com/charithmu/piper_studio). Facts that change are in `CLEANUP.md` (to-do, verification log) and `VERSIONS.md`;
+Written 2026-11-11 for release **v0.11.0** (branch `main`, remote `origin` = github.com/charithmu/piper_studio). Facts that change are in `CLEANUP.md` (to-do, verification log) and `VERSIONS.md`;
 this file is the orientation: where things are, what is verified, how to check you did not break anything, what is open, and the gotchas that cost time.
 
 ## What this is
