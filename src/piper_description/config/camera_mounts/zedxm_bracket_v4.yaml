@@ -1,0 +1,21 @@
+# ZED X Mini on the user's own clamp bracket: VERSION 4 (2026-11-13) = version 3 (same bracket, same mesh) with the camera pose from the first HAND-EYE CALIBRATION.
+# Source: piper_pick's `piper-box-calibrate`, session calib1 (2026-11-12, 13 ChArUco captures at 1920x1200, OpenCV calibrateHandEye 'park' method), the full result with its
+# quality numbers is kept next to this file: zedxm_bracket_v4.hand_eye.json (T_link6_optical = the camera's optical frame, left lens, in link6).
+# Only camera_in_stand differs from v3: it is that T_link6_optical converted back through the description's own chain (gripper_base <- bracket <- zed_camera_link <- optical),
+# so the optical frame in link6 equals the calibration to 1e-16. Against v3: 0.64 deg, 15.3 mm (mostly along the viewing axis), x -0.7 mm, y +15.3 mm, z -2.1 mm in the bracket frame.
+# CAVEAT: the solver's own verdict is "not acceptable" (board position 4.1 mm rms over the captures, limit 3; methods differ up to 5.1 mm, limit 5; held-out 5.9 mm, limit 4).
+# It is still better than v3 (the board lands 9.6 mm rms with v3), and the user chose it as the default. The camera hole no longer sits on the bracket's seat plane (it is the
+# calibrated optical centre, not the CAD hole). Improve with more poses and a checked board scale, then add _v5; never overwrite.
+mesh: zedxm_bracket_v3.stl                # in meshes/; collision: zedxm_bracket_v3_collision.stl (the same bracket as v3)
+stand_in_gripper_base:        # unchanged from v3
+  xyz: [0.0, 0.0, 0.0]
+  rpy: [1.5707963, 0.0, -1.5707963]
+camera_in_stand:              # zed_camera_link in the bracket frame, from the hand-eye result
+  xyz: [-0.000656, 0.031625, 0.089636]
+  rpy: [-0.00924, 0.342517, 1.56503]
+measured:
+  date: "2026-11-12"
+  by: "piper_pick piper-box-calibrate, session calib1 (user at the arm)"
+  method: "hand-eye, ChArUco 6x7 25 mm DICT_6X6_250, cv2.calibrateHandEye (park), 13 captures"
+  error_mm: 4.1                 # board position rms over the captures (nominal v3: 9.6); verdict not acceptable, see above
+  result_file: zedxm_bracket_v4.hand_eye.json

@@ -184,7 +184,7 @@ def main():
     T_l6 = np.linalg.inv(mm.fk({}, "link6")) @ mm.fk({}, cm["optical_frame"])
     (out / "camera.json").write_text(json.dumps({**{k: v for k, v in cm.items() if k != "link"}, "parent_link": "gripper_base",
                                                  "T_parent_optical": T_gb.tolist(), "T_tcp_optical": T_tcp.tolist(), "T_link6_optical": T_l6.tolist(),
-                                                 "calibration": "zedxm_bracket_v3 (nominal, from the user's Fusion measures; not hand-eye calibrated)"}, indent=1))
+                                                 "calibration": "zedxm_bracket_v4 (hand-eye calibrated 2026-11-12 by piper_pick, board spread 4.1 mm rms, verdict not acceptable)"}, indent=1))
     lic = out / "licenses"
     lic.mkdir()
     shutil.copy2(WS / "external/agx_arm_ros/LICENSE", lic / "agx_arm_ros-MIT.txt")

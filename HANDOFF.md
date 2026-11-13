@@ -3,7 +3,7 @@
 **State.** The ZED X Mini on the user's bracket is mounted on `piper-01` and is the default everywhere. A cuRobo scenario planned with the camera model ran on the real arm (all steps ok, 0.32 deg worst joint error) and a stream test with the camera
 (joint 1, rms 0.05 deg): `docs/real_arm/arms/piper-01.md`, `docs/real_arm/CHECKLIST.md` R3. What is mounted is stored in `docs/real_arm/arms/piper-01.yaml`: `tools/real_arm/run_scenario.py` refuses a scenario planned for other hardware on the real arm
 (the old robot-only fixture is refused while the camera is mounted), `curobo_plan_scenario.py` plans for it by default. Regression check: `scripts/smoke.sh [--sims | --all]`. Wheels 0.10.1, tag `v0.10.1`; the API of 0.10.0 below is unchanged.
-**Open:** hand-eye calibration (R3.6), weighing the bracket and camera (R3.2), the stream test on joints 2, 3, 5 with the camera, crash protection 0 (the user's decision), and `piper_pick` adopting the model (its note: `~/projects/core/piper_pick/handoff/STUDIO_CUROBO_MODEL.md`).
+**Open:** hand-eye calibration (R3.6; v4 is the first, provisional result), weighing the bracket and camera (R3.2), the stream test on joints 2, 3, 5 with the camera, crash protection 0 (the user's decision), and `piper_pick` adopting the model (its note: `~/projects/core/piper_pick/handoff/STUDIO_CUROBO_MODEL.md`).
 
 ---
 
@@ -38,7 +38,7 @@ unless you ask for the robot only. What changes for you:
 - `piper_assets.camera()` / `camera_pose(frame)`: intrinsics K, size 960x600, 110 deg (wide lens, assumed), depth range 0.1-8 m, optical frame `zed_left_camera_frame_optical` (no prefix, since 0.9.0; the LEFT lens: z forward, x right, y down) and its pose in gripper_base, the TCP and link6.
 - ROS: `camera:=none` for the robot only; topic names and frame as in 0.8.0 (changed in 0.9.0, see above); size/field of view from `piper_description/config/camera_models/zedxm.yaml`.
 - Removed: the earlier camera, the AgileX stand and the `camera_mount*` arguments.
-- The pose of the camera is NOMINAL (the user's CAD, bracket version v3); it is on the real arm since 2026-11-11 (a cuRobo scenario with the camera model ran on it: CHECKLIST R3.10) but it is not hand-eye calibrated: do not trust it for real-arm grasping before `docs/real_arm/CHECKLIST.md` R3.
+- The pose of the camera is the first HAND-EYE result (bracket v4, from piper_pick's calib1; verdict "not acceptable", 4.1 mm rms; v3 = the CAD pose); it is on the real arm since 2026-11-11 (a cuRobo scenario with the camera model ran on it: CHECKLIST R3.10) but it is not hand-eye calibrated: do not trust it for real-arm grasping before `docs/real_arm/CHECKLIST.md` R3.
 
 Wheels: `dist/` holds 0.8.0 (piper_core, piper_assets, piper_mujoco, piper_isaac; 0.7.0 is gone from `dist/`). Details: `docs/CLEANUP.md` (2026-11-11), `docs/INTEGRATION.md` section 0, decision D14.
 

@@ -15,7 +15,7 @@ The ZED publishes colour as `bgra8`, the simulators as `rgb8`; `Piper.image()` r
 
 ## Frames: nothing to translate
 The description's camera frames are Stereolabs' own (`zed-ros2-description`, commit 2246824, `name = piper_zed`): `piper_zed_camera_link` (the mounting hole, child of the bracket), `piper_zed_camera_center`, `piper_zed_left_camera_frame(_optical)`, `piper_zed_right_camera_frame(_optical)`.
-**One description only:** `zed_camera.launch.py` starts the wrapper with `publish_urdf:=false publish_tf:=false publish_map_tf:=false` and positional tracking off, so every transform comes from this description's `robot_state_publisher`. The pose of the camera comes from the bracket (`config/camera_mounts/zedxm_bracket_v3.yaml`, nominal until the hand-eye calibration, R3.6).
+**One description only:** `zed_camera.launch.py` starts the wrapper with `publish_urdf:=false publish_tf:=false publish_map_tf:=false` and positional tracking off, so every transform comes from this description's `robot_state_publisher`. The pose of the camera comes from the bracket (`config/camera_mounts/zedxm_bracket_v4.yaml`: the first hand-eye calibration, provisional; v3 is the CAD pose).
 
 ## On the ZED Box (steps for the user; nothing here was run)
 1. Look first: `lsb_release -a`, `ros2 --help`, `ros2 pkg list | grep zed`. Jetson Orin images are often Ubuntu 22.04 (JetPack 6, ROS 2 Humble). The wrapper and this launch work on Humble or Jazzy; the Piper stack (this repo) needs Jazzy, so on a Humble box run **only the driver there** and the stack on Atlas.
