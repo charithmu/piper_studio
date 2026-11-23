@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "piper_calibration"
+version = "0.13.0"
+description = "Calibration of the Piper's wrist camera: hand-eye (ChArUco + OpenCV), pose planning, a session runner for the real arm, the printable board. No ROS."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "Apache-2.0" }
+dependencies = ["numpy>=1.24", "piper_core>=0.13.0", "piper_assets>=0.13.0"]
+
+[project.optional-dependencies]
+# OpenCV 4.x WITH the contrib aruco API: OpenCV 5.0.0 has no cv2.calibrateHandEye. Headless: no windows on a robot.
+vision = ["opencv-contrib-python-headless>=4.10,<5", "pillow"]
+
+[project.scripts]
+piper-calibrate = "piper_calibration.app:main"
+piper-calibration-board = "piper_calibration.board:main"
+
+[tool.setuptools]
+packages = ["piper_calibration"]

@@ -3,7 +3,7 @@
 import sys
 from pathlib import Path
 
-for name in ("piper_core", "piper_assets", "piper_mujoco", "piper_isaac"):
+for name in ("piper_core", "piper_assets", "piper_mujoco", "piper_isaac", "piper_calibration"):
     path = str(Path(__file__).resolve().parent / "src" / name)
     if path not in sys.path:
         sys.path.insert(0, path)

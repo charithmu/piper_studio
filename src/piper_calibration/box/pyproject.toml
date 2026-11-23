@@ -1,0 +1,31 @@
+# The calibration environment on the ZED box, owned by uv, at ~/projects/piper-calib (this file, with @VERSION@ filled in by scripts/deploy_calibration.sh, is its pyproject.toml).
+# On the box, `uv lock && uv sync` creates ~/projects/piper-calib/.venv (the user approves that install once). `bin/piper-calibrate` always runs through
+# `uv run --project ~/projects/piper-calib`, so it never picks up the system Python, the user site (NumPy 2.5.4 there breaks the apt OpenCV 4.6) or Studio's venv.
+[project]
+name = "piper-calib-env"
+version = "0.2.0"
+description = "Python 3.12 + OpenCV 4.x (contrib, with cv2.calibrateHandEye) + NumPy 2 + pyzed + Studio wheels, for piper-calibrate on the ZED box"
+requires-python = "==3.12.*"                      # the pyzed 5.5 wheel exists only for cp312
+dependencies = [
+  "numpy>=2,<3",                                  # pyzed 5.5 was built for NumPy 2
+  "opencv-contrib-python-headless>=4.10,<5",      # NOT 5.x: OpenCV 5.0.0 has no cv2.calibrateHandEye. Headless: no windows on the robot.
+  "pillow",                                       # the printable board
+  "pyzed==5.5",
+  "piper-core==@VERSION@",                        # Studio: RealArm
+  "piper-assets==@VERSION@",                      # Studio: URDF, camera bracket, limits
+  "piper-calibration==@VERSION@",
+  "pyAgxArm",                                     # the vendor SDK, at its pinned commit below
+  "python-can",
+  "pyyaml",
+]
+
+[tool.uv]
+package = false
+environments = ["sys_platform == 'linux' and platform_machine == 'aarch64'"]
+
+[tool.uv.sources]
+pyzed = { url = "https://download.stereolabs.com/zedsdk/5.5/whl/linux_aarch64/pyzed-5.5-cp312-cp312-linux_aarch64.whl" }
+piper-core = { path = "wheels/piper_core-@VERSION@-py3-none-any.whl" }
+piper-assets = { path = "wheels/piper_assets-@VERSION@-py3-none-any.whl" }
+piper-calibration = { path = "wheels/piper_calibration-@VERSION@-py3-none-any.whl" }
+pyAgxArm = { git = "https://github.com/agilexrobotics/pyAgxArm.git", rev = "d90e234ba8e408cfa964b38aa9120b3131fc9f85" }

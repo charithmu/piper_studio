@@ -15,6 +15,7 @@ You never need the simulators, scenes or demos of this repo. Take only the layer
 | The arm as data: flat URDF, meshes, SRDF, limits with sources, scene | `piper_assets` (pip wheel) | **no** |
 | Run planner trajectories in MuJoCo | `piper_mujoco` (pip wheel) | **no** |
 | The real-arm tools as commands (e-stop, info, session, CAN up), also on a box | `piper_tools` (pip wheel, needs `piper_core` and the vendor SDK pyAgxArm) | **no** |
+| Calibrate the wrist camera (hand-eye with a printed board; result is a file, never applied by the program) | `piper_calibration` (pip wheel with the `[vision]` extra; OpenCV 4.x contrib, pyzed on the box; `docs/CALIBRATION.md`) | **no** |
 | Run planner trajectories in Isaac Sim | `piper_isaac` (pip wheel; Isaac Sim's own environment and the GPU on the same machine) | **no** |
 | Direct control of the real arm without ROS | `piper_core.RealArm` (tested on a fake SDK only; the first real run needs the user) | no |
 

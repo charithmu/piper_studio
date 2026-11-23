@@ -42,6 +42,14 @@ The tested combination. Source revisions are authoritative in git (submodule pin
 | MuJoCo 3.12 + MoveIt + piper_py | pass (provisional actuator model) | `piper_py/test/test_bringup.py` [mujoco]; `piper_sim/test/test_mujoco_model.py` (FK = official to 1e-6 m, finger coupling) |
 | Isaac Sim 6.1 + MoveIt + piper_py | pass (opt-in: uses the GPU) | `PIPER_TEST_BACKENDS=isaac`; fingers verified against Isaac ground truth (±0.5 × gripper) |
 
+## v0.13.0 (2026-11-23): `piper_calibration`
+
+New wheel `piper_calibration` (hand-eye calibration of the wrist camera moved out of graspwise's box code: solver, pose planning, session runner `piper-calibrate`, board maker `piper-calibration-board`, the box deploy `scripts/deploy_calibration.sh`, tests). Needs OpenCV 4.x contrib (extra `[vision]`); importing it loads no OpenCV or ZED SDK. All five other wheels are 0.13.0 with no change in behaviour. Docs: `docs/CALIBRATION.md`. Not run on the box or the arm yet. Tests: 17 in `src/piper_calibration/test` (skipped in Studio's own venv, which has OpenCV 4.6 without the contrib aruco API).
+
+## v0.12.0 (2026-11-23): one robot in three bodies
+
+`actuation.yaml` and the firmware values are the one source for the URDF, MJCF and Isaac drives (joint force limits 16 / 13.012 N.m, gripper 3 N, gradual close at 0.25 m/s, grip force min(effort, 2.09 N)); `piper_core.gripper` and `piper_core.World` are the shared contract and the seam to downstream worlds; `PiperSim(world=)` and `PiperIsaacSim(world=)` build the same scene. Details: `HANDOFF.md`, `docs/INTEGRATION.md` "One robot, three bodies". Offline 290 passed, Isaac GPU tests 31 + 4 parity; the ROS MuJoCo launch test fails on this machine (libmujoco 3.12 installed, the plugin wants 3.4.0 after an apt upgrade).
+
 ## v0.7.0 (2026-11-10; 0.6.0 was built locally and never released)
 
 All four Python wheels use 0.7.0 (built from a clean commit, `dist/SHA256SUMS`; `piper_mujoco` and `piper_isaac` need `piper_core>=0.7.0`). New: gripper in `ArmBackend` (`gripper_opening`, `gripper_force`, `set_gripper(width, effort, timeout) -> width`) and in

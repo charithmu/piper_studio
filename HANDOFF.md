@@ -1,4 +1,11 @@
-# Handoff (2026-11-23): 0.12.0, one robot in three bodies, the world seam (branch `sim-seam`, not tagged)
+# Handoff (2026-11-23, later): 0.12.0 is on main (tag v0.12.0, pushed); 0.13.0 adds `piper_calibration`
+
+**For downstream projects.** `main` has 0.12.0 (see below; the branch `sim-seam` is merged and can be forgotten). Branch `calibration-module` (0.13.0, additive) adds the wheel `piper_calibration`: hand-eye calibration (solver, pose planning, `piper-calibrate`, `piper-calibration-board`, box deploy `scripts/deploy_calibration.sh`). graspwise's `body/piper_box/{calibrate,handeye,kinematics}.py` and `tools/calibration` are replaced by it. All wheels are 0.13.0, no behaviour change in the others. Editable install: `uv pip install --no-deps -e src/piper_calibration`.
+**Open:** a second independent calibration method; the first run of the moved code on the box (owner); the real gripper width map (caliper session).
+
+---
+
+# Handoff (2026-11-23): 0.12.0, one robot in three bodies, the world seam (now tagged v0.12.0 on main)
 
 **For downstream projects (piper_core users, graspwise, curobo_piper_study).** No name changed. What changed in behaviour:
 - **The simulated gripper is the real one's twin:** gradual close (0.25 m/s, 0.28 s for the stroke), `effort` honoured (the force is min(effort, 2.09 N), the real plateau), `gripper_force()` reads it (negative while gripping), `last_gripper` says reached | stalled | no_motion | timeout, `set_gripper` refuses what the real arm refuses. `gripper_opening()` is the fingers' physical travel. Same in `PiperSim` and `PiperIsaacSim`.
