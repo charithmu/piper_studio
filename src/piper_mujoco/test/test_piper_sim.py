@@ -405,3 +405,18 @@ def test_a_slower_gripper_speed_slows_the_close_and_a_faster_one_is_refused():
     assert slow.last_gripper.duration > 2.5 * fast.last_gripper.duration and slow.last_gripper.reason == "reached"
     with pytest.raises(BackendError, match="speed"):
         slow.set_gripper(0.03, speed=0.5)
+
+
+def test_cameras_do_not_draw_the_model_s_marker_sites():
+    """The sites (tcp, finger and frame points) are markers, not robot: the wrist image must not show them (grey balls around the fingertips)."""
+    import os
+    os.environ.setdefault("MUJOCO_GL", "egl")
+    s = PiperSim()
+    assert not s.scene_option.sitegroup.any()
+    try:
+        with_sites = PiperSim()
+        with_sites.scene_option.sitegroup[:] = 1
+        a, b = s.camera_image(), with_sites.camera_image()
+    except Exception as e:                                          # no OpenGL on this machine
+        pytest.skip(f"no renderer: {e}")
+    assert np.abs(a.astype(int) - b.astype(int)).sum() > 0            # the sites would have been visible

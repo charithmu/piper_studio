@@ -92,6 +92,8 @@ class PiperSim:
             while k > 0 and k != link1:
                 k = self.model.body_parentid[k]
             self._arm_body[b] = k == link1
+        self.scene_option = mujoco.MjvOption()               # what the renderers draw: the model's marker sites (tcp, finger and frame points) are NOT part of the robot, a camera must not see them
+        self.scene_option.sitegroup[:] = 0
         self._renderer = None
         self._cam_renderer = None
         self._wall0 = None
@@ -133,7 +135,7 @@ class PiperSim:
         """RGB image (height, width, 3). Needs an OpenGL backend (MUJOCO_GL=egl or osmesa on a machine without a display)."""
         if self._renderer is None or (self._renderer.width, self._renderer.height) != (width, height):
             self._renderer = mujoco.Renderer(self.model, height, width)
-        self._renderer.update_scene(self.data, camera=camera)
+        self._renderer.update_scene(self.data, camera=camera, scene_option=self.scene_option)
         return self._renderer.render()
 
     # ------------------------------------------------------------------ wrist camera (the ZED X Mini's left lens)
@@ -162,12 +164,12 @@ class PiperSim:
                 self._cam_renderer.close()
             self._cam_renderer = mujoco.Renderer(self.model, h, w)
         r = self._cam_renderer
-        r.update_scene(self.data, camera="camera")
+        r.update_scene(self.data, camera="camera", scene_option=self.scene_option)
         rgb = r.render().copy()
         if not depth:
             return rgb
         r.enable_depth_rendering()
-        r.update_scene(self.data, camera="camera")
+        r.update_scene(self.data, camera="camera", scene_option=self.scene_option)
         z = r.render().copy()
         r.disable_depth_rendering()
         z[(z < c["depth_min"]) | (z > c["depth_max"])] = np.nan
