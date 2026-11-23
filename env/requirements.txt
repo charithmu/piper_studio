@@ -124,10 +124,13 @@ numpy==1.26.4
     #   imageio
     #   mujoco
     #   obj2mjcf
+    #   opencv-contrib-python-headless
     #   pycollada
     #   scipy
     #   trimesh
 obj2mjcf==0.0.25
+    # via -r env/requirements.in
+opencv-contrib-python-headless==4.11.0.86
     # via -r env/requirements.in
 packaging==26.3
     # via
@@ -141,6 +144,7 @@ packaging==26.3
     #   python-can
 pillow==12.3.0
     # via
+    #   -r env/requirements.in
     #   imageio
     #   obj2mjcf
 pluggy==1.6.0

@@ -44,7 +44,7 @@ The tested combination. Source revisions are authoritative in git (submodule pin
 
 ## v0.13.0 (2026-11-23): `piper_calibration`
 
-New wheel `piper_calibration` (hand-eye calibration of the wrist camera moved out of graspwise's box code: solver, pose planning, session runner `piper-calibrate`, board maker `piper-calibration-board`, the box deploy `scripts/deploy_calibration.sh`, tests). Needs OpenCV 4.x contrib (extra `[vision]`); importing it loads no OpenCV or ZED SDK. All five other wheels are 0.13.0 with no change in behaviour. Docs: `docs/CALIBRATION.md`. Not run on the box or the arm yet. Tests: 17 in `src/piper_calibration/test` (skipped in Studio's own venv, which has OpenCV 4.6 without the contrib aruco API).
+New wheel `piper_calibration` (hand-eye calibration of the wrist camera moved out of graspwise's box code: solver, pose planning, session runner `piper-calibrate`, board maker `piper-calibration-board`, the box deploy `scripts/deploy_calibration.sh`, tests). Needs OpenCV 4.x contrib (extra `[vision]`); importing it loads no OpenCV or ZED SDK. All five other wheels are 0.13.0 with no change in behaviour. Docs: `docs/CALIBRATION.md`. Not run on the box or the arm yet. Tests: 17 in `src/piper_calibration/test`; Studio's venv has `opencv-contrib-python-headless` 4.11 since 2026-11-23 (`env/requirements.in`), so `smoke.sh` runs them (they skip where OpenCV lacks the contrib aruco API).
 
 ## v0.12.0 (2026-11-23): one robot in three bodies
 

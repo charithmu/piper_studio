@@ -19,3 +19,6 @@ pycollada
 # Video encoding for demo recordings (tools/capture/render_mujoco_video.py)
 imageio
 imageio-ffmpeg
+# Camera calibration (src/piper_calibration, extra [vision]): OpenCV 4.x WITH contrib aruco; 5.x has no calibrateHandEye. Headless: no windows.
+opencv-contrib-python-headless>=4.10,<5
+pillow
