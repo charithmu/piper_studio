@@ -44,3 +44,9 @@ Also `0x47D/0x47E` (range configuration: `max_range_config` 0 / 70 / 100, `teach
 5. Speed vs impact: ramp 25 / 50 / 100 / 250 mm/s onto the box, peak force.
 6. Gauge: the load cell between the fingers against the reading (is "N" newtons).
 Each step reports numbers into `docs/real_arm/REPORT.md`. Only after that does the host-side force stop get built on the real arm; the simulator and fake-SDK parts can be built and tested first.
+
+## 7. Scope decision (2026-11-23, the owner): only what makes the pipeline more rigid, the rest off or later
+Until a pick works end to end, every added function is another failure point. Therefore:
+- **Done (0.13.x, additive):** `RealArm.set_gripper(..., speed=None)` ramps the position target with the same `ramp_target` the simulators use (fake-gripper tests `test_real_gripper_ramp.py`). `speed=None` is the old one-jump behaviour. Nothing in downstream uses it yet: graspwise keeps its box `close_gradually` until the owner has tried this on the arm (graspwise FINDINGS F4).
+- **Not built, kept here for later:** the decelerating speed profile, the squeeze margin, the force stop, hold re-send, `width_ok`/`force_ok`, a width-estimate step, a gripper config file. When built, each is a switch that is OFF by default (today's behaviour: close to 0.0 at 1 N, constant 15 mm/s), recorded in the run when on, and lives in the gripper layer only. Keep the number of parameters minimal: one config file only when there is more than one value to put in it.
+- **Hardware session** (section 6) is the next real step; `piper-gripper-probe` is not written yet.

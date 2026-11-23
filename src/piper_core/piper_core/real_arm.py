@@ -31,7 +31,7 @@ import numpy as np
 from piper_core.bus_lock import BusBusyError, BusLock
 from piper_core.backend import (ARM_JOINTS, MAX_STEP, MAX_VELOCITY, ArmState, BackendError, ExecResult, Outcome, Trajectory, check_start,
                                check_trajectory)
-from piper_core.gripper import (GRIPPER_DEFAULT_EFFORT, GRIPPER_MAX_EFFORT, GRIPPER_STROKE, GripperResult, GripperWatch)    # noqa: F401  (re-exported: they lived here until 0.12)
+from piper_core.gripper import (GRIPPER_DEFAULT_EFFORT, GRIPPER_MAX_EFFORT, GRIPPER_STROKE, GripperResult, GripperWatch, ramp_target)    # noqa: F401  (re-exported: they lived here until 0.12)
 from piper_core.guard import GuardConfig, check_command
 from piper_core.poses import classify_state, zero_pose
 
@@ -261,25 +261,35 @@ class RealArm:
         self.gripper.move_gripper_m(value=min(max(float(width), 0.0), self.gripper_stroke), force=effort)
         return Outcome(True)
 
-    def set_gripper(self, width: float, effort: float | None = None, timeout: float = 5.0) -> float:
+    def set_gripper(self, width: float, effort: float | None = None, timeout: float = 5.0, speed: float | None = None) -> float:
         """Move the gripper and block until it reached the width, stopped short of it (object or end stop) or `timeout`. Returns the measured width in metres.
+        `speed` (m/s, default None = one jump, the firmware's own speed of about 0.25 m/s) makes the position target ramp towards `width` at that speed, as the simulators do
+        with the same `piper_core.gripper.ramp_target`: a slow close meets the object gently. The end is decided by `GripperWatch` either way.
         `self.last_gripper` says how it ended ('reached' | 'stalled' | 'no_motion' | 'timeout'), the width and the force then; a stalled close is how a held object shows.
-        Raises RealArmError when the command is refused (nothing was sent)."""
-        out = self.gripper_command(width, effort)
+        Raises RealArmError when a command is refused (nothing was sent for that command)."""
+        dt, effort_n = 0.02, self.gripper_effort if effort is None else float(effort)
+        start = self.gripper_opening()
+        target = float(width) if speed is None or start is None else ramp_target(start, float(width), float(speed), dt)
+        out = self.gripper_command(target, effort)
         if not out:
             raise RealArmError(out.message)
-        watch, t0, trace = GripperWatch(float(width), self._now, self.gripper_opening()), self._now(), []
+        watch, t0, trace = GripperWatch(float(width), self._now, start), self._now(), []
         while True:
-            self._sleep(0.02)
+            self._sleep(dt)
             w = self.gripper_opening()
             if w is not None:
                 trace.append((self._now() - t0, w, self.gripper_force()))
             reason = watch.update(w) if w is not None else None
             if reason is None and self._now() - t0 > timeout:
                 reason = "timeout"
+            if reason is None and speed is not None and target != float(width):
+                target = ramp_target(target, float(width), float(speed), dt)
+                out = self.gripper_command(target, effort)
+                if not out:
+                    raise RealArmError(out.message)
             if reason:
                 if reason != "reached" and w is not None:               # stop pushing: aim at where it is
-                    self.gripper.move_gripper_m(value=min(max(w, 0.0), self.gripper_stroke), force=self.gripper_effort if effort is None else float(effort))
+                    self.gripper.move_gripper_m(value=min(max(w, 0.0), self.gripper_stroke), force=effort_n)
                 self.last_gripper = GripperResult(reason, w if w is not None else math.nan, self.gripper_force(), self._now() - t0, trace)
                 return self.last_gripper.width
 
