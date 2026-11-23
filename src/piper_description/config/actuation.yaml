@@ -1,0 +1,37 @@
+# The simulators' model of the arm and gripper: ONE file for MuJoCo and Isaac Sim (docs/INTEGRATION.md "One robot, three bodies").
+# Each value says where it comes from. `firmware` values are NOT repeated here: joint and gripper limits, velocities, efforts and the stroke
+# come from config/firmware_values.yaml (through the generated description), and the generators read them from there.
+#   measured   = measured on the real arm (docs/real_arm/REPORT.md)       vendor = AgileX software       provisional = a stand-in, not identified
+schema: piper.actuation/1
+
+arm:
+  # Position servos standing in for the firmware's own position loop (status: provisional; DECISIONS.md D4; step responses in CLEANUP).
+  # Force limit of every arm joint = firmware_values.arm_joint_max_effort (the generators use it; nothing else sets it).
+  # Gravity is compensated, as the firmware does (a bare position drive would sag about 9 mm at the TCP).
+  joints:
+    joint1: {kp: 400, dampratio: 1}
+    joint2: {kp: 400, dampratio: 1}
+    joint3: {kp: 400, dampratio: 1}
+    joint4: {kp: 100, dampratio: 3}      # small, pose-dependent inertia: dampratio 1 gave 31 % overshoot, 3 gives < 2 %
+    joint5: {kp: 100, dampratio: 1}
+    joint6: {kp: 50, dampratio: 1}
+  gravity_compensation: true
+  status: provisional
+
+gripper:
+  # Physical model of the AgileX gripper (one opening width, two mimic fingers). Stroke, velocity limit and force ceiling come from the
+  # description (firmware_values.yaml: gripper_stroke, gripper_max_velocity, gripper_max_effort).
+  servo: {kp: 400, dampratio: 2}                       # N/m on the opening width; the equality-coupled fingers double the effective mass; status: provisional
+  command_force: {min: 0.5, default: 1.0, max: 3.0}    # N, vendor wrapper range (agx_arm_ctrl); default = the vendor default
+  grip_force_plateau: 2.09                             # N, measured: the steady grip force stops rising at about 2.1 N although 3 N is commanded
+  #   force actually applied while gripping = min(commanded effort, grip_force_plateau); read-back is negative while gripping, as on the arm
+  speed: 0.25                                          # m/s, the target moves at this speed (the gradual close); measured 68 mm in 0.28 s (equals gripper_max_velocity)
+  empty_closed_width: 0.0                              # m, the real one reads 0.14 mm: below the stalled-close threshold (GripperWatch)
+  pad_friction: [1.0, 0.005, 0.0001]                   # sliding, torsional, rolling; status: provisional (the fingertip pads' friction is not measured)
+  stalled_width_tolerance: 0.0005                      # m, expected agreement of a simulated held width with the real one (box 54.3 mm real) in the parity test
+
+contact:
+  # Solver settings of the gripper/arm model (world objects set their own friction: that is the downstream world's, not the robot's).
+  integrator: implicitfast
+  cone: elliptic
+  impratio: 10

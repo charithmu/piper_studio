@@ -35,6 +35,22 @@ def robot_description(hardware: str = "mock", **mappings) -> str:
 PHYSICS_LIMIT_MARGIN = {"revolute": 0.01, "prismatic": 0.002}  # rad, m
 
 
+def apply_actuation(text: str, prefix: str = DEFAULT_PREFIX) -> str:
+    """Fill the `<!--OPTION-->` and `<!--ACTUATORS-->` markers of the MuJoCo inputs from `piper_description.actuation()` (config/actuation.yaml): servo gains
+    from there, force limits = the description's efforts. The gripper's force limit here is its ceiling (the vendor's 3 N); `PiperSim` lowers it to the commanded effort at run time."""
+    from piper_description import actuation
+    a = actuation()
+    c, g = a["contact"], a["gripper"]
+    option = f'<option integrator="{c["integrator"]}" cone="{c["cone"]}" impratio="{c["impratio"]}"/>'
+    rows = []
+    for name, j in a["arm"]["joints"].items():
+        f = j["force"]
+        rows.append(f'<position name="{prefix}{name}" joint="{prefix}{name}" kp="{j["kp"]:g}" dampratio="{j["dampratio"]:g}" forcerange="-{f:g} {f:g}"/>')
+    f = g["force_max"]
+    rows.append(f'<position name="{prefix}gripper" joint="{prefix}gripper" kp="{g["servo"]["kp"]:g}" dampratio="{g["servo"]["dampratio"]:g}" forcerange="-{f:g} {f:g}"/>')
+    return text.replace("<!--OPTION-->", option).replace("<!--ACTUATORS-->", "<actuator>\n      " + "\n      ".join(rows) + "\n    </actuator>")
+
+
 def mujoco_model(urdf: str, inputs: str | Path, scene: str | Path, cache_dir: str | Path | None = None,
                  camera: dict | None = None, prefix: str = DEFAULT_PREFIX) -> Path:
     """Generate the MuJoCo scene for a description with mujoco_ros2_control's URDF converter.
@@ -47,7 +63,7 @@ def mujoco_model(urdf: str, inputs: str | Path, scene: str | Path, cache_dir: st
     from ament_index_python.packages import get_package_prefix
     physics = collision_meshes_as_visuals(_without_ros2_control(urdf))
     inputs, scene = Path(inputs).resolve(), Path(scene).resolve()
-    inputs_text = apply_prefix(inputs.read_text(), prefix)
+    inputs_text = apply_actuation(apply_prefix(inputs.read_text(), prefix), prefix)
     if camera:  # fixed MJCF camera on the left lens' optical frame; fovy is the vertical field of view
         import math
         w, h, hfov = camera["width"], camera["height"], camera["hfov_deg"]

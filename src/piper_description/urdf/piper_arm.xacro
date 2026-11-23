@@ -6,7 +6,7 @@
   prefix and a fixed world root. Names get `prefix` (default piper_), the world joint becomes a mount joint from `parent`.
 
   source:    agx_arm_ros @ 286633e, agx_arm_urdf @ 680fa92
-  generated: 2026-11-08 by tools/piper_arm_macro.py (generator version 2)
+  generated: 2026-11-23 by tools/piper_arm_macro.py (generator version 2)
   sha256 piper_description.urdf:            d9e97fec40ae47d12cf482417acec48706ce4a1398b31b91f328d5b3d75f6183
   sha256 piper_with_gripper_description.xacro: 374013965d83e80923196598c0bfbba2b0703b9f412ed9ec255c82b5c50e0f53
 
@@ -252,7 +252,7 @@
         <parent link="${prefix}gripper_base" />
         <child link="${prefix}gripper_link" />
         <axis xyz="0 0 1" />
-        <limit lower="0" upper="0.07" effort="10" velocity="3" />
+        <limit lower="0" upper="0.07" effort="3.0" velocity="3" />
       </joint>
       <link name="${prefix}gripper_link1">
         <inertial>
@@ -278,7 +278,7 @@
         <parent link="${prefix}gripper_base" />
         <child link="${prefix}gripper_link1" />
         <axis xyz="0 0 1" />
-        <limit lower="0" upper="0.035" effort="10" velocity="3" />
+        <limit lower="0" upper="0.035" effort="3.0" velocity="3" />
         <mimic joint="${prefix}gripper" multiplier="0.5" offset="0.0" />
       </joint>
       <link name="${prefix}gripper_link2">
@@ -305,7 +305,7 @@
         <parent link="${prefix}gripper_base" />
         <child link="${prefix}gripper_link2" />
         <axis xyz="0 0 -1" />
-        <limit lower="-0.035" upper="0" effort="10" velocity="3" />
+        <limit lower="-0.035" upper="0" effort="3.0" velocity="3" />
         <mimic joint="${prefix}gripper" multiplier="-0.5" offset="0.0" />
       </joint>
     </xacro:if>

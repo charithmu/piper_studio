@@ -159,9 +159,10 @@ class ArmBackend(Protocol):
     def command(self, q, dq=None) -> None: ...            # one real-time setpoint through the guard; BackendError if refused
     def hold(self) -> None: ...                           # keep the present position
     def move_to(self, q, duration: float | None = None) -> ExecResult: ...
-    # gripper: width in metres (0 closed .. 0.07 open). `effort` (N) is used by the real arm (default 1 N, capped); simulators accept and ignore it for now (docs/FINDINGS.md).
+    # gripper: width in metres (0 closed .. 0.07 open). `effort` (N, default 1, at most 3) sets the grip force on the real arm AND in the simulators (the simulated gripper applies min(effort, the real plateau of 2.1 N)); the move, its end conditions and refusals are `piper_core.gripper`.
+    # Simulators (PiperSim, PiperIsaacSim) also take `settle_tolerance` / `settle_s` in execute() and `speed` (m/s, slower than the gripper's own) in set_gripper(); the real arm does not (yet).
     def gripper_opening(self) -> float | None: ...        # measured width, m
-    def gripper_force(self) -> float | None: ...          # measured force, N (sign: negative while gripping on the real arm); NaN where the backend cannot measure it
+    def gripper_force(self) -> float | None: ...          # measured force, N (negative while gripping, on the real arm and in both simulators)
     def set_gripper(self, width: float, effort: float | None = None, timeout: float | None = None) -> float: ...   # blocks until reached / stalled / timeout; returns the measured width
 
 

@@ -228,6 +228,28 @@ def scene() -> dict:
     return json.loads((data_dir() / "scene.json").read_text())
 
 
+def actuation() -> dict:
+    """How the simulators model the arm and the gripper (`piper_description/config/actuation.yaml` completed from the firmware values): `arm.joints.<j>` {kp, dampratio, force},
+    `gripper` {servo, command_force, grip_force_plateau, speed, pad_friction, stroke, velocity, force_max, ...}, `contact`. MuJoCo and Isaac are both made from it."""
+    return json.loads((data_dir() / "actuation.json").read_text())
+
+
+def scene_world(name: str = "empty"):
+    """The built-in scenes as a `piper_core.World`: "empty" (the arm on the ground plane) or "table" (the PLACEHOLDER table whose top face is the base's mounting plane, z = 0,
+    with the three shared objects as free bodies, 0.05 kg, friction 1; ground plane 0.5 m lower). A downstream project builds its own `World` instead."""
+    from piper_core.world import Body, World
+    if name == "empty":
+        return World(ground_z=0.0)
+    if name != "table":
+        raise ValueError("scene must be 'empty' or 'table'")
+    sc = scene()
+    t = sc["table"]
+    sx, sy, sz = t["size"]
+    bodies = [Body(t["name"], "box", (sx, sy, sz), pos=(t["pos_xy"][0], t["pos_xy"][1], t["top_z"] - sz / 2), rgba=(0.55, 0.45, 0.35, 1.0))]
+    bodies += [Body(o["name"], o["shape"], tuple(o["size"]), pos=tuple(o["pos"]), rgba=tuple(o["rgba"]), static=False, mass=0.05) for o in sc["objects"]]
+    return World(bodies, ground_z=-0.5)
+
+
 def camera_mount_path(name: str | None = None) -> Path:
     """The bracket's mount file (default: the newest version, the one the URDF uses)."""
     d = data_dir() / "camera_mounts"

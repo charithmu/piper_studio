@@ -12,12 +12,15 @@ import numpy as np
 
 import mujoco
 import piper_assets
+from piper_mujoco.world import apply_world
 from piper_core.backend import (ARM_JOINTS, MAX_STEP, ArmState, BackendError, ExecResult, Outcome, Trajectory, check_start, check_trajectory,
                                 resample)
+from piper_core.gripper import GRIPPER_DEFAULT_EFFORT, check_gripper_command, run_gripper_move
 from piper_core.guard import GuardConfig, check_command
 
 GRIPPER = "gripper"
 FINGERS = (("gripper_joint1", 0.5), ("gripper_joint2", -0.5))      # mimic joints of the description: multiplier x gripper width
+GRIPPER_MAX_S = 5.0                                                # a gripper move gives up after this long (RealArm.set_gripper's default)
 SETTLE_S, SETTLE_TOL = 3.0, 1e-4                                   # after the last setpoint: hold it until within 0.1 mrad, at most 3 s
 
 
@@ -32,10 +35,12 @@ class PiperSim:
     joint_names = list(ARM_JOINTS)
 
     def __init__(self, scene: str = "empty", gripper_width: float = 0.07, physics_dt: float = 0.001, ctrl_hz: float = 500.0,
-                 realtime: bool = False, render: bool = False, camera: bool = True, setup: str | None = None):
+                 realtime: bool = False, render: bool = False, camera: bool = True, setup: str | None = None, world=None):
         """`camera=True` (the default): the arm carries the ZED X Mini on its bracket (a body with collision, `camera_image()` renders from its left lens);
         `camera=False`: the robot only. `setup` (arm | arm_cam | go2) replaces `camera` when given: arm = robot only, arm_cam = with the camera, go2 = the full setup on the Go2 (nominal mount):
-        the dog is fixed, standing, its collision is the planner's one generated box; scene "empty" only (a floor). Without `setup` nothing changes (the arm on its own, as before)."""
+        the dog is fixed, standing, its collision is the planner's one generated box; scene "empty" only (a floor). Without `setup` nothing changes (the arm on its own, as before).
+        `scene` ("empty" | "table") picks a built-in world (`piper_assets.scene_world`); `world` (a `piper_core.World`) replaces it with your own: ground height, tables,
+        objects (static or free, with their friction and mass), fixed cameras. The robot, its gripper physics and its camera are Studio's and the same either way."""
         if setup is not None:
             if setup not in ("arm", "arm_cam", "go2"):
                 raise ValueError("setup must be 'arm', 'arm_cam' or 'go2'")
@@ -46,6 +51,10 @@ class PiperSim:
             camera = setup != "arm"
         if scene not in ("empty", "table"):
             raise ValueError("scene must be 'empty' or 'table'")
+        if world is not None and scene != "empty":
+            raise ValueError("give either `scene` or `world`, not both")
+        if world is None and setup != "go2":
+            world = piper_assets.scene_world(scene)
         self.limits_info = piper_assets.limits()
         if not 0.0 <= gripper_width <= self.limits_info.gripper_stroke:
             raise ValueError(f"gripper_width must be in [0, {self.limits_info.gripper_stroke}]")
@@ -57,7 +66,12 @@ class PiperSim:
         self.camera_enabled = bool(camera)
         self.setup = setup
         folder = "model_go2" if setup == "go2" else ("model" if camera else "model_no_camera")
-        self.model = mujoco.MjModel.from_xml_path(str(data_dir() / folder / f"scene_{scene}.xml"))
+        spec = mujoco.MjSpec.from_file(str(data_dir() / folder / "scene_empty.xml"))
+        if world is not None:
+            apply_world(spec, world)
+        self.model = spec.compile()
+        self.world = world
+        self.act = piper_assets.actuation()
         self.model.opt.timestep = physics_dt
         self.data = mujoco.MjData(self.model)
         self.limits = dict(self.limits_info.hard)
@@ -66,6 +80,10 @@ class PiperSim:
         self._vadr = [self.model.joint(j).dofadr[0] for j in ARM_JOINTS]
         self._act = [self.model.actuator(j).id for j in ARM_JOINTS]
         self._grip_act = self.model.actuator(GRIPPER).id
+        self._finger_q = [self.model.joint(n).qposadr[0] for n, _ in FINGERS]
+        self._finger_v = [self.model.joint(n).dofadr[0] for n, _ in FINGERS]
+        self.last_gripper = None
+        self.on_step = None                  # optional callable, called after every control period (a viewer, a recorder); keep it short, it runs in the physics loop
         self._geom_names = {}
         link1 = self.model.body("link1").id            # the arm: link1 and everything below it (the fused base is world, never a contact partner)
         self._arm_body = np.zeros(self.model.nbody, dtype=bool)
@@ -93,6 +111,7 @@ class PiperSim:
         self._set_gripper_qpos(self.gripper_width)
         self.data.ctrl[self._act] = zero
         self.data.ctrl[self._grip_act] = self.gripper_width
+        self._set_force_limit(GRIPPER_DEFAULT_EFFORT)
         mujoco.mj_forward(self.model, self.data)
         self._wall0 = None
 
@@ -178,7 +197,7 @@ class PiperSim:
     def state(self) -> ArmState:
         q = np.array([self.data.qpos[a] for a in self._qadr])
         dq = np.array([self.data.qvel[v] for v in self._vadr])
-        return ArmState(self.time, q, dq, self.time, self.gripper_opening(), math.nan)
+        return ArmState(self.time, q, dq, self.time, self.gripper_opening(), self.gripper_force())
 
     def hold(self) -> None:
         self.data.ctrl[self._act] = self.state().q
@@ -189,6 +208,8 @@ class PiperSim:
             mujoco.mj_step(self.model, self.data)
         if contacts is not None:
             self._collect_contacts(contacts, t_log)
+        if self.on_step is not None:
+            self.on_step()
         if self.realtime:
             if self._wall0 is None:
                 self._wall0 = time.monotonic() - self.time + self.ctrl_dt
@@ -223,24 +244,46 @@ class PiperSim:
         self._step()
 
     def gripper_opening(self) -> float:
-        """The measured gripper opening in metres (0 closed, 0.07 open)."""
-        return float(self.data.qpos[self.model.joint(GRIPPER).qposadr[0]])
+        """The measured gripper opening in metres (0 closed, 0.07 open): the PHYSICAL one, the two fingers' travel (a held object stops it, a command alone does not)."""
+        return float(self.data.qpos[self._finger_q[0]] - self.data.qpos[self._finger_q[1]])
 
     def gripper_force(self) -> float:
-        """NaN: the simulated gripper has no force read-back (the real one does, about -2 N at 3 N commanded: docs/real_arm/arms/piper-01.md)."""
-        return math.nan
+        """The gripper's force in newtons, as the real one reads it: negative while it grips (about -2 N at 3 N commanded: the plateau in actuation.yaml)."""
+        return float(self.data.actuator_force[self._grip_act])
 
-    def set_gripper(self, width: float, effort: float | None = None, timeout: float | None = None) -> float:
-        """Move the gripper to `width` (0 to the stroke) and wait until it has settled (at most `timeout`, default 2 s). `effort` is ignored by the simulator. Returns the measured width."""
-        if not 0.0 <= width <= self.limits_info.gripper_stroke:
-            raise BackendError(f"gripper width {width} outside [0, {self.limits_info.gripper_stroke}]")
-        self.data.ctrl[self._grip_act] = width
-        gq = self.model.joint(GRIPPER).qposadr[0]
-        for _ in range(int((2.0 if timeout is None else timeout) / self.ctrl_dt)):
+    def _set_force_limit(self, newtons: float) -> None:
+        self.model.actuator_forcerange[self._grip_act] = [-newtons, newtons]
+
+    def wait(self, seconds: float) -> None:
+        """Let `seconds` of simulation time pass holding every target (the arm holds its pose, the gripper its width and force): objects settle, a held object is carried."""
+        for _ in range(max(1, round(seconds / self.ctrl_dt))):
             self._step()
-            if abs(self.data.qpos[gq] - width) < 1e-4 and abs(self.data.qvel[self.model.joint(GRIPPER).dofadr[0]]) < 1e-3:
-                break
-        return self.gripper_opening()
+
+    def reset_pacing(self) -> None:
+        """Forget the wall-clock anchor of real-time pacing (`realtime=True`): the next step is paced from now. Call it after a pause, or after changing `realtime`."""
+        self._wall0 = None
+
+    def set_gripper(self, width: float, effort: float | None = None, timeout: float | None = None, speed: float | None = None) -> float:
+        """Move the gripper to `width` and block until it reached it, stopped short of it (an object or the end stop) or `timeout` (default 5 s of simulation): the same
+        end conditions, refusals, force law and gradual speed as the real arm (`piper_core.gripper`). `effort` in (0, 3] N, default 1 N. Returns the measured width;
+        `last_gripper.reason` says how it ended (reached | stalled | no_motion | timeout), with the width and force then.
+        `speed` (m/s) slows the gradual move (default: the gripper's own, actuation.yaml `gripper.speed`; never faster than it): a slow close that meets an object gently."""
+        effort, error = check_gripper_command(float(width), effort, self.limits_info.gripper_stroke, self.act["gripper"]["force_max"], GRIPPER_DEFAULT_EFFORT)
+        if error:
+            raise BackendError(error)
+        g = self.act["gripper"]
+        if speed is not None and not 0.0 < float(speed) <= g["speed"]:
+            raise BackendError(f"gripper speed {speed} m/s is outside (0, {g['speed']}]")
+
+        def step(target):
+            self.data.ctrl[self._grip_act] = target
+            self._step()
+
+        self.last_gripper, _ = run_gripper_move(
+            width=float(width), effort=effort, timeout=GRIPPER_MAX_S if timeout is None else float(timeout), speed=g["speed"] if speed is None else float(speed), plateau=g["grip_force_plateau"], dt=self.ctrl_dt,
+            step=step, opening=self.gripper_opening, force=self.gripper_force, time_now=lambda: self.time, set_force_limit=self._set_force_limit,
+            current_target=float(self.data.ctrl[self._grip_act]))
+        return self.last_gripper.width
 
     def move_to(self, q, duration: float | None = None) -> ExecResult:
         """A minimum-jerk move from the present pose to `q` (our own convenience move; planner trajectories go through execute())."""
@@ -252,8 +295,10 @@ class PiperSim:
         d = (q1 - q0)[None, :]
         return self.execute(Trajectory(list(ARM_JOINTS), t, q0 + pos[:, None] * d, vel[:, None] * d))
 
-    def execute(self, traj, *, margin_percent: float = 20.0, blocking: bool = True) -> ExecResult:
-        """Run a trajectory as given (see piper_core.backend). `margin_percent` is ignored: the setpoints go straight to the position actuators."""
+    def execute(self, traj, *, margin_percent: float = 20.0, blocking: bool = True, settle_tolerance: float = SETTLE_TOL, settle_s: float = SETTLE_S) -> ExecResult:
+        """Run a trajectory as given (see piper_core.backend). `margin_percent` is ignored: the setpoints go straight to the position actuators.
+        After the last setpoint the servos hold it until every joint is within `settle_tolerance` rad and still, at most `settle_s` seconds of simulation (a loaded arm
+        settles to about 0.4 mrad: a caller that does not need 0.1 mrad passes a looser pair)."""
         if not blocking:
             raise NotImplementedError("PiperSim.execute is blocking only")
         try:
@@ -281,8 +326,8 @@ class PiperSim:
             log_t.append(float(t)); log_c.append(q.copy()); log_m.append(self.state().q)
         goal = setpoints[-1]
         extra = grid[-1]
-        for _ in range(int(SETTLE_S / self.ctrl_dt)):                 # keep holding the last setpoint until the servos have arrived
-            if float(np.max(np.abs(self.state().q - goal))) < SETTLE_TOL and float(np.max(np.abs(self.state().dq))) < 1e-3:
+        for _ in range(int(settle_s / self.ctrl_dt)):                 # keep holding the last setpoint until the servos have arrived
+            if float(np.max(np.abs(self.state().q - goal))) < settle_tolerance and float(np.max(np.abs(self.state().dq))) < 1e-3:
                 break
             extra += self.ctrl_dt
             self._step(contacts, float(extra))

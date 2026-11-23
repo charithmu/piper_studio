@@ -66,5 +66,6 @@ for q in qs:
                          for name in FRAMES}
         ref["col_boxes"] = {name: [b.tolist() for b in box(tmp, name, qd)] for name in ("camera_mount_link", "zed_camera_center")}
     refs.append(ref)
-json.dump({"configs": refs, "total_mass": sum(m.masses.values()), "masses": m.masses}, out.open("w"))
+limits = {j: [m.joints[j].lower, m.joints[j].upper, m.joints[j].effort, m.joints[j].velocity] for j in (*model_audit.ARM_JOINTS, "gripper", "gripper_joint1", "gripper_joint2")}
+json.dump({"configs": refs, "total_mass": sum(m.masses.values()), "masses": m.masses, "limits": limits}, out.open("w"))
 print("wrote", out, "total mass", round(sum(m.masses.values()), 4))

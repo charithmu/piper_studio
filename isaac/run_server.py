@@ -1,20 +1,21 @@
 """ROS-free Isaac Sim server for the Piper: the front end of the `piper_isaac` client (an ArmBackend). Run in Isaac's own environment by the client
 (`piper_isaac.PiperIsaacSim` starts it with the same `env -i` / `gpu-run` pattern as `scripts/isaac.sh`), always through gpu-run, one process per run.
 
-    python run_server.py --usd piper_isaac.usda --socket /path/run.sock --scene table --scene-json scene.json --zero '[0,0.01,-0.01,0,0,0]'
+    python run_server.py --usd piper_isaac.usda --socket /path/run.sock --world world.json --actuation actuation.json --zero '[0,0.01,-0.01,0,0,0]'
 
 Protocol: one JSON object per line in, one per line out (`{"ok": true, ...}` or `{"ok": false, "error": "..."}`), one client at a time. The server holds NO rules:
 the client applies the guard and the resampling (piper_core), the server only applies setpoints, steps physics in simulation time (never wall time) and
 reports what it measured. Time advances only inside `run`, `settle`, `command`, `gripper` and `step`.
 
   hello                                  -> dof_names, ctrl_hz, physics_hz, objects, contacts (bool), prefix
-  state                                  -> t (sim s since reset), q, dq (6 each), gripper
+  state                                  -> t (sim s since reset), q, dq (6 each), gripper (the physical opening, m), gripper_force (N, negative while gripping)
   reset {zero, width}                    -> arm at zero, gripper at width, objects back, sim time 0
   run {q: [[6] x N]}                     -> one control step per row: q_meas [[6] x N], contacts [[step, a, b, depth], ...] (step = 0-based control step of this call; the callback fires inside the step, before the counter advances)
   settle {goal, tol, vel_tol, max_s}     -> hold `goal` until within tol (rad) and slower than vel_tol, at most max_s: q_meas, contacts
   command {q}                            -> one setpoint, one control step: q_meas
   hold                                   -> targets := measured arm pose (no time passes)
-  gripper {width, max_s}                 -> move the gripper and wait until it has settled (at most max_s): width
+  wait {seconds}                         -> simulation time passes with every target held
+  gripper {width, effort, max_s, speed}  -> the gripper's move as the real one makes it (piper_core.gripper.run_gripper_move, the same code MuJoCo runs): width, force, reason, duration, trace
   objects                                -> {name: {pos, quat_wxyz}} in the base frame
   camera_info                            -> the wrist camera: width, height, hfov_deg, near, far, K (needs --camera zedxm)
   camera_pose                            -> T (4x4): the camera's optical frame (z forward, x right, y down) in the world = base frame, now
@@ -42,8 +43,8 @@ ap = argparse.ArgumentParser()
 ap.add_argument("--usd", required=True)
 ap.add_argument("--socket", required=True, help="unix socket path (put it under the run directory; removed on exit)")
 ap.add_argument("--prefix", default="piper_", help="prefix of every joint and link name in the USD (the description's prefix)")
-ap.add_argument("--scene", choices=["empty", "table"], default="empty")
-ap.add_argument("--scene-json", type=Path, help="JSON {objects: [...], table: {...}} as piper_assets.scene() returns it")
+ap.add_argument("--world", type=Path, help="a piper_core.World as JSON (piper.world/1): ground height, static and free bodies, meshes. Default: nothing, ground at 0")
+ap.add_argument("--actuation", type=Path, required=True, help="piper_assets.actuation() as JSON: the gripper's speed, force plateau and pad friction (the numbers MuJoCo uses too)")
 ap.add_argument("--world-json", type=Path, help="JSON list of static boxes [{name, size, pos, quat, rgba, visible}] in the base frame: the planner's world (the Go2 setup's dog and plate)")
 ap.add_argument("--dog-usd", type=Path, help="USD of the dog's visual (no physics), placed by --dog-pose")
 ap.add_argument("--dog-pose", help="JSON 4x4 pose of the dog's frame in the base frame (column-vector convention)")
@@ -69,19 +70,23 @@ app = SimulationApp({"headless": not args.gui, "width": 1280, "height": 720, "di
 
 import numpy as np  # noqa: E402
 
+from piper_gripper import GRIPPER_DEFAULT_EFFORT, check_gripper_command, run_gripper_move  # noqa: E402  (piper_core/gripper.py: dependency-free, one implementation with MuJoCo)
 from world import World  # noqa: E402
 
 zero = json.loads(args.zero)
-spec = json.loads(args.scene_json.read_text()) if args.scene_json else {"objects": [], "table": None}
-table_scene = args.scene == "table"
-world = World(app, args.usd, prefix=args.prefix, ctrl_hz=args.ctrl_hz, physics_hz=args.physics_hz,
-              ground_z=args.ground_z if args.ground_z is not None else (-0.5 if table_scene else 0.0), contacts=True, camera=args.camera != "none")
+spec = json.loads(args.world.read_text()) if args.world else {"bodies": [], "ground_z": None, "cameras": []}
+act = json.loads(args.actuation.read_text())
+GRIPPER = act["gripper"]
+ground_z = args.ground_z if args.ground_z is not None else (spec["ground_z"] if spec.get("ground_z") is not None else 0.0)
+spec["ground_z"] = ground_z if spec.get("ground_z") is not None else None
+world = World(app, args.usd, prefix=args.prefix, ctrl_hz=args.ctrl_hz, physics_hz=args.physics_hz, ground_z=ground_z, contacts=True, camera=args.camera != "none", actuation=act)
 if args.world_json:
     world.add_static_boxes(json.loads(args.world_json.read_text()))
 if args.dog_usd:
     world.add_visual_usd(args.dog_usd, json.loads(args.dog_pose))
-world.add_scene(spec.get("objects", []) if table_scene else [], spec.get("table") if table_scene else None, dynamic=True)   # MuJoCo's empty scene has no objects
+world.add_world(spec)
 world.start(zero, args.gripper_width)
+world.set_gripper_force_limit(GRIPPER_DEFAULT_EFFORT)
 world.gui = args.gui
 
 # ---- the wrist camera: a USD camera under link6 at the ZED X Mini's left (colour) optical frame, rendered on request ----------------
@@ -188,9 +193,10 @@ def handle(c):
                 "prefix": world.prefix, "render": args.render}
     if cmd == "state":
         g, _ = world.gripper()
-        return {"t": world.time, "q": world.q().tolist(), "dq": world.dq().tolist(), "gripper": g}
+        return {"t": world.time, "q": world.q().tolist(), "dq": world.dq().tolist(), "gripper": g, "gripper_force": world.gripper_force()}
     if cmd == "reset":
         world.reset(c.get("zero", zero), c.get("width", args.gripper_width))
+        world.set_gripper_force_limit(GRIPPER_DEFAULT_EFFORT)
         world.step(2)                                               # let the articulation and the objects register the new state
         world.steps = 0
         if rec["writer"] is not None:
@@ -220,18 +226,28 @@ def handle(c):
         world.set_targets(arm=c["q"])
         world.step()
         return {"q_meas": world.q().tolist()}
+    if cmd == "wait":
+        first = world.steps
+        world.step(max(1, round(float(c["seconds"]) / world.ctrl_dt)))
+        take_contacts(first)
+        return {}
     if cmd == "hold":
         world.set_targets(arm=world.q())
         return {}
     if cmd == "gripper":
-        width = float(c["width"])
-        world.set_targets(grip=width)
-        for _ in range(int(c.get("max_s", 2.0) / world.ctrl_dt)):
+        effort, error = check_gripper_command(float(c["width"]), c.get("effort"), GRIPPER["stroke"], GRIPPER["force_max"], GRIPPER_DEFAULT_EFFORT)
+        if error:
+            raise ValueError(error)
+
+        def step(target):
+            world.set_targets(grip=target)
             world.step()
-            g, v = world.gripper()
-            if abs(g - width) < 1e-4 and abs(v) < 1e-3:
-                break
-        return {"width": world.gripper()[0], "contacts": take_contacts(0)}
+
+        result, _ = run_gripper_move(
+            width=float(c["width"]), effort=effort, timeout=float(c.get("max_s", 5.0)), speed=GRIPPER["speed"] if c.get("speed") is None else min(float(c["speed"]), GRIPPER["speed"]), plateau=GRIPPER["grip_force_plateau"], dt=world.ctrl_dt, step=step,
+            opening=lambda: world.gripper()[0], force=world.gripper_force, time_now=lambda: world.time, set_force_limit=world.set_gripper_force_limit,
+            current_target=float(world.target[world.i_grip]))
+        return {"width": result.width, "force": result.force, "reason": result.reason, "duration": result.duration, "trace": result.trace, "contacts": take_contacts(0)}
     if cmd == "objects":
         return {n: {"pos": p.tolist(), "quat_wxyz": q.tolist()} for n, (p, q) in world.object_poses().items()}
     if cmd == "camera_info":

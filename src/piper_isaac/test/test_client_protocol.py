@@ -41,7 +41,7 @@ class FakeServer(threading.Thread):
             if c["cmd"] == "hello":
                 r.update(dof_names=[], ctrl_hz=500.0, physics_hz=1000.0, objects=["cube_red"], contacts=True, prefix="piper_", render=False)
             elif c["cmd"] == "state":
-                r.update(t=self.t, q=self.q.tolist(), dq=[0.0] * 6, gripper=self.grip)
+                r.update(t=self.t, q=self.q.tolist(), dq=[0.0] * 6, gripper=self.grip, gripper_force=-1.5)
             elif c["cmd"] == "reset":
                 self.q, self.t = np.array(c["zero"]), 0.0
             elif c["cmd"] in ("run", "settle", "command"):
@@ -68,9 +68,12 @@ class FakeServer(threading.Thread):
                 r.update(q_meas=out, contacts=cont)
             elif c["cmd"] == "hold":
                 pass
+            elif c["cmd"] == "wait":
+                self.t += c["seconds"]
             elif c["cmd"] == "gripper":
                 self.grip = c["width"]
-                r.update(width=self.grip, contacts=[])
+                self.gripper_calls = getattr(self, "gripper_calls", []) + [c]
+                r.update(width=self.grip, force=-1.5, reason="stalled", duration=0.6, trace=[[0.0, 0.07, 0.0], [0.5, self.grip, -1.5]], contacts=[])
             elif c["cmd"] == "objects":
                 r.update(cube_red={"pos": [0.3, 0.06, 0.02], "quat_wxyz": [1, 0, 0, 0]})
             elif c["cmd"] == "quit":
@@ -174,10 +177,20 @@ def test_command_set_gripper_and_move_to(make):
         sim.command(Z + 0.5 * D)                                                                          # 0.5 rad from the measured pose: over max_step
     w = sim.set_gripper(0.03, effort=1.0)                                                             # same shape as RealArm.set_gripper: returns the measured width
     assert srv.grip == 0.03 and w == pytest.approx(0.03) and sim.state().gripper_width == pytest.approx(0.03)
-    import math
-    assert math.isnan(sim.gripper_force())
-    with pytest.raises(BackendError):
-        sim.set_gripper(0.2)
+    assert sim.gripper_force() == -1.5 and sim.state().gripper_force == -1.5
+    assert sim.last_gripper.reason == "stalled" and sim.last_gripper.trace[-1] == (0.5, 0.03, -1.5)
+    assert srv.gripper_calls[-1]["effort"] == 1.0 and srv.gripper_calls[-1]["max_s"] == 5.0                  # the effort and the real-arm default timeout go to the server
+    sim.set_gripper(0.03)
+    assert srv.gripper_calls[-1]["effort"] == 1.0                                                           # the default effort
+    sim.set_gripper(0.03, speed=0.05)
+    assert srv.gripper_calls[-1]["speed"] == 0.05
+    with pytest.raises(BackendError, match="speed"):
+        sim.set_gripper(0.03, speed=0.5)
+    n = len(srv.gripper_calls)
+    for width, effort in ((0.2, None), (0.03, 3.5), (0.03, 0.0)):
+        with pytest.raises(BackendError, match="outside"):                                                   # refused here, nothing sent: the real arm's rules
+            sim.set_gripper(width, effort)
+    assert len(srv.gripper_calls) == n
     assert sim.move_to(Z + [0.2, 0, 0, 0, 0, 0], duration=1.0).ok and sim.stop().ok
 
 
@@ -203,6 +216,7 @@ def test_launcher_preserves_display_only_for_gui(monkeypatch, tmp_path, gui):
     sim.ctrl_hz = sim.physics_hz = 250.0
     sim.gripper_width = 0.07
     sim.camera_enabled = False
+    sim.world, sim.act = None, pa.actuation()
     try:
         sim._launch(tmp_path / "model.usda", env_sh, gui, 1.0)
         cmd = launched[0]
@@ -229,9 +243,49 @@ def test_launcher_passes_the_wrist_camera_by_default(monkeypatch, tmp_path):
     sim = PiperIsaacSim.__new__(PiperIsaacSim)
     sim.gui, sim.scene, sim.ctrl_hz, sim.physics_hz, sim.gripper_width = False, "empty", 250.0, 250.0, 0.07
     sim.camera_enabled = True
+    sim.world, sim.act = None, pa.actuation()
     try:
         sim._launch(tmp_path / "model.usda", env_sh, False, 1.0)
         cmd = launched[0]
         assert cmd[cmd.index("--camera") + 1] == "zedxm" and cmd[cmd.index("--camera-pose") + 1] == str(tmp_path / "camera_pose.json")
     finally:
         sim._log.close()
+
+
+def test_the_launcher_hands_the_server_the_world_and_the_actuation(monkeypatch, tmp_path):
+    """The server is told the World (piper.world/1) and the actuation numbers as files; there is no scene name any more."""
+    from piper_core import Body, World
+    from piper_isaac import sim as module
+
+    env_sh = tmp_path / "env.sh"
+    env_sh.touch()
+    launched = []
+    monkeypatch.setattr(module.subprocess, "Popen", lambda cmd, **kw: launched.append(cmd))
+    monkeypatch.setattr(PiperIsaacSim, "_connect", lambda *a: None)
+    sim = PiperIsaacSim.__new__(PiperIsaacSim)
+    sim.gui, sim.scene, sim.ctrl_hz, sim.physics_hz, sim.gripper_width, sim.camera_enabled = False, "empty", 250.0, 250.0, 0.07, False
+    sim.world, sim.act = World([Body("slab", "box", (1, 1, 0.04), pos=(0.5, 0, -0.02))], ground_z=-0.3), pa.actuation()
+    try:
+        sim._launch(tmp_path / "model.usda", env_sh, False, 1.0)
+        cmd = launched[0]
+        assert "--scene" not in cmd and "--scene-json" not in cmd
+        assert World.from_json(Path(cmd[cmd.index("--world") + 1]).read_text()) == sim.world
+        assert json.loads(Path(cmd[cmd.index("--actuation") + 1]).read_text())["gripper"]["grip_force_plateau"] == pa.actuation()["gripper"]["grip_force_plateau"]
+    finally:
+        sim._log.close()
+        shutil.rmtree(sim._dir)
+
+
+def test_a_world_with_fixed_cameras_is_refused_here_and_scene_with_world_is_ambiguous():
+    from piper_core import Body, FixedCamera, World
+    with pytest.raises(ValueError, match="MuJoCo only"):
+        PiperIsaacSim(world=World(cameras=[FixedCamera("c", (0, 0, 1), (1, 0, 0, 0, 1, 0), 60.0)]), connect="/nonexistent")
+    with pytest.raises(ValueError, match="either"):
+        PiperIsaacSim("table", world=World([Body("a", "sphere", (0.1,))]), connect="/nonexistent")
+
+
+def test_wait_lets_simulation_time_pass(make):
+    sim, srv = make()
+    t0 = sim.time
+    sim.wait(0.5)
+    assert sim.time == pytest.approx(t0 + 0.5) and srv.calls.count("wait") == 1

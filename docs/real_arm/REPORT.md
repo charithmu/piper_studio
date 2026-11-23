@@ -69,15 +69,15 @@ motion with an object, heavier objects, other objects (foam, soap, banana), the 
 
 | Item | Real arm | MuJoCo (`PiperSim`) | Isaac (`PiperIsaacSim`) |
 |---|---|---|---|
-| Stroke | 69.44 mm | 70.0 mm | 70.0 mm (measured 2026-11-10 on the GPU) |
+| Stroke | 69.44 mm | 70.0 mm | 70.0 mm |
 | Empty-closed width | 0.14 mm | 0.00 mm | 0.00 mm |
-| Closing time (70 to 0 mm) | 0.28 s | **0.074 s** | **0.08 s** |
-| Opening time | 0.26-0.36 s | 0.074 s | 0.08 s |
-| Grip force | steady plateau about 2.1 N (3 N commanded), read back as negative | actuator +-10 N (kp 400), no read-back (NaN), `effort` ignored | no read-back, `effort` ignored |
-| Held object | relaxes +0.5 to 1 mm in 3 s | rigid contact (not measured) | not measured |
+| Closing time (70 to 0 mm, to within 1 mm) | 0.28 s | 0.28 s (since 0.12: gradual, 0.25 m/s; was 0.074 s) | 0.28 s (was 0.08 s) |
+| Opening time | 0.26-0.36 s | 0.28 s | 0.28 s |
+| Grip force | steady plateau about 2.1 N (3 N commanded), read back as negative | since 0.12: force = min(effort, plateau 2.09 N), read back negative while gripping (-1.00 / -2.00 / -2.09 N at 1 / 2 / 3 N) | the same code and numbers |
+| Held 54 mm box | 54.27 / 53.25 / 53.55 mm at 1 / 2 / 3 N; relaxes +0.5 to 1 mm in 3 s | 53.70 / 53.44 / 53.41 mm (soft contact, no relaxation modelled) | 54.00 mm |
 | Arm servo | trails a streamed setpoint 35 ms + 73 ms per rad/s | ideal servos (not measured here) | ideal servos (not measured here) |
 
-Recommended simulator parameters (for the owners to apply and re-run their tests): limit the finger speed so a full close or open takes about 0.28 s (about 250 mm/s) instead of 0.074 s; limit the steady grip force to about 2 N (the real plateau) instead of +-10 N; keep
+**Applied in 0.12** (one source, `piper_description/config/actuation.yaml`, equal in MuJoCo and Isaac, tested in `src/piper_isaac/test/test_gripper_world_parity.py` and `src/piper_sim/test/test_one_source.py`). The recommendation that led to it: limit the finger speed so a full close or open takes about 0.28 s (about 250 mm/s) instead of 0.074 s; limit the steady grip force to about 2 N (the real plateau) instead of +-10 N; keep
 the stroke at 69.5 mm; add an optional arm-servo delay of about 45 ms at low speed rising to about 115 ms at 1.1 rad/s if tracking realism matters.
 
 ## 6. What is not tested, and open risks

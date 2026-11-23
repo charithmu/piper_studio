@@ -3,6 +3,7 @@
 import json
 
 import numpy as np
+from piper_core.backend import BackendError
 import pytest
 
 import piper_assets as pa
@@ -97,10 +98,9 @@ def test_move_to_and_stop_return_to_zero(sim):
 
 
 def test_gripper_contract_matches_the_real_arm_api():
-    """Same shape as RealArm: set_gripper(width, effort=None, timeout=None) -> measured width, gripper_opening(), gripper_force() (NaN here), width in state()."""
-    import math
+    """Same shape as RealArm: set_gripper(width, effort=None, timeout=None) -> measured width, gripper_opening(), gripper_force() (a real number now), width in state()."""
     s = PiperSim("table", gripper_width=0.07)
-    assert s.gripper_opening() == pytest.approx(0.07) and s.state().gripper_width == pytest.approx(0.07) and math.isnan(s.gripper_force())
+    assert s.gripper_opening() == pytest.approx(0.07) and s.state().gripper_width == pytest.approx(0.07) and abs(s.gripper_force()) < 0.5
     w = s.set_gripper(0.03, effort=1.0)
     assert w == pytest.approx(0.03, abs=1e-3) and s.state().gripper_width == pytest.approx(w)
     assert s.set_gripper(0.05, 2.0, 1.5) == pytest.approx(0.05, abs=1e-3)
@@ -284,3 +284,124 @@ def test_go2_setup_arguments():
         with pytest.raises(ValueError):
             PiperSim(setup="go2", scene="table")
     assert PiperSim(setup="arm").camera_enabled is False and PiperSim(setup="arm_cam").camera_enabled is True
+
+
+# ---- the gripper is the real one's twin (numbers: piper_description/config/actuation.yaml, measured on the arm: docs/real_arm/REPORT.md section 4) ----
+
+def _box_in_the_jaws(width_m: float, pos_shift=(0.0, 0.0, 0.0), static=True):
+    """A box of `width_m` across the jaw axis exactly between the fingertips at zero pose (static, or a free 0.05 kg body)."""
+    import mujoco
+    from scipy.spatial.transform import Rotation as Rot
+    from piper_core.world import Body, World
+    probe = PiperSim()
+    site = probe.model.site("tcp_link").id
+    mujoco.mj_forward(probe.model, probe.data)
+    q = Rot.from_matrix(probe.data.site_xmat[site].reshape(3, 3)).as_quat()
+    pos = probe.data.site_xpos[site] + np.asarray(pos_shift)
+    return World([Body("box", "box", (0.04, width_m, 0.04), pos=tuple(pos), quat=(q[3], q[0], q[1], q[2]), static=static, mass=0.05)], ground_z=-1.0)
+
+
+def test_empty_close_and_open_take_the_real_time_and_end_reached():
+    s = PiperSim()
+    assert s.set_gripper(0.0) == pytest.approx(0.0, abs=1e-3) and s.last_gripper.reason == "reached"
+    assert 0.55 < s.last_gripper.duration < 0.70                      # real: 0.28 s to within 1 mm + the 0.3 s hold the end condition waits for
+    s.set_gripper(0.07, 3.0)
+    assert s.last_gripper.reason == "reached" and s.gripper_opening() == pytest.approx(0.07, abs=1e-3)
+
+
+def test_the_close_is_gradual_not_a_jump():
+    s = PiperSim()
+    s.set_gripper(0.0)
+    widths = [w for _, w, _ in s.last_gripper.trace]
+    assert widths[0] > 0.05 and all(a >= b - 1e-6 for a, b in zip(widths, widths[1:]))      # starts near open, never goes back
+    first_third = next(t for t, w, _ in s.last_gripper.trace if w < 0.047)
+    assert 0.05 < first_third < 0.2                                 # 0.25 m/s: a third of the stroke takes about 0.1 s
+
+
+@pytest.mark.parametrize("effort,force", [(1.0, -1.0), (2.0, -2.0), (3.0, -2.09)])
+def test_grip_force_follows_the_effort_and_plateaus_like_the_real_gripper(effort, force):
+    """Real, plastic box about 54 mm: steady -1.04 / -2.09 / -2.09 N at 1 / 2 / 3 N commanded."""
+    s = PiperSim(world=_box_in_the_jaws(0.054))
+    s.set_gripper(0.0, effort)
+    for _ in range(300):
+        s._step()
+    assert s.last_gripper.reason == "stalled"
+    assert s.gripper_force() == pytest.approx(force, abs=0.12)
+    assert s.gripper_opening() == pytest.approx(0.054, abs=0.0015)
+
+
+def test_a_held_object_stays_held_by_the_last_effort_while_the_arm_moves():
+    s = PiperSim(gripper_width=0.057, world=_box_in_the_jaws(0.054, static=False))      # loose between the fingertips, so it does not fall while they close
+    s.set_gripper(0.0, 2.0)
+    assert s.last_gripper.reason == "stalled"
+    s.move_to(Z + np.array([0.3, 0.0, 0.0, 0.0, 0.0, 0.0]))
+    assert s.gripper_force() < -1.5 and s.gripper_opening() == pytest.approx(0.054, abs=0.002)
+    box_z = s.object_poses()["box"][0][2]
+    assert box_z > 0.1                                                  # carried along, not dropped
+
+
+def test_gripper_refusals_match_the_real_arm_and_send_nothing():
+    s = PiperSim()
+    for width, effort in ((0.08, None), (-0.01, None), (0.03, 3.5), (0.03, 0.0), (float("nan"), None)):
+        with pytest.raises(BackendError, match="outside"):
+            s.set_gripper(width, effort)
+    assert s.gripper_opening() == pytest.approx(0.07) and s.last_gripper is None
+
+
+def test_the_world_hook_builds_ground_bodies_and_cameras():
+    from piper_core.world import Body, FixedCamera, World
+    w = World([Body("slab", "box", (0.6, 0.6, 0.04), pos=(0.4, 0, -0.02)),
+               Body("ball", "sphere", (0.02,), pos=(0.3, 0.0, 0.2), static=False, mass=0.1)], ground_z=-0.4,
+              cameras=[FixedCamera("top", (0.4, 0, 0.8), (1, 0, 0, 0, 1, 0), 60.0, (160, 120))])
+    s = PiperSim(world=w)
+    for _ in range(600):
+        s._step()
+    pos, _ = s.object_poses()["ball"]
+    assert pos[2] == pytest.approx(0.02, abs=0.003)                  # rests on the slab's top face (z = 0)
+    assert s.model.geom("floor").pos[2] == pytest.approx(-0.4) and s.model.camera("top").id >= 0
+    with pytest.raises(ValueError, match="either"):
+        PiperSim("table", world=w)
+
+
+def test_the_table_scene_has_the_base_standing_on_the_tabletop():
+    """The robot's base plane is the table's top face: no table volume above z = 0 and none under the base footprint's mounting plane."""
+    import mujoco
+    s = PiperSim("table")
+    g = s.model.geom("table")
+    top = s.model.geom_pos[g.id][2] + s.model.geom_size[g.id][2]
+    assert top == pytest.approx(0.0, abs=1e-9)
+
+
+def test_public_hooks_for_a_viewer_and_for_pacing_and_settling():
+    s = PiperSim()
+    ticks = []
+    s.on_step = lambda: ticks.append(s.time)
+    s.set_gripper(0.03)
+    assert len(ticks) > 100 and ticks == sorted(ticks)
+    t = s.time
+    s.wait(0.2)
+    assert s.time == pytest.approx(t + 0.2, abs=0.01)
+    s.realtime = True
+    s.reset_pacing()
+    assert s._wall0 is None
+    s.realtime = False
+    tr = _plan_to(Z + np.array([0.3, 0.0, 0.0, 0.0, 0.0, 0.0]))
+    loose = s.execute(tr, settle_tolerance=0.01, settle_s=0.05)
+    assert loose.ok and loose.t[-1] - tr.t[-1] <= 0.06 + 1e-9                 # the hold after the last setpoint was cut at 50 ms
+
+
+def _plan_to(q1, dur=1.0):
+    t = np.arange(0.0, dur + 1e-9, 0.02)
+    s = t / t[-1]
+    p, v = 10 * s**3 - 15 * s**4 + 6 * s**5, (30 * s**2 - 60 * s**3 + 30 * s**4) / t[-1]
+    d = (q1 - Z)[None, :]
+    return Trajectory(list(ARM_JOINTS), t, Z + p[:, None] * d, v[:, None] * d)
+
+
+def test_a_slower_gripper_speed_slows_the_close_and_a_faster_one_is_refused():
+    fast, slow = PiperSim(), PiperSim()
+    fast.set_gripper(0.0)
+    slow.set_gripper(0.0, speed=0.05)
+    assert slow.last_gripper.duration > 2.5 * fast.last_gripper.duration and slow.last_gripper.reason == "reached"
+    with pytest.raises(BackendError, match="speed"):
+        slow.set_gripper(0.03, speed=0.5)

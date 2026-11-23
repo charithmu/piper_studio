@@ -3,14 +3,13 @@
   Kinematics, limits and inertials come from piper_description; only simulator-specific actuation,
   constraints and solver settings live here.
 
-  Actuator model (PROVISIONAL, not identified on the real arm): critically damped position servos
-  with ideal gravity compensation (gravcomp), standing in for the firmware's own position loop.
-  forcerange (+-100) is the simulator's own and deliberately NOT tied to the URDF effort (SDK torque range, DECISIONS.md D4): the servo gains are provisional.
-  Actuator names equal the ros2_control joint names.
+  The actuators and solver options are NOT written here: <!--ACTUATORS--> and <!--OPTION--> are filled by piper_sim.apply_actuation()
+  from piper_description/config/actuation.yaml (the one source for MuJoCo and Isaac): position servos with gravity compensation standing in for
+  the firmware's position loop, force limits = the description's joint efforts (firmware_values.yaml). Actuator names equal the ros2_control joint names.
 -->
 <mujoco_inputs>
   <raw_inputs>
-    <option integrator="implicitfast" cone="elliptic" impratio="10"/>
+    <!--OPTION-->
 
     <default>
       <default class="visual">
@@ -21,20 +20,7 @@
       </default>
     </default>
 
-    <actuator>
-      <position name="${prefix}joint1" joint="${prefix}joint1" kp="400" dampratio="1" forcerange="-100 100"/>
-      <position name="${prefix}joint2" joint="${prefix}joint2" kp="400" dampratio="1" forcerange="-100 100"/>
-      <position name="${prefix}joint3" joint="${prefix}joint3" kp="400" dampratio="1" forcerange="-100 100"/>
-      <!-- joint4: its effective inertia is small and varies with the pose; dampratio 1 (computed at the compile pose)
-           gave 31% overshoot at the working pose, dampratio 3 gives <2% (measured step responses, DECISIONS.md). -->
-      <position name="${prefix}joint4" joint="${prefix}joint4" kp="100" dampratio="3" forcerange="-100 100"/>
-      <position name="${prefix}joint5" joint="${prefix}joint5" kp="100" dampratio="1" forcerange="-100 100"/>
-      <position name="${prefix}joint6" joint="${prefix}joint6" kp="50" dampratio="1" forcerange="-100 100"/>
-      <!-- Opening width; the fingers follow through the equality constraints below. -->
-      <!-- dampratio is computed from the gripper joint alone; the equality-coupled fingers roughly
-           double the effective mass, so 2 gives a critically damped response (no overshoot). -->
-      <position name="${prefix}gripper" joint="${prefix}gripper" kp="400" dampratio="2" forcerange="-10 10"/>
-    </actuator>
+    <!--ACTUATORS-->
 
     <!-- The fixed base is fused into the world body, and MuJoCo does not filter parent-child
          contacts when the parent is the world: without this, link1 rubs on the base and cannot turn. -->

@@ -29,6 +29,7 @@ All green on 2026-11-11 (`ALL OK`). If a launch hangs, see "Fast DDS shared memo
 | controllers, MoveIt, Servo, the guard node, the real driver (ROS path, parked) | `src/piper_control`, launch in `src/piper_sim` |
 | Python client and `piper` CLI | `src/piper_py` |
 | wheels for other repos (`piper_core`, `piper_assets`, `piper_mujoco`, `piper_isaac`, `piper_tools`) | built by `scripts/build_wheels.sh` into `dist/`; assets data by `tools/release/build_assets.py` |
+| **the simulators' model** (one source: firmware values + `actuation.yaml`; the gripper contract `piper_core/gripper.py`; the world seam `piper_core.World`) | `src/piper_description/config/{firmware_values,actuation}.yaml`, `src/piper_core/piper_core/{gripper,world}.py`, `isaac/gains.json` (`tools/release/build_gains.py`); docs: `INTEGRATION.md` "One robot, three bodies" |
 | cuRobo: tuned policy, pipeline, models, optional env | `tools/curobo/` (`policy.yaml`, `build_model.py`), `scripts/curobo_env.sh`, `docs/CUROBO.md` |
 | real-arm tools (SDK scripts, no ROS) | code in `src/piper_tools` (commands `piper-estop`, `piper-info`, ...), same names as scripts in `tools/real_arm/` (shims); scenario planner and runner, fixtures stay in `tools/real_arm/`. **What is mounted on the arm: `docs/real_arm/arms/piper-01.yaml`** |
 | **the ZED Box** (CAN adapter and arm plugged in there) | `scripts/deploy_box.sh [--push]` builds / installs the wheels in `~/piper/venv` on the box; `docs/real_arm/BOX_DEPLOY.md`. CAN interface is chosen by USB, not by name (`piper_core.canbus`, `piper-can-up`). Installed and checked by the user 2026-11-11 (`piper-arm`, `piper-estop`, `piper-info`) |
@@ -66,6 +67,7 @@ cuRobo viewer `/piper-studio/curobo/` (`scripts/curobo_viewer.sh start`). To add
 | `tools/curobo/policy.yaml` or the fit | `scripts/curobo_env.sh run tools/curobo/build_model.py` (optional env, GPU), `build_assets.py`, `python -m pytest src/piper_assets` |
 | a name in the contract (controller, topic, frame, macro parameter) | breaking: record in `CLEANUP.md` and `INTEGRATION.md`, tell `HANDOFF.md` readers, bump the version |
 | real-arm tools | `python -m pytest src/piper_core/test/test_scenario_tools.py`, then a `--dry-run`; the user runs hardware |
+| `actuation.yaml`, firmware values or the gripper's numbers | `python tools/release/build_gains.py` (Isaac drives), `python tools/release/build_mujoco.py`, `build_assets.py`, `scripts/isaac.sh build-usd [no_camera|go2]` if limits changed, then `python -m pytest src/piper_sim/test/test_one_source.py` and `PIPER_TEST_ISAAC=1 gpu-run python -m pytest src/piper_isaac/test` |
 | the arm's hardware (camera, bracket, gripper) | `docs/real_arm/arms/piper-01.yaml`, the masses (`docs/description/MASSES.md`), the cuRobo model, `arms/piper-01.md` |
 
 **Release** (the unit downstream projects pin): commit everything; bump the version in the five packages (`src/piper_core/setup.py`, `src/piper_{assets,mujoco,isaac,tools}/pyproject.toml`) and the wheel names in `INTEGRATION.md` and `HANDOFF.md`;

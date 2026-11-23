@@ -1,0 +1,99 @@
+{
+ "schema": "piper.isaac_gains/1",
+ "source": "derived by tools/release/build_gains.py from config/actuation.yaml + firmware_values.yaml through the MuJoCo model; (stiffness N.m/rad or N/m, damping, max force N.m or N)",
+ "actuation_status": "provisional",
+ "camera": {
+  "joint1": [
+   400.0,
+   15.757,
+   16.0
+  ],
+  "joint2": [
+   400.0,
+   16.794,
+   16.0
+  ],
+  "joint3": [
+   400.0,
+   18.115,
+   16.0
+  ],
+  "joint4": [
+   100.0,
+   3.264,
+   13.012
+  ],
+  "joint5": [
+   100.0,
+   2.693,
+   13.012
+  ],
+  "joint6": [
+   50.0,
+   0.726,
+   13.012
+  ],
+  "gripper": [
+   400.0,
+   8.0,
+   3.0
+  ],
+  "gripper_joint1": [
+   400.0,
+   8.0,
+   3.0
+  ],
+  "gripper_joint2": [
+   400.0,
+   8.0,
+   3.0
+  ]
+ },
+ "no_camera": {
+  "joint1": [
+   400.0,
+   15.684,
+   16.0
+  ],
+  "joint2": [
+   400.0,
+   16.354,
+   16.0
+  ],
+  "joint3": [
+   400.0,
+   16.481,
+   16.0
+  ],
+  "joint4": [
+   100.0,
+   1.708,
+   13.012
+  ],
+  "joint5": [
+   100.0,
+   2.281,
+   13.012
+  ],
+  "joint6": [
+   50.0,
+   0.311,
+   13.012
+  ],
+  "gripper": [
+   400.0,
+   8.0,
+   3.0
+  ],
+  "gripper_joint1": [
+   400.0,
+   8.0,
+   3.0
+  ],
+  "gripper_joint2": [
+   400.0,
+   8.0,
+   3.0
+  ]
+ }
+}

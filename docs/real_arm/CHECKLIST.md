@@ -44,7 +44,7 @@ Pre-condition: `piper-arm`; the gripper panel reads width and force. Commands: `
 | R2.3 | slip: hold the object at 1.0 N, then move the arm (zero <-> park, then `arm_pose.py ready`) at 10 % | slip yes/no, width change during the move |
 | R2.4 | no-motor case: gripper `o` / `l` with the arm motors OFF; and `e` (e-stop) with the gripper closed on an object | does it move; does the e-stop release the grip |
 
-Then compare with the simulated gripper (Isaac, MuJoCo): stroke, closing time, held width, force (the simulators have no force read-back and ignore effort) and write the gap table in the report.
+Then compare with the simulated gripper (Isaac, MuJoCo): stroke, closing time, held width, force (since 0.12 the simulators read the force back and honour effort: `docs/INTEGRATION.md` "One robot, three bodies") and write the gap table in the report.
 
 ## R3 the ROS path on the real arm: PARKED (experimental, 2026-11-10; first run in `arms/piper-01.md`; redesign CLEANUP C14). Kept for when it is picked up again
 

@@ -7,7 +7,7 @@
   Included by piper.srdf.xacro, which adds Piper Studio's named poses.
 
   source:    agx_arm_ros @ 286633e
-  generated: 2026-11-08 by tools/piper_arm_macro.py (generator version 2)
+  generated: 2026-11-23 by tools/piper_arm_macro.py (generator version 2)
   sha256 agx_arm.srdf.xacro: a9fbd8a83f57e4e75687cba6c746bf7344a2ae03c4f83e82da4c23bed3a1418e
 -->
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro">

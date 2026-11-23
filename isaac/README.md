@@ -88,7 +88,7 @@ The servo gains are the provisional ones, equal to MuJoCo's: tracking numbers fr
 horizontal field of view, near/far and intrinsics of `piper_description/config/camera_models/zedxm.yaml` (960x600, 110 deg wide lens, 0.1 to 8 m). The runner
 creates a USD camera there and publishes it through Isaac's ROS 2 camera graph on the ZED ROS 2 wrapper's topics (`/piper_zed/zed_node/rgb/color/rect/image`, `.../rgb/color/rect/camera_info`,
 `.../depth/depth_registered`, frame `piper_zed_left_camera_frame_optical`); `camera:=none` runs the robot-only USD.
-The static objects of `piper_sim/config/scene_objects.yaml` are passed as JSON (`--scene`) so all
+The world (`piper_core.World`, `piper_assets.scene_world(...)` for the built-in scenes) is passed as JSON (`--world`) so all
 simulators see the same scene. Cost: each rendered view is about 8 ms per frame (real-time factor ~0.6 with the wrist camera at 90 Hz frames).
 
 ## Things learned (each cost time)

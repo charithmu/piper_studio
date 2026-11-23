@@ -6,7 +6,7 @@
 ```python
 from piper_core import Trajectory
 from piper_mujoco import PiperSim
-sim = PiperSim(scene="table", gripper_width=0.07)     # "empty" | "table"; starts at the zero pose
+sim = PiperSim(scene="table", gripper_width=0.07)     # "empty" | "table" (built-in worlds), or PiperSim(world=piper_core.World(...)) for your own; starts at the zero pose
 res = sim.execute(Trajectory.from_pairs(pairs))        # or Trajectory(joint_names, t, q, dq=dq) from the planner
 res.ok, res.reason, res.q_cmd, res.q_meas, res.contacts
 ```
@@ -19,7 +19,7 @@ measured state, then goes to the position actuators. Contacts (geom names, penet
 (`piper_sim/config/mujoco/inputs.xml`, the same file the ROS MuJoCo backend uses), not the identified firmware loop. Tracking error, lag
 and torque from this simulation say nothing about the real arm. The geometry, joint limits, masses (CAD) and collision meshes are the real description's.
 `margin_percent` is accepted and ignored (it only sets the real arm's speed headroom). The ROS MuJoCo backend has static scene objects, PiperSim's
-`table` scene has them as free bodies (pick and place).
+`table` scene has them as free bodies (pick and place). The gripper moves gradually, honours `effort` and reads its force back like the real one (`piper_core.gripper`); a `piper_core.World` is built with MuJoCo's `MjSpec` (`piper_mujoco/world.py`). One source for gains and limits: `docs/INTEGRATION.md` "One robot, three bodies".
 The table is a PLACEHOLDER (unmeasured).
 
 ## The full setup on the Go2 (0.11, nominal mount)

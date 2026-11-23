@@ -1,3 +1,15 @@
+# Handoff (2026-11-23): 0.12.0, one robot in three bodies, the world seam (branch `sim-seam`, not tagged)
+
+**For downstream projects (piper_core users, graspwise, curobo_piper_study).** No name changed. What changed in behaviour:
+- **The simulated gripper is the real one's twin:** gradual close (0.25 m/s, 0.28 s for the stroke), `effort` honoured (the force is min(effort, 2.09 N), the real plateau), `gripper_force()` reads it (negative while gripping), `last_gripper` says reached | stalled | no_motion | timeout, `set_gripper` refuses what the real arm refuses. `gripper_opening()` is the fingers' physical travel. Same in `PiperSim` and `PiperIsaacSim`.
+- **Joint and force limits are one set:** the arm's force limits in MuJoCo and Isaac are the firmware efforts (16 / 13.012 N.m; Isaac used 100), the gripper's 3 N; the description's gripper joints carry effort 3 and velocity 0.25 (were 10 and 3).
+- **`piper_core.World`** is the seam to your world: `PiperSim(world=)` and `PiperIsaacSim(world=)` build the same scene (tables, objects with friction and mass, meshes). `scene="table"` is now a built-in world whose table top is the base's mounting plane. Fixed cameras are MuJoCo only. See `docs/INTEGRATION.md` "One robot, three bodies".
+- Isaac server flags `--scene/--scene-json` are gone (`--world`, `--actuation`); `piper_core.real_arm.GripperWatch/GripperResult` moved to `piper_core.gripper` (still importable from both).
+- Take it without wheels: `uv pip install --no-deps -e src/piper_core -e src/piper_assets -e src/piper_mujoco -e src/piper_isaac` (INTEGRATION "Between releases"); the generated data are refreshed by `build_assets.py`, `build_mujoco.py`, `build_isaac.py`.
+**Open:** the real gripper's width map (reading 70 mm vs about 90 mm real: caliper session with the user), arm servo identification, pad friction, camera calibration v5 and the hand-eye tool.
+
+---
+
 # Handoff (2026-11-13, final): 0.11.0, hand-eye camera pose, arm on the Go2 base axis, ZED Box bundle
 
 **For downstream projects (piper_pick, curobo_piper_study).** Use tag **v0.11.0** (wheels 0.11.0 in `dist/`, built from that commit). No API or name changes; the DEFAULT NUMBERS changed, so replans and saved plans from 0.10.1 differ:

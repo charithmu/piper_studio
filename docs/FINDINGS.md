@@ -9,7 +9,7 @@ Notes for other projects that use the published wheels (first reader: the `piper
 **What changed (all four wheels are 0.7.0; `piper_mujoco` and `piper_isaac` need `piper_core>=0.7.0`):**
 
 - `ArmBackend` has three more methods: `gripper_opening() -> float|None` (m), `gripper_force() -> float|None` (N; NaN in the simulators) and `set_gripper(width, effort=None, timeout=None) -> float` (blocks, returns the
-  measured width). `ArmState` has `gripper_width` and `gripper_force` (NaN when unknown). `PiperSim` and `PiperIsaacSim` accept `effort` and ignore it; `PiperSim` gained `gripper_opening()`. Existing calls `set_gripper(w)` still work and now return the width.
+  measured width). `ArmState` has `gripper_width` and `gripper_force` (NaN when unknown). `PiperSim` and `PiperIsaacSim` accepted `effort` and ignored it until 0.12 (now honoured, with force read-back: INTEGRATION "One robot, three bodies"); `PiperSim` gained `gripper_opening()`. Existing calls `set_gripper(w)` still work and now return the width.
   A class that implements the old protocol is no longer an `ArmBackend` until it has the three methods.
 - `RealArm` (`piper_core.real_arm`, needs `pyAgxArm`): `RealArm.connect("can0")` (fails with a clear message when the CAN bus is down), `start()`, `stop()`, `execute(traj)`, `move_to`, `command`, `hold`, `state()`, `abort()`, `set_gripper`, `gripper_command`.
   - `set_gripper(width, effort)`: guarded (width in [0, 0.07] m, effort in (0, `gripper_max_effort`], default 1.0 N, our cap 3.0 N: raise it with `arm.gripper_max_effort = ...`). It ends when the gripper reached the width, **stopped short of it** or timed out;

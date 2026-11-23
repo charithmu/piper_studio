@@ -12,3 +12,6 @@
 arm_joint_max_velocity: 3.0    # rad/s, joints 1-6 (firmware max_joint_spd; vendor URDF: 5)
 arm_joint_max_effort: [16.0, 16.0, 16.0, 13.012, 13.012, 13.012]   # N.m, joints 1-6 (SDK MIT range; vendor URDF: 100)
 gripper_stroke: 0.07           # m, gripper opening (firmware max_range_config; vendor URDF: 0.1)
+# NOT firmware-reported, vendor/measured gripper numbers that replace the vendor URDF's placeholders (effort 10, velocity 3 on a prismatic joint):
+gripper_max_effort: 3.0        # N, the vendor wrapper's command ceiling (agx_arm_ctrl AgxGripperWrapper.FORCE_MAX, command range 0.5 to 3.0 N; the same cap as piper_core.GRIPPER_MAX_EFFORT)
+gripper_max_velocity: 0.25     # m/s of the opening width, measured: 68 mm in 0.28 s to within 1 mm, 15 closes and opens (docs/real_arm/REPORT.md section 4). Read by actuation.yaml's consumers (the simulators), NOT written into the URDF limit: Gazebo's gripper fails with it (test_7_gripper)

@@ -31,6 +31,7 @@ import numpy as np
 from piper_core.bus_lock import BusBusyError, BusLock
 from piper_core.backend import (ARM_JOINTS, MAX_STEP, MAX_VELOCITY, ArmState, BackendError, ExecResult, Outcome, Trajectory, check_start,
                                check_trajectory)
+from piper_core.gripper import (GRIPPER_DEFAULT_EFFORT, GRIPPER_MAX_EFFORT, GRIPPER_STROKE, GripperResult, GripperWatch)    # noqa: F401  (re-exported: they lived here until 0.12)
 from piper_core.guard import GuardConfig, check_command
 from piper_core.poses import classify_state, zero_pose
 
@@ -46,20 +47,6 @@ DRIVER_FAULT_BITS = ("voltage_too_low", "motor_overheating", "driver_overcurrent
 
 AUTO_LAG_BASE_S, AUTO_LAG_PER_RAD_S = 0.035, 0.073     # the arm trails a streamed setpoint by about 35 ms + 73 ms per rad/s (joint 1, 2026-11-10: 45 / 75 / 95 / 115 ms at 0.14 / 0.55 / 0.82 / 1.10 rad/s)
 AUTO_LOOKAHEAD_MAX = 6
-GRIPPER_STROKE = 0.07          # m, firmware-reported (max_range_config), docs/real_arm/arms/piper-01.md
-GRIPPER_DEFAULT_EFFORT = 1.0   # N, the vendor default (agx_arm_ctrl `gripper_default_effort`)
-GRIPPER_MAX_EFFORT = 3.0       # N, OUR cap for commands, not a vendor figure (none documented). Raise it deliberately: arm.gripper_max_effort = 5.0
-
-
-@dataclass
-class GripperResult:
-    reason: str        # "reached" | "stalled" (stopped before the target: an object or the end stop) | "no_motion" | "timeout"
-    width: float       # m, last measured
-    force: float | None
-    duration: float = 0.0                                   # s from the command to the end condition (includes the 0.3 s the width must hold for "reached")
-    trace: list = field(default_factory=list)               # (t s from the command, width m, force N) about every 20 ms
-
-
 @dataclass
 class ArmStatus:
     """What a downstream user may know about the arm: whether it takes commands, and why not."""
@@ -70,36 +57,6 @@ class ArmStatus:
     at_zero: bool
     feedback_age: float      # seconds since the joint feedback last changed (0 = fresh)
     gripper: bool            # gripper feedback present
-
-
-class GripperWatch:
-    """Decides when a gripper move is over, from measured widths only. Closing on an object never reaches the target, so 'stopped moving' counts."""
-    TOL, HOLD, WINDOW, STILL, MOVED, NO_MOTION_S = 0.001, 0.3, 0.5, 0.0003, 0.0015, 1.0
-
-    def __init__(self, target: float, clock=time.monotonic, width0: float | None = None):
-        self.target, self.now, self.w0, self.t0 = target, clock, width0, clock()
-        self.hist, self.near_since = deque(), None
-
-    def update(self, w: float) -> str | None:
-        t = self.now()
-        if self.w0 is None:
-            self.w0 = w
-        self.hist.append((t, w))
-        while self.hist and t - self.hist[0][0] > 2 * self.WINDOW:
-            self.hist.popleft()
-        if abs(w - self.target) <= self.TOL:
-            self.near_since = t if self.near_since is None else self.near_since
-            if t - self.near_since >= self.HOLD:
-                return "reached"
-        else:
-            self.near_since = None
-        if abs(w - self.w0) >= self.MOVED and any(t - x >= self.WINDOW for x, _ in self.hist):
-            recent = [v for x, v in self.hist if t - x <= self.WINDOW]
-            if max(recent) - min(recent) < self.STILL:
-                return "stalled"
-        if t - self.t0 >= self.NO_MOTION_S and abs(w - self.w0) < self.MOVED:
-            return "no_motion"
-        return None
 
 
 class RealArmError(BackendError):

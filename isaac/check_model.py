@@ -84,6 +84,23 @@ for cfg in ref["configs"]:
         if name not in berr:
             print(f"[check_model] {name} collision box at config 0: usd {np.round(lo, 4).tolist()} .. {np.round(hi, 4).tolist()}, urdf {np.round(rlo, 4).tolist()} .. {np.round(rhi, 4).tolist()}")
         berr.setdefault(name, []).append(max(np.abs(lo - np.array(rlo)).max(), np.abs(hi - np.array(rhi)).max()) * 1000)
+# joint limits: the USD's position, effort and velocity limits are the URDF's (which are the firmware's: config/firmware_values.yaml)
+lim_bad = []
+dof_lo, dof_hi = (a.numpy()[0] for a in robot.get_dof_limits())                  # lower, upper: (dofs,) each
+dof_eff = robot.get_dof_max_efforts().numpy()[0]
+dof_vel = robot.get_dof_max_velocities().numpy()[0]
+for i, n in enumerate(names):
+    r = ref.get("limits", {}).get(n.removeprefix(PREFIX))
+    if r is None:
+        continue
+    got = [float(dof_lo[i]), float(dof_hi[i]), float(dof_eff[i]), float(dof_vel[i])]
+    for what, a, b in zip(("lower", "upper", "effort", "velocity"), got, r):
+        if what in ("effort", "velocity") and not np.isfinite(a):
+            continue                                                         # the USD leaves it unset (the drives set the force: isaac/world.py), nothing to compare
+        tol = 1e-3 if what in ("lower", "upper") else 1e-3 * max(1.0, abs(b))
+        if abs(a - b) > tol and not (what == "velocity" and n.removeprefix(PREFIX) in ("gripper", "gripper_joint1", "gripper_joint2") and abs(a - b) < 1e-9):
+            lim_bad.append(f"{n} {what}: usd {a:.6g} vs urdf {b:.6g}")
+print(f"[check_model] joint limits (position, effort, velocity of {len(ref.get('limits', {}))} joints): " + ("ok" if not lim_bad else "DIFFER " + "; ".join(lim_bad)))
 mass = 0.0
 for p in stage.Traverse():
     if p.HasAPI(UsdPhysics.MassAPI):
@@ -98,5 +115,5 @@ for name, e in ferr.items():
 for name, e in berr.items():
     print(f"[check_model] collision mesh of {name}: world bounding box differs from the URDF's by at most {max(e):.2f} mm")
 bad = [n for n, e in ferr.items() if max(a for a, _ in e) > 0.5 or max(b for _, b in e) > 0.05] + [n for n, e in berr.items() if not max(e) <= 1.5]      # not <= also catches "no collision mesh found" (nan)
-print("[check_model] RESULT:", "FAIL " + ", ".join(bad) if bad or max(perr) > 0.5 else "ok")
+print("[check_model] RESULT:", "FAIL " + ", ".join(bad + lim_bad) if bad or lim_bad or max(perr) > 0.5 else "ok")
 app.close()

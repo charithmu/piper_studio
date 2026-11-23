@@ -37,9 +37,9 @@ uv pip install --no-deps piper_core-0.11.0-py3-none-any.whl piper_assets-0.11.0-
 | Package | Gives | Needs |
 |---|---|---|
 | `piper_core` | `Trajectory`, `ExecResult`, `ArmBackend` (`piper_core.backend`), `check_trajectory`, the guard, `zero_pose`, `RealArm`, `Kinematics` (`piper_core.kinematics`: link, TCP and camera poses from the URDF), `resolve_canbus` (`piper_core.canbus`: the USB-CAN adapter's interface, by USB not by name) | numpy |
-| `piper_assets` | `urdf_path(gripper_width, camera=True)`, `srdf_path(camera=True)`, `camera()` (K, size, field of view, depth range, optical frame, its pose in gripper_base / the TCP / link6), `camera_pose(frame)`, `limits()` (hard, planning, velocity, acceleration, jerk, effort, each with its source), `zero_pose()`, `scene()` (placeholder table), `manifest()` | numpy, `piper_core`, **the cuRobo model** `curobo_model(camera)`, `curobo_config(camera)`, `curobo_provenance(camera)`, `curobo_model_is_current(camera)`, `curobo_planner_defaults()` (collision spheres, limits, ignore list; tuned and regenerated here: `docs/CUROBO.md`) | numpy (pyyaml for `curobo_config`) |
-| `piper_mujoco` | `PiperSim(scene="empty"|"table", gripper_width=0.07, camera=True)`: an `ArmBackend` on MuJoCo; `camera_image(depth=False)` renders the wrist camera (RGB, or RGB and metric depth), `camera_pose()` its optical frame in the base frame, `camera_info()` | `mujoco`, the two above |
-| `piper_isaac` | `PiperIsaacSim(scene="empty"|"table", gripper_width=0.07)`: an `ArmBackend` on Isaac Sim; starts `isaac/run_server.py` in Isaac's environment through `gpu-run` (`ISAAC_ENV_SH`), the runner and the USDs (with the camera, and the robot only) are inside the wheel; `camera=True` by default: `camera_image(depth)`, `camera_pose()`, `camera_info()` as in `PiperSim`; `render=True` and `record_start(path)` record a video; `gui=True` opens the full editor, also available as `python -m piper_isaac --gui` | the two above; Isaac Sim 6.x and a GPU at run time, not to install |
+| `piper_assets` | `urdf_path(gripper_width, camera=True)`, `srdf_path(camera=True)`, `camera()` (K, size, field of view, depth range, optical frame, its pose in gripper_base / the TCP / link6), `camera_pose(frame)`, `limits()` (hard, planning, velocity, acceleration, jerk, effort, each with its source), `zero_pose()`, `scene()` (placeholder table), `scene_world(name)` (the built-in scenes as `piper_core.World`s), `actuation()` (the simulators' model of arm and gripper), `manifest()` | numpy, `piper_core`, **the cuRobo model** `curobo_model(camera)`, `curobo_config(camera)`, `curobo_provenance(camera)`, `curobo_model_is_current(camera)`, `curobo_planner_defaults()` (collision spheres, limits, ignore list; tuned and regenerated here: `docs/CUROBO.md`) | numpy (pyyaml for `curobo_config`) |
+| `piper_mujoco` | `PiperSim(scene="empty"|"table", gripper_width=0.07, camera=True, world=None)`: an `ArmBackend` on MuJoCo (`world=` your own `piper_core.World` instead of a built-in scene); `camera_image(depth=False)` renders the wrist camera (RGB, or RGB and metric depth), `camera_pose()` its optical frame in the base frame, `camera_info()` | `mujoco`, the two above |
+| `piper_isaac` | `PiperIsaacSim(scene="empty"|"table", gripper_width=0.07, world=None)`: an `ArmBackend` on Isaac Sim, the same robot, gripper and `world=` as `PiperSim`; starts `isaac/run_server.py` in Isaac's environment through `gpu-run` (`ISAAC_ENV_SH`), the runner and the USDs (with the camera, and the robot only) are inside the wheel; `camera=True` by default: `camera_image(depth)`, `camera_pose()`, `camera_info()` as in `PiperSim`; `render=True` and `record_start(path)` record a video; `gui=True` opens the full editor, also available as `python -m piper_isaac --gui` | the two above; Isaac Sim 6.x and a GPU at run time, not to install |
 
 **Between releases (development path).** A release (tag, `dist/`) is for milestones. To try a change before it is released, the maintainer runs `scripts/build_wheels.sh --dev`, which builds a snapshot of the working tree into `dist-dev/` (same version numbers; the source commit inside gets `-dirty` when uncommitted), and the downstream project installs it with `uv pip install --no-deps --reinstall <repo>/dist-dev/*.whl`. No commit, push or tag is needed. For live changes of the Python code, a downstream project can instead install the source folders editable (`uv pip install --no-deps -e <repo>/src/piper_core -e .../piper_assets ...`): the generated data (URDFs, MJCF, USD) sits git-ignored inside the folders and is refreshed by the same script. `piper_core.__source_commit__` and each wheel's `manifest.json` say which commit a snapshot is.
 
@@ -53,6 +53,35 @@ What stays downstream: planner configuration, collision spheres, the scene aroun
 
 Get the sources with `git clone --recursive` (the official AgileX stack `external/agx_arm_ros` is a submodule and is required: the
 meshes and the SRDF are generated from it). Pin a commit or tag; see `piper.repos`.
+
+### One robot, three bodies: what Studio owns and what you add (0.12)
+The real arm, MuJoCo and Isaac Sim are **one robot** described once. **Studio owns the robot** and keeps it slim: arm, gripper (stroke, finger travel, force limit and ceiling, speed, the gradual contact-detecting close, the pads' friction), the wrist camera and its pose, joint
+limits, servo gains and force limits, solver settings. **A downstream project owns the world around it:** tables, shelves, objects with their friction and mass, extra cameras, scenarios, pacing and views.
+
+| Fact | Where it is written (the one place) | Who reads it |
+|---|---|---|
+| joint limits, velocities, efforts, gripper stroke | `piper_description/config/firmware_values.yaml` (firmware first) -> the generated description | URDF, MJCF, USD, `piper_assets.limits()`, the guard |
+| servo gains, gripper force law (commanded effort up to the measured plateau 2.09 N), close speed 0.25 m/s, pad friction, solver | `piper_description/config/actuation.yaml` (`piper_assets.actuation()`) | the MuJoCo inputs (`piper_sim.apply_actuation`), the MJCF finger pads (`build_mujoco.py`), Isaac's drives (`isaac/gains.json`, derived by `tools/release/build_gains.py`), the Isaac server |
+| what a gripper move is (refusals, end conditions, force read-back) | `piper_core/gripper.py` (stdlib only) | `RealArm`, `PiperSim`, `PiperIsaacSim`; the Isaac server loads the same file (`isaac/piper_gripper.py` is a link to it) |
+| the world around the robot | `piper_core.World` (below) | `PiperSim(world=)`, `PiperIsaacSim(world=)` |
+
+**The seam: `piper_core.World`** (pure Python, JSON round trip, schema `piper.world/1`): `Body(name, shape, size, pos, quat, rgba, static, mass, friction, mesh, texture)` with shapes `box`, `cylinder`, `sphere`, `mesh` (a file, collides as its convex hull, `texture` for its look), `ground_z`, and
+`FixedCamera`s (MuJoCo only: Isaac refuses a world that has one). Frame = the robot's base frame; `z = 0` is the base's mounting plane, so a table is a static box whose top face is at 0. `PiperSim(world=w)` and `PiperIsaacSim(world=w)` build the SAME scene (rest heights agree to 1 mm, held
+widths to 1 mm, grip forces equal; `src/piper_isaac/test/test_gripper_world_parity.py`). `scene="empty"|"table"` are just two built-in worlds (`piper_assets.scene_world`). Friction: the larger of the two surfaces wins in both simulators. Everything about an object is yours; Studio never edits your world.
+
+```python
+from piper_core import Body, World
+from piper_mujoco import PiperSim           # or piper_isaac.PiperIsaacSim: the same call
+world = World([Body("table", "box", (1.2, 0.8, 0.04), pos=(0.5, 0, -0.02)),
+               Body("mug", "cylinder", (0.04, 0.09), pos=(0.3, 0.1, 0.05), static=False, mass=0.25, friction=(0.8, 0.005, 0.0001))], ground_z=-0.7)
+sim = PiperSim(world=world)
+sim.set_gripper(0.0, effort=2.0); sim.last_gripper.reason   # reached | stalled | no_motion | timeout, as on the real arm
+```
+Gripper contract (all three bodies): `set_gripper(width, effort=None, timeout=None)` refuses outside [0, 0.07] m and (0, 3] N and sends nothing; closes gradually at 0.25 m/s; ends `reached`, `stalled` (an object or the end stop), `no_motion` or `timeout`; `gripper_opening()` is the fingers' physical travel; `gripper_force()` is
+negative while gripping and never above the real gripper's plateau; `last_gripper` has width, force, duration and a 20 ms trace. Simulated numbers against the real ones: `docs/real_arm/REPORT.md` section 4 (a 54 mm box held at 53.4 to 53.7 mm in MuJoCo and 54.0 mm in Isaac against 53.3 to 54.3 mm real; -1.00 / -2.00 / -2.09 N against -1.04 / -2.09 / -2.09 N).
+Not yet in the real arm's `RealArm`: nothing: it is the reference. Still provisional: the arm servos (`actuation.yaml: arm.status`) and the pad friction.
+
+**Between releases, no wheels:** install the source folders editable (below, "Between releases"); a project records `piper_core.__source_commit__` (or `git -C <studio> rev-parse HEAD` plus `status`) in every run.
 
 ### The three setups (0.11)
 `piper_assets` and the viewers know three setups: `arm` (robot only), `arm_cam` (with the ZED X Mini) and `go2` (the full setup on the Go2, **the default of the viewers and tools**). Functions that take `setup=` use it; without it they behave as before (the arm on a table, `camera=` decides),
@@ -96,7 +125,7 @@ Names below are for the default prefix; with another prefix, joints and frames f
 | Item | Name | Notes |
 |---|---|---|
 | Arm joints | `piper_joint1..6` | radians; limits come from the URDF (`piper_core.limits_from_urdf`) |
-| Gripper | `piper_gripper` | opening **width in metres**, 0 to 0.07 (the firmware-reported stroke); the fingers (`piper_gripper_joint1/2`) are mimic joints |
+| Gripper | `piper_gripper` | opening **width in metres**, 0 to 0.07 (the firmware-reported stroke); the fingers (`piper_gripper_joint1/2`) are mimic joints; effort limit 3 N and velocity 0.25 m/s in the description (`firmware_values.yaml`) |
 | Frames | `world` (caller's), `piper_base_link`, `piper_link1..6`, `piper_tcp_link`, camera: `piper_zed_camera_link`, `piper_zed_camera_center`, `piper_zed_left_camera_frame_optical` | the TCP is the fingertip centre, `piper_gripper_base` + 0.138 m z |
 | State | `/joint_states` | position, velocity and effort per joint (the real arm and Isaac fill effort: motor torque estimate, N·m); `Piper.joint_state()`, `joint_velocities()`, `joint_efforts()`, `piper state --full` |
 | Trajectories | action `/arm_controller/follow_joint_trajectory` | `joint_trajectory_controller` |

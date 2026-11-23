@@ -75,6 +75,21 @@ def render_config(path: str | Path, prefix: str = DEFAULT_PREFIX) -> Path:
     return out
 
 
+def actuation() -> dict:
+    """The simulators' model of the arm and the gripper (config/actuation.yaml) completed from the description's single sources: per-joint `kp`, `dampratio`,
+    `force` (N.m, the firmware effort); gripper `stroke`, `velocity`, `force_max` from config/firmware_values.yaml. MuJoCo's inputs and Isaac's drives are both made from this."""
+    import yaml
+    from ament_index_python.packages import get_package_share_directory
+    cfg = Path(get_package_share_directory("piper_description")) / "config"
+    a = yaml.safe_load((cfg / "actuation.yaml").read_text())
+    fw = yaml.safe_load((cfg / "firmware_values.yaml").read_text())
+    for i, (name, j) in enumerate(a["arm"]["joints"].items()):
+        j["force"] = float(fw["arm_joint_max_effort"][i])
+    g = a["gripper"]
+    g.update(stroke=float(fw["gripper_stroke"]), velocity=float(fw["gripper_max_velocity"]), force_max=float(fw["gripper_max_effort"]))
+    return a
+
+
 def fixed_gripper(urdf: str, width: float, prefix: str = DEFAULT_PREFIX) -> str:
     """The description with the gripper held at `width` metres: the ROS-free implementation lives in `piper_core.urdf_tools`
     (planners use it without this package). Imported on use, because piper_core's tests depend on this package (no dependency cycle)."""

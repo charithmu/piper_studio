@@ -25,6 +25,7 @@ import numpy as np
 import piper_assets
 from piper_core.backend import (ARM_JOINTS, MAX_STEP, ArmState, BackendError, ExecResult, Outcome, Trajectory, check_start, check_trajectory,
                                 resample)
+from piper_core.gripper import GRIPPER_DEFAULT_EFFORT, GripperResult, check_gripper_command
 from piper_core.guard import GuardConfig, check_command
 
 CHUNK = 25                                          # control steps per request (100 ms at 250 Hz): the guard sees the measured state at every chunk start
@@ -75,12 +76,14 @@ class PiperIsaacSim:
 
     def __init__(self, scene: str = "empty", gripper_width: float = 0.07, ctrl_hz: float = 250.0, physics_hz: float = 250.0, render: bool = False,
                  usd: str | Path | None = None, isaac_env: str | Path | None = None, connect: str | Path | None = None, startup_timeout: float = 240.0,
-                 gui: bool = False, camera: bool = True, setup: str | None = None):
+                 gui: bool = False, camera: bool = True, setup: str | None = None, world=None):
         """Starts the Isaac server (one process per instance, through gpu-run) and connects. `connect` attaches to an already running server instead
         (tests). `isaac_env` is the script that activates Isaac's environment (default $ISAAC_ENV_SH, else ~/projects/sim/robosim/env.sh).
         `camera=True` (the default): the arm carries the ZED X Mini on its bracket and `camera_image()` renders from its left lens; `camera=False`: the robot only.
         `setup` (arm | arm_cam | go2) replaces `camera` when given: arm = robot only, arm_cam = with the camera, go2 = the full setup on the Go2 (nominal mount, scene "empty" only). In the go2 setup the arm alone is the
         robot, at the origin as always; the dog and the plate are STATIC objects around it: the planner's boxes (piper_assets.world("go2")) are the colliders, the Go2's meshes the visual, the ground is where its feet are.
+        `scene` ("empty" | "table") picks a built-in world (`piper_assets.scene_world`); `world` (a `piper_core.World`) replaces it with your own: the same description `PiperSim(world=...)` builds from
+        (ground height, static and free bodies with their friction and mass, meshes); fixed cameras are MuJoCo only and refused here. The robot, its gripper physics and camera are Studio's either way.
         `render=True` enables recording (`record_start`) and renders only at the video frame rate. `gui=True` opens the full editor and enables recording."""
         if setup is not None:
             if setup not in ("arm", "arm_cam", "go2"):
@@ -90,6 +93,13 @@ class PiperIsaacSim:
             camera = setup != "arm"
         if scene not in ("empty", "table"):
             raise ValueError("scene must be 'empty' or 'table'")
+        if world is not None and scene != "empty":
+            raise ValueError("give either `scene` or `world`, not both")
+        if world is None and setup != "go2":
+            world = piper_assets.scene_world(scene)
+        if world is not None and world.cameras:
+            raise ValueError("fixed cameras in a World are MuJoCo only; use the wrist camera or record_start here")
+        self.world, self.act, self.last_gripper = world, piper_assets.actuation(), None
         self.setup = setup
         self.limits_info = piper_assets.limits()
         if not 0.0 <= gripper_width <= self.limits_info.gripper_stroke:
@@ -122,22 +132,24 @@ class PiperIsaacSim:
         if not Path(env_sh).exists():
             raise FileNotFoundError(f"Isaac environment script {env_sh} not found (set ISAAC_ENV_SH)")
         self._dir = tempfile.mkdtemp(prefix="pisaac_")           # short path (unix socket limit), also the cwd: Isaac drops ucode.elf there
-        (Path(self._dir) / "scene.json").write_text(json.dumps(piper_assets.scene()))
+        (Path(self._dir) / "actuation.json").write_text(json.dumps(self.act))
+        if self.world is not None:
+            (Path(self._dir) / "world.json").write_text(self.world.to_json())
         sock, pid = os.path.join(self._dir, "s"), os.path.join(self._dir, "pid")
         home = str(Path.home())
         display_env = [f"{k}={os.environ[k]}" for k in ("DISPLAY", "XAUTHORITY") if k in os.environ] if self.gui else []
         cmd = ["env", "-i", f"HOME={home}", f"PATH=/usr/bin:/bin:{home}/.local/bin", f"PIPER_ISAAC_PIDFILE={pid}", *display_env, "bash", "-c", 'source "$0"; exec gpu-run "$@"', env_sh,
-               "python", str(runner_dir() / "run_server.py"), "--usd", str(usd), "--socket", sock, "--scene", self.scene, "--scene-json", os.path.join(self._dir, "scene.json"),
+               "python", str(runner_dir() / "run_server.py"), "--usd", str(usd), "--socket", sock, "--actuation", os.path.join(self._dir, "actuation.json"),
                "--zero", json.dumps(list(piper_assets.zero_pose())), "--gripper-width", str(self.gripper_width), "--ctrl-hz", str(self.ctrl_hz),
-               "--physics-hz", str(self.physics_hz)] + (["--render"] if render else []) + (["--gui"] if self.gui else [])
+               "--physics-hz", str(self.physics_hz)] + (["--render"] if render else []) + (["--gui"] if self.gui else []) + (["--world", os.path.join(self._dir, "world.json")] if self.world is not None else [])
         cmd += ["--camera", "zedxm", "--camera-pose", str(camera_pose_path())] if self.camera_enabled else ["--camera", "none"]
         if getattr(self, "setup", None) == "go2":
             mount = piper_assets.mount()
             boxes = [{"name": n, "size": b["dims"], "pos": b["pose"][:3], "quat": b["pose"][3:], "visible": n != "dog",             # the dog is drawn by its own USD; the plate and any payload box are drawn
                       "rgba": [0.55, 0.55, 0.55, 1.0] if n == "plate" else [0.9, 0.7, 0.2, 1.0]} for n, b in piper_assets.world("go2").items()]
             self._world_json_text, self._ground_z = json.dumps(boxes), float(mount["floor_z_in_arm_base"])      # (kept for the tests: what this server was told)
-            (Path(self._dir) / "world.json").write_text(self._world_json_text)
-            cmd += ["--world-json", os.path.join(self._dir, "world.json"), "--dog-usd", str(dog_usd_path()), "--dog-pose", json.dumps(mount["dog_in_arm_base"]),
+            (Path(self._dir) / "dog_boxes.json").write_text(self._world_json_text)
+            cmd += ["--world-json", os.path.join(self._dir, "dog_boxes.json"), "--dog-usd", str(dog_usd_path()), "--dog-pose", json.dumps(mount["dog_in_arm_base"]),
                     "--ground-z", str(mount["floor_z_in_arm_base"])]
         self._log = open(os.path.join(self._dir, "server.log"), "w")
         self._pidfile = pid
@@ -286,7 +298,11 @@ class PiperIsaacSim:
 
     def state(self) -> ArmState:
         r = self._rpc(cmd="state")
-        return ArmState(r["t"], np.array(r["q"]), np.array(r["dq"]), r["t"], float(r["gripper"]), math.nan)
+        return ArmState(r["t"], np.array(r["q"]), np.array(r["dq"]), r["t"], float(r["gripper"]), float(r["gripper_force"]))
+
+    def wait(self, seconds: float) -> None:
+        """Let `seconds` of simulation time pass holding every target (the arm holds its pose, the gripper its width and force): objects settle, a held object is carried."""
+        self._rpc(cmd="wait", seconds=float(seconds))
 
     def hold(self) -> None:
         self._rpc(cmd="hold")
@@ -308,15 +324,21 @@ class PiperIsaacSim:
         self._rpc(cmd="command", q=list(map(float, q)))
 
     def gripper_force(self) -> float:
-        """NaN: the simulated gripper has no force read-back (the real one does, about -2 N at 3 N commanded: docs/real_arm/arms/piper-01.md)."""
-        return math.nan
+        """The gripper's force in newtons, as the real one reads it: negative while it grips (about -2 N at 3 N commanded: the plateau in actuation.yaml)."""
+        return float(self._rpc(cmd="state")["gripper_force"])
 
-    def set_gripper(self, width: float, effort: float | None = None, timeout: float | None = None) -> float:
-        """Move the gripper to `width` (0 to the stroke) and wait until it has settled (at most `timeout`, default 2 s of simulation). `effort` is ignored. Returns the measured width."""
-        if not 0.0 <= width <= self.limits_info.gripper_stroke:
-            raise BackendError(f"gripper width {width} outside [0, {self.limits_info.gripper_stroke}]")
-        self._rpc(cmd="gripper", width=float(width), max_s=2.0 if timeout is None else float(timeout))
-        return self.gripper_opening()
+    def set_gripper(self, width: float, effort: float | None = None, timeout: float | None = None, speed: float | None = None) -> float:
+        """Move the gripper to `width` and block until it reached it, stopped short of it (an object or the end stop) or `timeout` (default 5 s of simulation): the same
+        end conditions, refusals, force law and gradual speed as the real arm and `PiperSim` (`piper_core.gripper`, run inside the server). Returns the measured width;
+        `last_gripper.reason` says how it ended (reached | stalled | no_motion | timeout). `speed` (m/s) slows the gradual move (default and ceiling: actuation.yaml `gripper.speed`)."""
+        effort, error = check_gripper_command(float(width), effort, self.limits_info.gripper_stroke, self.act["gripper"]["force_max"], GRIPPER_DEFAULT_EFFORT)
+        if error:
+            raise BackendError(error)
+        if speed is not None and not 0.0 < float(speed) <= self.act["gripper"]["speed"]:
+            raise BackendError(f"gripper speed {speed} m/s is outside (0, {self.act['gripper']['speed']}]")
+        r = self._rpc(cmd="gripper", width=float(width), effort=effort, max_s=5.0 if timeout is None else float(timeout), speed=None if speed is None else float(speed))
+        self.last_gripper = GripperResult(r["reason"], r["width"], r["force"], r["duration"], [tuple(t) for t in r["trace"]])
+        return self.last_gripper.width
 
     def move_to(self, q, duration: float | None = None) -> ExecResult:
         """A minimum-jerk move from the present pose to `q` (a convenience move, same as PiperSim's; planner trajectories go through execute())."""
@@ -328,8 +350,9 @@ class PiperIsaacSim:
         d = (q1 - q0)[None, :]
         return self.execute(Trajectory(list(ARM_JOINTS), t, q0 + pos[:, None] * d, vel[:, None] * d))
 
-    def execute(self, traj, *, margin_percent: float = 20.0, blocking: bool = True) -> ExecResult:
-        """Run a trajectory as given (see piper_core.backend). `margin_percent` is ignored: the setpoints go straight to the position drives."""
+    def execute(self, traj, *, margin_percent: float = 20.0, blocking: bool = True, settle_tolerance: float = SETTLE_TOL, settle_s: float = SETTLE_S) -> ExecResult:
+        """Run a trajectory as given (see piper_core.backend). `margin_percent` is ignored: the setpoints go straight to the position drives.
+        After the last setpoint the drives hold it until every joint is within `settle_tolerance` rad and still, at most `settle_s` seconds of simulation."""
         if not blocking:
             raise NotImplementedError("PiperIsaacSim.execute is blocking only")
         try:
@@ -362,7 +385,7 @@ class PiperIsaacSim:
             contacts += [(float(grid[a + s]), x, y, d) for s, x, y, d in r["contacts"]]
             measured = m[-1]
         goal, t_end = setpoints[-1], float(grid[-1])
-        r = self._rpc(cmd="settle", goal=goal.tolist(), tol=SETTLE_TOL, vel_tol=SETTLE_VEL, max_s=SETTLE_S)
+        r = self._rpc(cmd="settle", goal=goal.tolist(), tol=settle_tolerance, vel_tol=SETTLE_VEL, max_s=settle_s)
         for k, row in enumerate(r["q_meas"]):
             log_t.append(t_end + (k + 1) * self.ctrl_dt)
             log_c.append(goal.copy())

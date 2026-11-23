@@ -5,7 +5,7 @@
 
 Run `scripts/isaac.sh build-usd` first (it needs the ROS environment once, and Isaac) and `scripts/isaac.sh check` to verify the USD against the URDF.
 Writes into the package (git-ignored, built into the wheel by scripts/build_wheels.sh):
-  runner/        isaac/world.py, run_server.py, servo_gains.py (the Isaac-side files the client starts in Isaac's own environment)
+  runner/        isaac/world.py, run_server.py, servo_gains.py, gains.json, piper_gripper.py (the Isaac-side files the client starts in Isaac's own environment)
   data/usd/            the Piper USD with the ZED X Mini bracket and camera (the default; piper_isaac/piper_isaac.usda with its payloads and textures), prefix piper_
   data/usd_no_camera/  the robot only (piper_isaac_no_camera/piper_isaac_no_camera.usda)
   data/usd_go2_dog/    the DOG's visual for the Go2 setup (legs frozen at the stand pose, no physics; piper_isaac_go2_dog/piper_isaac_go2_dog.usda), only if `scripts/isaac.sh build-usd go2` was run.
@@ -26,7 +26,7 @@ import sys
 from pathlib import Path
 
 WS = Path(__file__).resolve().parents[2]
-RUNNER = ("world.py", "run_server.py", "servo_gains.py")
+RUNNER = ("world.py", "run_server.py", "servo_gains.py", "gains.json", "piper_gripper.py")      # piper_gripper.py is piper_core/gripper.py (a symlink in isaac/): stdlib only, shared with MuJoCo
 
 
 def main():

@@ -55,7 +55,7 @@ def firmware_values() -> dict:
 
 
 def apply_firmware(root: ET.Element, values: dict | None = None) -> ET.Element:
-    """Apply the firmware overrides to an official (unprefixed) URDF tree, in place: arm joint velocity and effort (SDK range), gripper stroke (fingers are +-stroke/2)."""
+    """Apply the firmware overrides to an official (unprefixed) URDF tree, in place: arm joint velocity and effort (SDK range), gripper stroke (fingers are +-stroke/2), gripper effort (the same on the two fingers)."""
     v = values or firmware_values()
     stroke = float(v["gripper_stroke"])
     for j in root.iter("joint"):
@@ -67,10 +67,15 @@ def apply_firmware(root: ET.Element, values: dict | None = None) -> ET.Element:
             lim.set("effort", str(v["arm_joint_max_effort"][int(name[-1]) - 1]))
         elif name == "gripper":
             lim.set("upper", str(stroke))
+            lim.set("effort", str(v["gripper_max_effort"]))
         elif name == "gripper_joint1":
             lim.set("upper", str(stroke / 2))
+            lim.set("effort", str(v["gripper_max_effort"]))
         elif name == "gripper_joint2":
             lim.set("lower", str(-stroke / 2))
+            lim.set("effort", str(v["gripper_max_effort"]))
+        # The gripper's velocity limit stays the vendor's placeholder (3): with the measured 0.25 m/s (config/firmware_values.yaml gripper_max_velocity) Gazebo's kinematic
+        # gripper fails test_7_gripper (a close ends at the opposite limit). The simulators that model the speed read it from actuation.yaml instead.
     return root
 
 

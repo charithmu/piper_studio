@@ -9,7 +9,7 @@ inside a method. Nothing Piper-specific is installed into Isaac's environment: t
 
     app = SimulationApp({...})
     world = World(app, usd, prefix="piper_", ctrl_hz=250, physics_hz=250, ground_z=-0.5)
-    world.add_scene(objects, table, dynamic=True)
+    world.add_world(piper_world_dict)          # a piper_core.World as a dict (bodies, ground, cameras): the same description MuJoCo builds from
     world.start(zero, gripper_width)
     world.set_targets(arm=q); world.step(); q = world.q()
 """
@@ -30,7 +30,7 @@ OBJECT_FRICTION = 1.0
 
 
 class World:
-    def __init__(self, app, usd, *, prefix="piper_", ctrl_hz=250.0, physics_hz=250.0, ground_z=0.0, contacts=False, camera=True):
+    def __init__(self, app, usd, *, prefix="piper_", ctrl_hz=250.0, physics_hz=250.0, ground_z=0.0, contacts=False, camera=True, actuation=None):
         import carb.settings
         import omni.usd
         import isaacsim.core.experimental.utils.stage as stage_utils
@@ -40,6 +40,7 @@ class World:
         if abs(physics_hz / ctrl_hz - round(physics_hz / ctrl_hz)) > 1e-9 or physics_hz < ctrl_hz:
             raise ValueError("physics_hz must be a whole multiple of ctrl_hz")
         self.app, self.prefix, self.ctrl_hz, self.physics_hz = app, prefix, float(ctrl_hz), float(physics_hz)
+        self.act = actuation or {}                          # piper_assets.actuation(): the gripper's speed, force plateau, pad friction (the same numbers MuJoCo uses)
         self.ctrl_dt = 1.0 / self.ctrl_hz
         self.steps = 0
         self.hooks = []                                     # called after every step with the world (video recording); `rendered` says whether this step drew a frame
@@ -54,6 +55,7 @@ class World:
 
         stage_utils.create_new_stage()
         self.stage = omni.usd.get_context().get_stage()
+        self.ground_z = float(ground_z)
         GroundPlane("/World/ground", positions=[0, 0, ground_z])
         DomeLight("/World/dome").set_intensities(2500)
         stage_utils.add_reference_to_stage(usd_path=str(usd), path="/World/piper")
@@ -73,7 +75,7 @@ class World:
         PhysxSchema.PhysxSceneAPI.Apply(scene.GetPrim()).CreateTimeStepsPerSecondAttr().Set(int(self.physics_hz))
 
         joints = {p.GetName(): p for p in self.stage.Traverse() if p.GetTypeName() in ("PhysicsRevoluteJoint", "PhysicsPrismaticJoint")}
-        GAINS = gains(camera)                                  # the servo table of the model that is loaded (with or without the wrist camera)
+        GAINS = gains(camera)                                  # the servo table of the model that is loaded (with or without the wrist camera), generated from actuation.yaml (tools/release/build_gains.py)
         missing = [prefix + n for n in GAINS if prefix + n not in joints]      # GAINS is keyed by the official joint names
         assert not missing, f"USD lacks joints {missing}; has {sorted(joints)}"
         for name, (kp, kd, fmax) in GAINS.items():
@@ -82,6 +84,8 @@ class World:
             drive.CreateStiffnessAttr().Set(float(kp))
             drive.CreateDampingAttr().Set(float(kd))
             drive.CreateMaxForceAttr().Set(float(fmax))
+
+        self._bind_pad_friction()
 
         # The real arm's firmware and the MuJoCo model compensate gravity; a bare PhysX PD drive would sag (about 9 mm at the TCP).
         self.arm_bodies = []
@@ -95,68 +99,153 @@ class World:
         if contacts:
             self._enable_report(p for p in self.arm_bodies)
 
-    # ------------------------------------------------------------------ scene
-    def add_scene(self, objects=(), table=None, *, dynamic=False):
-        """Objects as in piper_sim/config/scene_objects.yaml (name, shape box|cylinder, size, pos, rgba), in the base frame (= world).
-        dynamic=False: static colliders (the ROS runner). dynamic=True: free rigid bodies (mass 0.05 kg, friction 1.0), like the MuJoCo scene.
-        `table`: {size, top_z, pos_xy}: a static box whose top face is at top_z."""
-        from pxr import Gf, PhysxSchema, UsdGeom, UsdPhysics, UsdShade
+    # ------------------------------------------------------------------ the gripper's pads
+    def _bind_pad_friction(self):
+        """The fingers' collision shapes get the pad friction of actuation.yaml (the gripper is the robot's, so its friction is Studio's; MuJoCo's finger geoms carry the same number)."""
+        from pxr import PhysxSchema, UsdPhysics, UsdShade
 
-        mat = UsdShade.Material.Define(self.stage, "/World/scene_material")          # friction 1.0; the larger of the two bodies' values wins (as in MuJoCo)
+        pad = self.act.get("gripper", {}).get("pad_friction")
+        if pad is None:
+            return
+        mat = UsdShade.Material.Define(self.stage, "/World/pad_material")
         UsdPhysics.MaterialAPI.Apply(mat.GetPrim())
         m = UsdPhysics.MaterialAPI(mat.GetPrim())
-        m.CreateStaticFrictionAttr().Set(OBJECT_FRICTION)
-        m.CreateDynamicFrictionAttr().Set(OBJECT_FRICTION)
+        m.CreateStaticFrictionAttr().Set(float(pad[0]))
+        m.CreateDynamicFrictionAttr().Set(float(pad[0]))
         m.CreateRestitutionAttr().Set(0.0)
         PhysxSchema.PhysxMaterialAPI.Apply(mat.GetPrim()).CreateFrictionCombineModeAttr().Set("max")
+        from pxr import Usd
 
-        def bind(prim):
-            UsdShade.MaterialBindingAPI.Apply(prim).Bind(mat, UsdShade.Tokens.weakerThanDescendants, "physics")
+        fingers = [p for p in self.stage.Traverse() if p.GetPath().pathString.startswith("/World/piper") and p.GetName() in (f"{self.prefix}gripper_link1", f"{self.prefix}gripper_link2")]
+        assert len(fingers) == 2, f"expected the two finger links, found {[str(p.GetPath()) for p in fingers]}"
+        n = 0
+        for finger in fingers:               # the colliders sit in instanced prototypes below the link, where nothing can be authored: bind on the link, stronger than anything below it
+            UsdShade.MaterialBindingAPI.Apply(finger).Bind(mat, UsdShade.Tokens.strongerThanDescendants, "physics")
+            n += sum(1 for q in Usd.PrimRange(finger, Usd.TraverseInstanceProxies()) if q.HasAPI(UsdPhysics.CollisionAPI))
+        assert n >= 2, f"found {n} finger collision shapes under the two finger links"
+        self.pad_colliders = n
 
-        def geometry(path, o):
-            if o["shape"] == "box":
+    # ------------------------------------------------------------------ the world around the robot (piper_core.World)
+    def add_world(self, spec):
+        """Build a `piper_core.World` (as the dict `json.loads(World.to_json())` gives) into the stage: ground height, static and free bodies with their friction and mass, meshes
+        (convex hull collision, texture as a preview surface). The same description MuJoCo's `apply_world` builds from. Fixed cameras are not supported here: refused."""
+        from pxr import Gf, PhysxSchema, UsdGeom, UsdPhysics, UsdShade
+
+        if spec.get("cameras"):
+            raise ValueError("fixed cameras in a World are MuJoCo only; this simulator's pictures are the wrist camera's and the recorder's")
+        materials = {}
+
+        def friction_material(friction):
+            key = float(friction[0])
+            if key not in materials:
+                mat = UsdShade.Material.Define(self.stage, f"/World/materials/mu_{len(materials)}")
+                UsdPhysics.MaterialAPI.Apply(mat.GetPrim())
+                m = UsdPhysics.MaterialAPI(mat.GetPrim())
+                m.CreateStaticFrictionAttr().Set(key)
+                m.CreateDynamicFrictionAttr().Set(key)
+                m.CreateRestitutionAttr().Set(0.0)
+                PhysxSchema.PhysxMaterialAPI.Apply(mat.GetPrim()).CreateFrictionCombineModeAttr().Set("max")      # the larger of the two surfaces wins, as in MuJoCo
+                materials[key] = mat
+            return materials[key]
+
+        def shape(path, b):
+            """The collider/visual prim of a body, placed relative to its parent; returns (prim, scale op or None)."""
+            if b["shape"] == "box":
                 g = UsdGeom.Cube.Define(self.stage, path)
                 g.GetSizeAttr().Set(1.0)
-                return g, Gf.Vec3f(*o["size"])
-            g = UsdGeom.Cylinder.Define(self.stage, path)           # [radius, height], axis z
-            g.GetRadiusAttr().Set(float(o["size"][0]))
-            g.GetHeightAttr().Set(float(o["size"][1]))
-            return g, None
+                return g, Gf.Vec3f(*b["size"])
+            if b["shape"] == "cylinder":
+                g = UsdGeom.Cylinder.Define(self.stage, path)           # [radius, height], axis z
+                g.GetRadiusAttr().Set(float(b["size"][0]))
+                g.GetHeightAttr().Set(float(b["size"][1]))
+                return g, None
+            if b["shape"] == "sphere":
+                g = UsdGeom.Sphere.Define(self.stage, path)
+                g.GetRadiusAttr().Set(float(b["size"][0]))
+                return g, None
+            return self._mesh_prim(path, b), None
 
+        if spec.get("ground_z") is not None and abs(self.ground_z - spec["ground_z"]) > 1e-9:
+            raise ValueError("the World's ground_z differs from the ground this World object was created with: pass ground_z=spec['ground_z'] to World(...)")
+        for b in spec["bodies"]:
+            path = f"/World/scene/{b['name']}"
+            pos, quat = Gf.Vec3d(*b["pos"]), Gf.Quatd(*b["quat"])
+            if b["static"]:
+                g, scale = shape(path, b)
+                g.AddTranslateOp().Set(pos)
+                g.AddOrientOp(UsdGeom.XformOp.PrecisionDouble).Set(quat)
+                if scale is not None:
+                    g.AddScaleOp().Set(scale)
+                collider = g
+            else:
+                body = UsdGeom.Xform.Define(self.stage, path)           # rigid body on the parent, the (scaled) collider on a child
+                body.AddTranslateOp().Set(pos)
+                body.AddOrientOp(UsdGeom.XformOp.PrecisionDouble).Set(quat)
+                UsdPhysics.RigidBodyAPI.Apply(body.GetPrim())
+                UsdPhysics.MassAPI.Apply(body.GetPrim()).CreateMassAttr().Set(float(b["mass"]))
+                g, scale = shape(path + "/geom", b)
+                if scale is not None:
+                    g.AddScaleOp().Set(scale)
+                collider = g
+            UsdPhysics.CollisionAPI.Apply(collider.GetPrim())
+            UsdShade.MaterialBindingAPI.Apply(collider.GetPrim()).Bind(friction_material(b["friction"]), UsdShade.Tokens.weakerThanDescendants, "physics")
+            if b["shape"] != "mesh" or not b.get("texture"):
+                collider.GetDisplayColorAttr().Set([Gf.Vec3f(*b["rgba"][:3])])
+            if not b["static"]:
+                self.objects[b["name"]] = (path, np.array(b["pos"], float), np.array(b["quat"], float))
+            else:
+                self.static_bodies = getattr(self, "static_bodies", {})
+                self.static_bodies[b["name"]] = path
+        if self.contacts:
+            self._enable_report([self.stage.GetPrimAtPath(p) for p, _, _ in self.objects.values()] + [self.stage.GetPrimAtPath(p) for p in getattr(self, "static_bodies", {}).values()])
+        self.app.update()
+
+    def _mesh_prim(self, path, b):
+        """A mesh file as a USD mesh with a convex-hull collider (and its texture as a preview surface when the file has UVs)."""
+        import trimesh
+        from pxr import Gf, Sdf, UsdGeom, UsdPhysics, UsdShade, Vt
+
+        m = trimesh.load(b["mesh"], force="mesh", process=False)
+        scale = float(b["size"][0]) if b.get("size") else 1.0
+        g = UsdGeom.Mesh.Define(self.stage, path)
+        g.GetPointsAttr().Set(Vt.Vec3fArray.FromNumpy((np.asarray(m.vertices, float) * scale).astype(np.float32)))
+        g.GetFaceVertexCountsAttr().Set(Vt.IntArray.FromNumpy(np.full(len(m.faces), 3, dtype=np.int32)))
+        g.GetFaceVertexIndicesAttr().Set(Vt.IntArray.FromNumpy(np.asarray(m.faces, dtype=np.int32).reshape(-1)))
+        g.GetSubdivisionSchemeAttr().Set("none")
+        UsdPhysics.MeshCollisionAPI.Apply(g.GetPrim()).CreateApproximationAttr().Set("convexHull")
+        uv = getattr(m.visual, "uv", None)
+        if b.get("texture") and uv is not None and len(uv) == len(m.vertices):
+            st = UsdGeom.PrimvarsAPI(g).CreatePrimvar("st", Sdf.ValueTypeNames.TexCoord2fArray, UsdGeom.Tokens.vertex)
+            st.Set(Vt.Vec2fArray.FromNumpy(np.asarray(uv, np.float32)))
+            mat = UsdShade.Material.Define(self.stage, f"{path}_visual")
+            shader = UsdShade.Shader.Define(self.stage, f"{path}_visual/surface")
+            shader.CreateIdAttr("UsdPreviewSurface")
+            tex = UsdShade.Shader.Define(self.stage, f"{path}_visual/texture")
+            tex.CreateIdAttr("UsdUVTexture")
+            tex.CreateInput("file", Sdf.ValueTypeNames.Asset).Set(Sdf.AssetPath(str(b["texture"])))
+            reader = UsdShade.Shader.Define(self.stage, f"{path}_visual/st")
+            reader.CreateIdAttr("UsdPrimvarReader_float2")
+            reader.CreateInput("varname", Sdf.ValueTypeNames.Token).Set("st")
+            tex.CreateInput("st", Sdf.ValueTypeNames.Float2).ConnectToSource(reader.ConnectableAPI(), "result")
+            shader.CreateInput("diffuseColor", Sdf.ValueTypeNames.Color3f).ConnectToSource(tex.ConnectableAPI(), "rgb")
+            shader.CreateInput("roughness", Sdf.ValueTypeNames.Float).Set(0.8)
+            mat.CreateSurfaceOutput().ConnectToSource(shader.ConnectableAPI(), "surface")
+            UsdShade.MaterialBindingAPI.Apply(g.GetPrim()).Bind(mat)
+        elif b.get("texture"):
+            raise ValueError(f"{b['name']}: the texture needs one UV per vertex in the mesh file (got {None if uv is None else len(uv)} for {len(m.vertices)} vertices)")
+        return g
+
+    def add_scene(self, objects=(), table=None, *, dynamic=False):
+        """The ROS runner's static scene (objects as in piper_sim/config/scene_objects.yaml; `table`: {size, top_z, pos_xy}) as a World: kept for isaac/run_piper.py."""
+        bodies = []
         if table:
             sx, sy, sz = table["size"]
-            g = UsdGeom.Cube.Define(self.stage, "/World/scene/table")
-            g.GetSizeAttr().Set(1.0)
-            g.AddTranslateOp().Set(Gf.Vec3d(table["pos_xy"][0], table["pos_xy"][1], table["top_z"] - sz / 2))
-            g.AddScaleOp().Set(Gf.Vec3f(sx, sy, sz))
-            g.GetDisplayColorAttr().Set([Gf.Vec3f(0.55, 0.45, 0.35)])
-            UsdPhysics.CollisionAPI.Apply(g.GetPrim())
-            bind(g.GetPrim())
-            self.table_path = "/World/scene/table"
+            bodies.append({"name": "table", "shape": "box", "size": [sx, sy, sz], "pos": [table["pos_xy"][0], table["pos_xy"][1], table["top_z"] - sz / 2], "quat": [1, 0, 0, 0],
+                           "rgba": [0.55, 0.45, 0.35, 1.0], "static": True, "mass": 0.05, "friction": [OBJECT_FRICTION, 0.005, 0.0001], "mesh": None, "texture": None})
         for o in objects:
-            path = f"/World/scene/{o['name']}"
-            if dynamic:
-                body = UsdGeom.Xform.Define(self.stage, path)       # rigid body on the parent, the (scaled) collider on a child
-                body.AddTranslateOp().Set(Gf.Vec3d(*o["pos"]))
-                UsdPhysics.RigidBodyAPI.Apply(body.GetPrim())
-                UsdPhysics.MassAPI.Apply(body.GetPrim()).CreateMassAttr().Set(OBJECT_MASS)
-                g, scale = geometry(path + "/geom", o)
-                if scale is not None:
-                    g.AddScaleOp().Set(scale)
-                UsdPhysics.CollisionAPI.Apply(g.GetPrim())
-                bind(g.GetPrim())
-            else:
-                g, scale = geometry(path, o)
-                g.AddTranslateOp().Set(Gf.Vec3d(*o["pos"]))
-                if scale is not None:
-                    g.AddScaleOp().Set(scale)
-                UsdPhysics.CollisionAPI.Apply(g.GetPrim())
-                bind(g.GetPrim())
-            g.GetDisplayColorAttr().Set([Gf.Vec3f(*o["rgba"][:3])])
-            self.objects[o["name"]] = (path, np.array(o["pos"], float), np.array([1.0, 0, 0, 0]))
-        if self.contacts:
-            self._enable_report([self.stage.GetPrimAtPath(p) for p, _, _ in self.objects.values()] + ([self.stage.GetPrimAtPath(self.table_path)] if getattr(self, 'table_path', None) else []))
-        self.app.update()
+            bodies.append({"name": o["name"], "shape": o["shape"], "size": list(o["size"]), "pos": list(o["pos"]), "quat": [1, 0, 0, 0], "rgba": list(o["rgba"]), "static": not dynamic,
+                           "mass": OBJECT_MASS, "friction": [OBJECT_FRICTION, 0.005, 0.0001], "mesh": None, "texture": None})
+        self.add_world({"bodies": bodies, "ground_z": None, "cameras": []})
 
     # ------------------------------------------------------------------ static world (the dog and the plate of the Go2 setup)
     def add_static_boxes(self, boxes):
@@ -299,6 +388,18 @@ class World:
         q, v = self.robot.get_dof_positions().numpy()[0], self.robot.get_dof_velocities().numpy()[0]
         a, b = self.i_fingers
         return float(q[a] - q[b]), float(v[a] - v[b])
+
+    def gripper_force(self):
+        """The gripper's force in N as the real one reads it: negative while it grips. Each finger's joint force along its motion axis (the drive's push, which the object's contact
+        balances), finger 1 closing towards negative and finger 2 towards positive, averaged."""
+        e = self.robot.get_dof_projected_joint_forces().numpy()[0]
+        a, b = self.i_fingers
+        return float((e[a] - e[b]) / 2.0)
+
+    def set_gripper_force_limit(self, newtons):
+        """The most force each finger's drive may apply (the commanded effort, up to the gripper's plateau): `PhysxDrive maxForce`, set on both fingers."""
+        efforts = np.full((1, len(self.i_fingers)), float(newtons), dtype=np.float32)
+        self.robot.set_dof_max_efforts(efforts, dof_indices=self.i_fingers)
 
     def object_poses(self):
         """{name: (position (3,), quaternion wxyz (4,))} in the base frame (= world)."""

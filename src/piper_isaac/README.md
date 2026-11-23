@@ -25,7 +25,7 @@ not reported (self-collision is off in the USD). `margin_percent` is accepted an
 
 Rates: the defaults are `ctrl_hz=250, physics_hz=250`: a PhysX step costs about 2 ms whatever its size, so this runs at real time on this machine (500/1000 Hz, `PiperSim`'s rates, runs at 0.3x) with the same accuracy (0.021 rad on the parity plan). The guard's step limit (0.15 rad) is per control step, so it is looser per step at 250 Hz. Pass `ctrl_hz=500, physics_hz=1000` to match `PiperSim`.
 
-Full editor for testing: `python -m piper_isaac --gui --scene table` opens an interactive prompt with `sim`; Ctrl-D stops the server.
+Full editor for testing: `python -m piper_isaac --gui --scene table      # or PiperIsaacSim(world=piper_core.World(...)): the same world MuJoCo builds` opens an interactive prompt with `sim`; Ctrl-D stops the server.
 From Python, pass `gui=True` to `PiperIsaacSim` (headless remains the default). GUI mode also enables `record_start(path)`.
 The editor renders while idle without advancing physics. The launcher forwards `DISPLAY` and `XAUTHORITY`; use a display with NVIDIA graphics support.
 Headless recording uses `render=True`: frames render only at the requested video fps and encoding runs on a bounded worker queue.
@@ -38,3 +38,9 @@ Why not one USD with the dog as part of the robot: links of the arm's own articu
 Checked on the GPU (`scripts/isaac.sh check-go2`): the dog's visual lies inside the planner's box and on the ground; an arm motion into the dog is stopped by the box (joint 2 stops at 1.23 rad of a commanded 3.05) and the contact is reported as `(gripper_link2, dog)` with a penetration of 0.1 mm; the arm reaches `ready`; the camera renders.
 Build: `scripts/isaac.sh build-usd go2` (the dog's visual, 13 s), `tools/release/build_isaac.py` (puts it in the wheel). `scripts/isaac.sh run` does not take the Go2 setup yet. No walking dog: that is go2_studio's part.
 **Mount:** plate 45 mm (touch measurement) and the arm base on the Go2 base z axis, x = y = 0 (user, 2026-11-13; the rest is estimate). The text below was written for the 36 mm plate. The arm's base stands 3 mm above the dog's box (the model's buffer is 2 mm), so the first `start()` is exact (0.00000, identical to the arm alone). An earlier 30 mm estimate overlapped the box by 1 mm: the start was 1.5 mrad off and a trajectory from the measured state was rejected by the joint-3 guard margin.
+
+
+## The world and the gripper (0.12)
+`PiperIsaacSim(world=World(...))` takes the same `piper_core.World` as `PiperSim` (boxes, cylinders, spheres, convex-hull meshes with textures, friction, mass, ground height); fixed cameras are MuJoCo only. The gripper's move runs inside the server with the
+same code as MuJoCo (`piper_core/gripper.py`, `isaac/piper_gripper.py` is a link to it): gradual close at 0.25 m/s, `effort` honoured up to the real plateau, force read back (negative while gripping), `last_gripper` as on the real arm. The drives' gains and force limits
+come from `isaac/gains.json`, derived from the MuJoCo model that `config/actuation.yaml` makes (`tools/release/build_gains.py`). GPU parity test: `PIPER_TEST_ISAAC=1 gpu-run python -m pytest src/piper_isaac/test/test_gripper_world_parity.py -s`.

@@ -89,11 +89,11 @@ def test_official_model_plus_firmware_values(tmp_path):
             want[4] = FIRMWARE["arm_joint_max_velocity"]
             want[3] = FIRMWARE["arm_joint_max_effort"][ARM.index(name)]
         if name == "gripper":
-            want[2] = stroke
+            want[2], want[3] = stroke, FIRMWARE["gripper_max_effort"]
         elif name == "gripper_joint1":
-            want[2] = stroke / 2
+            want[2], want[3] = stroke / 2, FIRMWARE["gripper_max_effort"]
         elif name == "gripper_joint2":
-            want[1] = -stroke / 2
+            want[1], want[3] = -stroke / 2, FIRMWARE["gripper_max_effort"]
         assert [o.type, o.lower, o.upper, o.effort, o.velocity, o.mimic] == want, name
     assert ours.masses == ref.masses
     q = dict(zip(ARM, [0.3, 1.2, -1.0, 0.4, -0.5, 0.7]))

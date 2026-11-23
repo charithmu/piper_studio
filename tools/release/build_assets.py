@@ -8,6 +8,7 @@ Writes, for downstream users that have no ROS (`pip install piper_assets`):
   piper_{none,zedxm}_open.urdf          the same with the moving gripper (mimic fingers); `piper_assets.urdf_path(width)` makes other widths from it
   piper_{none,zedxm}.srdf               the expanded SRDF (self-collision pairs)
   meshes/<package>/...                 every mesh the URDFs use (visual .dae and collision .stl), referenced by relative paths
+  actuation.json                       the simulators' model of arm and gripper (config/actuation.yaml + firmware values)
   limits.json                          position (hard and planning), velocity, acceleration, jerk, effort, each with its source
   scene.json                           the shared scene objects and the placeholder table
   camera_mounts/*.yaml                 the bracket versions (poses)
@@ -158,6 +159,9 @@ def main():
         "max_step": 0.15,
     }
     (out / "limits.json").write_text(json.dumps(limits, indent=1))
+
+    from piper_description import actuation
+    (out / "actuation.json").write_text(json.dumps(actuation(), indent=1))        # config/actuation.yaml completed from the firmware values: what MuJoCo and Isaac are made from
 
     scene = yaml.safe_load((WS / "src/piper_sim/config/scene_objects.yaml").read_text())
     (out / "scene.json").write_text(json.dumps({"frame": "base_link", **scene}, indent=1))
